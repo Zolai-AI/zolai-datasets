@@ -5,9 +5,8 @@ Adds: dialect, pos, category, language_level, source_type
 Run: python3 enrich_master_dataset.py
 """
 import json
-from pathlib import Path
 from collections import Counter
-import re
+from pathlib import Path
 
 DATA = Path(__file__).parent / "data"
 TRAIN_FILE = DATA / "training/master_train_complete.jsonl"
@@ -74,9 +73,7 @@ def estimate_language_level(text):
     words = text.split()
     avg_word_len = sum(len(w) for w in words) / len(words) if words else 0
     
-    if len(words) < 5:
-        return "A1"
-    elif avg_word_len < 4:
+    if len(words) < 5 or avg_word_len < 4:
         return "A1"
     elif avg_word_len < 5:
         return "A2"
@@ -149,7 +146,7 @@ try:
 except Exception as e:
     log(f"ERROR: {e}")
 
-log(f"\n[2/2] STATISTICS...\n")
+log("\n[2/2] STATISTICS...\n")
 
 log(f"Total records: {stats['total']:,}")
 log(f"Enriched: {stats['enriched']:,}\n")
@@ -175,13 +172,13 @@ log("✅ ENRICHMENT COMPLETE")
 log("="*80)
 log(f"\nGenerated: {OUTPUT_FILE.name}")
 log(f"Records enriched: {stats['enriched']:,}")
-log(f"\nNew fields added:")
-log(f"  • dialect - Tedim/Zokam")
-log(f"  • source_type - religious/news/reference/etc")
-log(f"  • language_level - A1/A2/B1/B2/C1/C2")
-log(f"  • pos - noun/verb/adverb/phrase")
+log("\nNew fields added:")
+log("  • dialect - Tedim/Zokam")
+log("  • source_type - religious/news/reference/etc")
+log("  • language_level - A1/A2/B1/B2/C1/C2")
+log("  • pos - noun/verb/adverb/phrase")
 log("="*80 + "\n")
 
-print(f"\n✅ Enrichment complete!")
-print(f"Output: data/training/master_train_enriched.jsonl")
-print(f"Log: data/training/enrich_master.log")
+print("\n✅ Enrichment complete!")
+print("Output: data/training/master_train_enriched.jsonl")
+print("Log: data/training/enrich_master.log")

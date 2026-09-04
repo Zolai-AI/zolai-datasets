@@ -8,9 +8,9 @@ Tests 100+ translation pairs for Zolai Standard correctness.
 
 import asyncio
 import json
-from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 
 PROJECT_ROOT = Path('/home/peter/Documents/Projects/zolai')
 WIKI_DIR = PROJECT_ROOT / 'wiki'
@@ -115,7 +115,7 @@ REASON: [brief explanation]"""
             self.errors.append("Gemini Web API not installed")
             return None
         except Exception as e:
-            self.errors.append(f"Error validating '{en}': {str(e)}")
+            self.errors.append(f"Error validating '{en}': {e!s}")
             return None
     
     async def run_validation(self, batch_size=5):

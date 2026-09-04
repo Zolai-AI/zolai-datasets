@@ -11,12 +11,12 @@ COMBINED = Path("data/master/combined")
 SRC  = COMBINED / "sentences.jsonl"
 TMP  = COMBINED / "sentences_clean.jsonl"
 
-PACKED    = re.compile(r"^Continue the sentence naturally in Zolai\s+[\"\u201c\u2018]?", re.I)
+PACKED    = re.compile(r"^Continue the sentence naturally in Zolai\s+[\"\u201c\u2018]?", re.IGNORECASE)
 BURMESE   = re.compile(r"[\u1000-\u109F]")
-GERMAN    = re.compile(r"\b(und|der|die|das|ist|ein|eine|nicht|mit|von|zu)\b", re.I)
-ENGLISH   = re.compile(r"\b(the|is|are|was|were|have|has|this|that|with|from|they|their|will|would|could|should)\b", re.I)
-LCEA      = re.compile(r"^###\s*Instruction:", re.I)
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.I)
+GERMAN    = re.compile(r"\b(und|der|die|das|ist|ein|eine|nicht|mit|von|zu)\b", re.IGNORECASE)
+ENGLISH   = re.compile(r"\b(the|is|are|was|were|have|has|this|that|with|from|they|their|will|would|could|should)\b", re.IGNORECASE)
+LCEA      = re.compile(r"^###\s*Instruction:", re.IGNORECASE)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.IGNORECASE)
 BAD_SRC   = {"luther1912","judson1835","bible_kjv","bible_fcl","bible_hcl06","bible_judson","bible_hcl","kaggle_v2"}
 
 def md5(s: str) -> str:

@@ -19,7 +19,7 @@ def convert_to_text_format(obj):
     return None
 
 def consolidate_all():
-    base = Path(str(Path(__file__).resolve().parents[2]) + "/data/training')
+    base = Path(str(Path(__file__).resolve().parents[2]) + "/data/training")
     
     # All potential sources
     sources = [
@@ -101,7 +101,7 @@ def consolidate_all():
     val = all_records[train_size:train_size + val_size]
     test = all_records[train_size + val_size:]
     
-    print(f"\nSplitting:")
+    print("\nSplitting:")
     print(f"  Train: {len(train):,}")
     print(f"  Val: {len(val):,}")
     print(f"  Test: {len(test):,}")

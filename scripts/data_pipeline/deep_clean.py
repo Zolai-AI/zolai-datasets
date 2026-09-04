@@ -15,7 +15,7 @@ def c(v):   return " ".join(str(v or "").split()).strip()
 # ── 1. SENTENCES: remove too_long, has_url, html_tags, numbers_only, too_short
 print("[1/4] Cleaning sentences.jsonl...", flush=True)
 URL  = re.compile(r"https?://\S+")
-HTML = re.compile(r"<[a-z][^>]*>", re.I)
+HTML = re.compile(r"<[a-z][^>]*>", re.IGNORECASE)
 NUM  = re.compile(r"^[\d\s\.\,\:\;\-\/\(\)]+$")
 seen_s: set[str] = set()
 kept=removed=0
@@ -43,7 +43,7 @@ print(f"  kept={kept:,}  removed={removed:,}", flush=True)
 
 # ── 2. PARALLEL: remove zo==en, zolai_in_english field, double spaces
 print("[2/4] Cleaning parallel.jsonl...", flush=True)
-ZO_IN_EN = re.compile(r"\b(pasian|gam|topa|ahi|leh|kei|pai|hi)\b", re.I)
+ZO_IN_EN = re.compile(r"\b(pasian|gam|topa|ahi|leh|kei|pai|hi)\b", re.IGNORECASE)
 seen_p: set[str] = set()
 kept2=removed2=0
 with (COMBINED/"parallel.jsonl").open(encoding="utf-8") as fin, \

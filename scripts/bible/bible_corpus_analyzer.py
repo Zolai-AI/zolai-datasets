@@ -7,9 +7,9 @@ Analyzes Bible parallel corpus to extract verified word usage patterns and conte
 
 import json
 import re
-from pathlib import Path
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from datetime import datetime
+from pathlib import Path
 
 PROJECT_ROOT = Path('/home/peter/Documents/Projects/zolai')
 PARALLEL_DIR = PROJECT_ROOT / 'data' / 'parallel'
@@ -114,7 +114,7 @@ class BibleCorpusAnalyzer:
         print("\nChecking for known errors...")
         
         # Check for 'Pasian in ka it hi' (wrong)
-        for verb, examples in self.verb_usage.items():
+        for examples in self.verb_usage.values():
             for ex in examples:
                 if 'Pasian in ka' in ex['zolai'] and 'it' in ex['zolai']:
                     self.errors_found.append({
@@ -130,14 +130,14 @@ class BibleCorpusAnalyzer:
     
     def build_verb_reference(self):
         """Build verb reference wiki file"""
-        content = """# Bible Corpus - Verb Usage Reference
+        content = f"""# Bible Corpus - Verb Usage Reference
 
-**Generated:** {timestamp}
+**Generated:** {datetime.now().isoformat()}
 **Source:** Bible parallel corpus (TDB77 ↔ KJV)
 
 ## Verb Patterns
 
-""".format(timestamp=datetime.now().isoformat())
+"""
         
         for verb, examples in sorted(self.verb_usage.items()):
             if not examples:
@@ -169,13 +169,13 @@ class BibleCorpusAnalyzer:
     
     def build_directional_reference(self):
         """Build directional particle reference"""
-        content = """# Bible Corpus - Directional Particles
+        content = f"""# Bible Corpus - Directional Particles
 
-**Generated:** {timestamp}
+**Generated:** {datetime.now().isoformat()}
 
 ## Directional Particle Usage
 
-""".format(timestamp=datetime.now().isoformat())
+"""
         
         for directional, examples in sorted(self.directional_usage.items()):
             if not examples:
@@ -227,7 +227,7 @@ class BibleCorpusAnalyzer:
         ARTIFACTS_DIR.mkdir(exist_ok=True)
         summary_file.write_text(json.dumps(summary, indent=2, ensure_ascii=False))
         
-        print(f"\nSummary:")
+        print("\nSummary:")
         print(f"  Verbs: {summary['verbs_analyzed']}")
         print(f"  Directionals: {summary['directionals_analyzed']}")
         print(f"  Agreement patterns: {summary['agreement_patterns']}")

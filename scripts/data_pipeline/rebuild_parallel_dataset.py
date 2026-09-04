@@ -60,8 +60,7 @@ def make_instruction(zolai: str, english: str, version: str, ref: str) -> dict:
 def write_jsonl(path: Path, records: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        for r in records:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
 
 
 def main() -> int:

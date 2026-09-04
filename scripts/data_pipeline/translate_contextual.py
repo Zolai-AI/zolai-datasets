@@ -1,5 +1,5 @@
 import sqlite3
-import re
+
 
 class ZVSTranslator:
     def __init__(self, db_path="data/dictionary/db/zvs_master_dictionary.db"):
@@ -23,7 +23,7 @@ class ZVSTranslator:
         conn.close()
         
         if row:
-            headword, pos, raw_json = row
+            _headword, _pos, raw_json = row
             data = json.loads(raw_json)
             # Apply Register Logic
             return self._format_output(data, register)

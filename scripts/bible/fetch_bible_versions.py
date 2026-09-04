@@ -98,7 +98,7 @@ def fetch_bible_com(version_id: int, abbrev: str, book: str) -> dict[str, str]:
             # Extract verse text from HTML
             # Pattern: digit followed by verse text
             # Find the main content area
-            content = re.search(r'<div[^>]*class="[^"]*reader[^"]*"[^>]*>(.*?)</div>', text, re.S)
+            content = re.search(r'<div[^>]*class="[^"]*reader[^"]*"[^>]*>(.*?)</div>', text, re.DOTALL)
             if not content:
                 # Try extracting verse numbers and text directly
                 verse_matches = re.findall(r'(\d+)([A-Z\u1000-\u109F][^<\d]{5,}?)(?=\d|$)', text)
@@ -126,7 +126,7 @@ print("\nFetching TBR17 (2017) from bible.com...", flush=True)
 print("Using YouVersion API endpoint...", flush=True)
 
 tbr17_verses: dict[str, str] = {}
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.I)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.IGNORECASE)
 
 # YouVersion has a public API
 API = "https://www.bible.com/api/bible/version/4189/books/{book}/chapters/{ch}/verses"

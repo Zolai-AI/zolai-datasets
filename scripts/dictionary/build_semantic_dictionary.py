@@ -281,7 +281,7 @@ for i, r in enumerate(records):
     # Infer related from root family (shared 4-char prefix)
     if len(zo) >= 4:
         root = zo[:4].lower()
-        for other_zo, other_r in zo_to_rec.items():
+        for other_zo in zo_to_rec:
             if other_zo != zo and other_zo.lower().startswith(root):
                 if other_zo not in rels and len(rels) < 6:
                     rels.append(other_zo)

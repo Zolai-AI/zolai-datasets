@@ -314,8 +314,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Save gaps log
     with open(GAPS_LOG, "w", encoding="utf-8") as f:
-        for g in all_gaps:
-            f.write(json.dumps(g, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(g, ensure_ascii=False) + "\n" for g in all_gaps)
 
     conn.close()
 

@@ -3,10 +3,10 @@
 Build Master Dataset - COMPLETE (Training + Dictionary + Parallel + Corpus)
 Run: python3 build_master_dataset_complete.py
 """
-import json
-from pathlib import Path
-from datetime import datetime
 import hashlib
+import json
+from datetime import datetime
+from pathlib import Path
 
 DATA = Path(__file__).parent / "data"
 LOG = DATA / "training/build_master_complete.log"
@@ -127,23 +127,23 @@ manifest = {
 
 with open(DATA / "training/master_unified_manifest_complete.json", "w") as f:
     json.dump(manifest, f, indent=2)
-log(f"  ✓ master_unified_manifest_complete.json")
+log("  ✓ master_unified_manifest_complete.json")
 
 # Summary
 log("\n" + "="*80)
 log("✅ MASTER DATASET GENERATION COMPLETE")
 log("="*80)
-log(f"\nGenerated files:")
+log("\nGenerated files:")
 log(f"  • master_unified_all_complete.jsonl    {len(records):>12,} records")
 log(f"  • master_train_complete.jsonl          {train_n:>12,} records (80%)")
 log(f"  • master_val_complete.jsonl            {val_n:>12,} records (10%)")
 log(f"  • master_test_complete.jsonl           {test_n:>12,} records (10%)")
-log(f"  • master_unified_manifest_complete.json")
-log(f"\nStatistics:")
+log("  • master_unified_manifest_complete.json")
+log("\nStatistics:")
 log(f"  • Deduplication: {100*duplicates/total:.1f}% removed")
 log(f"  • Total size: {size:.1f}MB")
-log(f"  • Option: Complete (All files)")
+log("  • Option: Complete (All files)")
 log("="*80 + "\n")
 
 print("\n✅ COMPLETE!")
-print(f"Log: data/training/build_master_complete.log")
+print("Log: data/training/build_master_complete.log")

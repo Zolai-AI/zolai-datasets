@@ -1,0 +1,9 @@
+exclude = [
+    "scripts/data_pipeline/merge_final_dataset.py",
+    "scripts/data_pipeline/unify_all_corpus.py",
+    "scripts/data_pipeline/process_zolai_batch.py",
+    "scripts/dictionary/process_dictionary_batch_v2.py",
+]
+
+[lint.per-file-ignores]
+"scripts/**" = ["E722", "S110", "S112", "BLE001", "SIM115", "DTZ005", "EXE001", "EXE002", "PLW1510", "SIM102", "SIM103", "SIM117", "F821", "F601", "F841", "I001", "PERF102"]

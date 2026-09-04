@@ -24,7 +24,7 @@ ROOT     = Path(__file__).parent.parent
 SOURCES  = ROOT / "data/master/sources"
 BUILD_ID = "zXrCQfcOj340LrPTrtSpQ"
 
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.I)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.IGNORECASE)
 
 VERSIONS = {
     "TDB_online":  {"id": 368,  "abbrev": "TDB",   "file": "bible_tdb_online.jsonl"},
@@ -72,7 +72,7 @@ def parse_verses(html: str, ch: int) -> dict[str, str]:
     verses: dict[str, str] = {}
     for m in re.finditer(
         r'data-usfm="[A-Z0-9]+\.(\d+)\.(\d+)"[^>]*>.*?<span class="content">(.*?)</span>',
-        html, re.S,
+        html, re.DOTALL,
     ):
         text = re.sub(r"<[^>]+>", "", m.group(3))
         text = c(text)

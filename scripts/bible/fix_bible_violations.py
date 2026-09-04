@@ -17,11 +17,11 @@ DATA = Path("data/master/sources")
 FILES = ["bible_tb77_online.jsonl", "bible_tbr17.jsonl", "bible_tdb_online.jsonl"]
 
 # lo leh → kei leh (conditional negation)
-COND_NEG = re.compile(r'\blo\s+leh\b', re.I)
+COND_NEG = re.compile(r'\blo\s+leh\b', re.IGNORECASE)
 
 # i <verb> uh → i <verb>  (plural violation: drop uh after inclusive i)
 # Pattern: 'i' followed by 1-3 words then 'uh'
-PLURAL_VIO = re.compile(r'\b(i\s+(?:\w+\s+){0,3}?)uh\b', re.I)
+PLURAL_VIO = re.compile(r'\b(i\s+(?:\w+\s+){0,3}?)uh\b', re.IGNORECASE)
 
 
 def fix_text(text: str) -> tuple[str, list[str]]:

@@ -18,7 +18,7 @@ PROGRESS = ROOT / "data/master/sources/bible_tbr17_progress.json"
 BUILD_ID = "zXrCQfcOj340LrPTrtSpQ"
 BASE_URL = f"https://www.bible.com/_next/data/{BUILD_ID}/en/bible/4189"
 
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.I)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.IGNORECASE)
 
 BOOKS = {
     "GEN":50,"EXO":40,"LEV":27,"NUM":36,"DEU":34,"JOS":24,"JDG":21,"RUT":4,
@@ -60,14 +60,14 @@ def parse_verses(html_content: str, book: str, ch: int) -> dict[str, str]:
     verses: dict[str, str] = {}
     for m in re.finditer(
         r'<span[^>]+data-usfm="([^"]+)"[^>]*>(.*?)</span>\s*(?=<span[^>]+(?:data-usfm|class="verse)|</div>|$)',
-        html_content, re.S,
+        html_content, re.DOTALL,
     ):
         usfm_val = m.group(1)
         ch_match = re.search(r"\.(\d+)\.", usfm_val)
         if not ch_match or int(ch_match.group(1)) != ch:
             continue
-        inner = re.sub(r'<span class="note[^"]*">.*?</span>', "", m.group(2), flags=re.S)
-        parts = re.findall(r'<span[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)</span>', inner, re.S)
+        inner = re.sub(r'<span class="note[^"]*">.*?</span>', "", m.group(2), flags=re.DOTALL)
+        parts = re.findall(r'<span[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)</span>', inner, re.DOTALL)
         text = " ".join(re.sub(r"<[^>]+>", "", p).strip() for p in parts if p.strip())
         text = c(text.replace("&#8217;", "'").replace("&#8220;", '"').replace("&#8221;", '"').replace("&#8216;", "'"))
         if not text or len(text) <= 3:

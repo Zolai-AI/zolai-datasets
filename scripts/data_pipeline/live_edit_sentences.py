@@ -24,7 +24,7 @@ STEM_FIXES = [
     (re.compile(r"\bpiangna\b"), "pian'na"),
     (re.compile(r"\bkipanna\b"), "kipatna"),
 ]
-PLURAL_FIX = re.compile(r"\b(i\s+\w+)\s+uh\b", re.I)
+PLURAL_FIX = re.compile(r"\b(i\s+\w+)\s+uh\b", re.IGNORECASE)
 CONTRACTS  = [
     (re.compile(r"\bahi hi\b"), "ahi hi"),
     (re.compile(r"\buh hi\b"),  "uh hi"),
@@ -32,8 +32,8 @@ CONTRACTS  = [
     (re.compile(r"\bcihi\b"),  "ci hi"),
     (re.compile(r"\bhihi\b"),  "hi hi"),
 ]
-DIALECT = re.compile(r"\b(pasian|topa|kumpipa|nunnak)\b|(?<!\w)(tua\b|tua\b)", re.I)
-EXPLAIN = re.compile(r"(never use|do not use|forbidden|incorrect|wrong|avoid)", re.I)
+DIALECT = re.compile(r"\b(pasian|topa|kumpipa|nunnak)\b|(?<!\w)(tua\b|tua\b)", re.IGNORECASE)
+EXPLAIN = re.compile(r"(never use|do not use|forbidden|incorrect|wrong|avoid)", re.IGNORECASE)
 DBLSPC  = re.compile(r"  +")
 
 def md5(s): return hashlib.md5(s.encode()).hexdigest()

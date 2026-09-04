@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Loading {args.book} verses...", end=" ", flush=True)
     verses = load_verses(args.book)
-    chapters = [args.chapter] if args.chapter else sorted(set(v["chapter"] for v in verses))
+    chapters = [args.chapter] if args.chapter else sorted({v["chapter"] for v in verses})
     print(f"{len(verses)} verses, {len(chapters)} chapters")
 
     if args.save:
@@ -116,8 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.save:
             out = OUT_DIR / f"{args.book.lower()}_ch{ch:03d}_vocab.jsonl"
             with open(out, "w", encoding="utf-8") as f:
-                for v in vocab:
-                    f.write(json.dumps(v, ensure_ascii=False) + "\n")
+                f.writelines(json.dumps(v, ensure_ascii=False) + "\n" for v in vocab)
             print(f"  → saved {out}")
 
     return 0

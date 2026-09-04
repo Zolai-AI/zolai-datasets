@@ -1,11 +1,12 @@
 from __future__ import annotations
+
+import hashlib
 import json
 import sqlite3
-from pathlib import Path
+import sys
 from collections import defaultdict
 from datetime import datetime
-import hashlib
-import sys
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data" / "processed" / "rebuild_v3"
@@ -227,7 +228,7 @@ def merge_entries(en_zo: dict, extracted: dict) -> dict:
     merged = en_zo.copy()
     added = 0
     
-    for key, entry in extracted.items():
+    for entry in extracted.values():
         if isinstance(entry, dict) and "en" in entry and "zo" in entry:
             en = entry["en"]
             if en not in merged:
@@ -296,15 +297,13 @@ def export_jsonl(en_zo: dict, zo_en: dict) -> None:
     
     # EN→ZO
     with open(DATA_DIR / "dictionary_en_zo_v3.jsonl", "w", encoding="utf-8") as f:
-        for en, entry in en_zo.items():
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for en, entry in en_zo.items())
     
     # ZO→EN
     with open(DATA_DIR / "dictionary_zo_en_v3.jsonl", "w", encoding="utf-8") as f:
-        for zo, en_list in zo_en.items():
-            f.write(json.dumps({"zo": zo, "en": en_list}, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps({"zo": zo, "en": en_list}, ensure_ascii=False) + "\n" for zo, en_list in zo_en.items())
     
-    log_msg(f"Exported to JSONL files")
+    log_msg("Exported to JSONL files")
 
 def main() -> int:
     log_msg("=== DICTIONARY EXPANSION V3 ===")

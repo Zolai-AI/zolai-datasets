@@ -318,7 +318,7 @@ def main() -> int:
                 "source": "crossref_bible",
                 "reference": ref,
                 "en_verse": en_verse[:120],
-                "zo_verse": list(zo_verses.values())[0][:120],
+                "zo_verse": next(iter(zo_verses.values()))[:120],
                 "accuracy": 0.55,
             }
             resolved.append(entry)
@@ -334,8 +334,7 @@ def main() -> int:
 
     # Save outputs
     with open(OUT_RESOLVED, "w", encoding="utf-8") as f:
-        for e in resolved:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in resolved)
 
     with open(OUT_STILL_MISSING, "w", encoding="utf-8") as f:
         for g in still_missing:

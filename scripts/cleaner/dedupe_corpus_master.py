@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-input_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_v1.jsonl')
-output_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_deduped.jsonl')
+input_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_v1.jsonl")
+output_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_deduped.jsonl")
 
 seen = set()
 kept = 0
@@ -37,7 +37,7 @@ with open(input_file, 'r') as fin, open(output_file, 'w') as fout:
         except Exception as e:
             errors += 1
 
-print(f"\nFinal:")
+print("\nFinal:")
 print(f"  Kept: {kept:,}")
 print(f"  Duplicates: {duplicates:,}")
 print(f"  Errors: {errors:,}")

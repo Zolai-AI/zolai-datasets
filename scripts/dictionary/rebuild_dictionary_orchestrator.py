@@ -7,16 +7,15 @@ Complete EN↔ZO bidirectional dictionary system with parallel agents, deep lear
 from __future__ import annotations
 
 import json
-import sys
-import time
-import hashlib
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from collections import defaultdict
-from typing import Generator
 import subprocess
+import sys
 import threading
+import time
+from collections import defaultdict
+from collections.abc import Generator
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 # ============================================================================
 # CONFIGURATION & PATHS
@@ -127,7 +126,7 @@ class Heartbeat:
     def beat(self, phase: str, msg: str, **kwargs):
         """Log heartbeat with timestamp."""
         elapsed = time.time() - self.start_time
-        timestamp = datetime.now().isoformat()
+        datetime.now().isoformat()
         
         with self.lock:
             line = f"[{elapsed:8.1f}s] [{phase:20s}] {msg}"
@@ -333,7 +332,7 @@ def phase_4_audit(en_to_zo: dict, zo_to_en: dict, bible_vocab: dict) -> AuditRep
     
     # Identify gaps (Bible words not in dictionary)
     gaps = []
-    for zo_word in bible_vocab.keys():
+    for zo_word in bible_vocab:
         if zo_word not in zo_to_en:
             gaps.append(zo_word)
     
@@ -387,7 +386,7 @@ def phase_5_write_output(en_to_zo: dict, zo_to_en: dict):
             }
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     
-    hb.beat("PHASE_5", f"Wrote EN→ZO", file=str(FINAL_EN_ZO), entries=len(en_to_zo))
+    hb.beat("PHASE_5", "Wrote EN→ZO", file=str(FINAL_EN_ZO), entries=len(en_to_zo))
     
     # ZO→EN
     with open(FINAL_ZO_EN, "w", encoding="utf-8") as f:
@@ -400,7 +399,7 @@ def phase_5_write_output(en_to_zo: dict, zo_to_en: dict):
             }
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     
-    hb.beat("PHASE_5", f"Wrote ZO→EN", file=str(FINAL_ZO_EN), entries=len(zo_to_en))
+    hb.beat("PHASE_5", "Wrote ZO→EN", file=str(FINAL_ZO_EN), entries=len(zo_to_en))
     
     mem = Memory(
         timestamp=datetime.now().isoformat(),
@@ -437,7 +436,7 @@ def phase_6_seed_nextjs():
         else:
             hb.beat("PHASE_6", f"Seeding failed: {result.stderr}")
     except Exception as e:
-        hb.beat("PHASE_6", f"Seeding error: {str(e)}")
+        hb.beat("PHASE_6", f"Seeding error: {e!s}")
 
 
 # ============================================================================
@@ -478,7 +477,7 @@ def main() -> int:
         return 0
     
     except Exception as e:
-        hb.beat("MAIN", f"❌ ERROR: {str(e)}")
+        hb.beat("MAIN", f"❌ ERROR: {e!s}")
         import traceback
         traceback.print_exc()
         return 1

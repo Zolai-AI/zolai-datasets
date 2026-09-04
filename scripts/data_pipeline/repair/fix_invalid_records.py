@@ -94,8 +94,7 @@ with open(INPUT_FILE, "r") as f:
 
 # Save
 with open(OUTPUT_FILE, "w") as f:
-    for r in fixed_records:
-        f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in fixed_records)
 
 log(f"\n{'='*80}")
 log(f"Total processed: {stats['total']}")

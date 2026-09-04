@@ -26,9 +26,10 @@ Output schema per entry:
 }
 """
 
-import json, re
-from pathlib import Path
+import json
+import re
 from collections import Counter, defaultdict
+from pathlib import Path
 
 DATA = Path(str(Path(__file__).resolve().parents[2]) + "/data")
 OUT  = DATA / "dictionary/processed/dict_corpus_v1.jsonl"
@@ -232,7 +233,7 @@ has_examples = sum(1 for e in entries.values() if e['examples'])
 has_related  = sum(1 for e in entries.values() if e['related'])
 has_translation = sum(1 for e in entries.values() if not e['english'].startswith('[untranslated'))
 
-print(f"\nCoverage:")
+print("\nCoverage:")
 print(f"  With translation:  {has_translation:,} ({has_translation/written*100:.1f}%)")
 print(f"  With synonyms:     {has_synonyms:,}")
 print(f"  With antonyms:     {has_antonyms:,}")
@@ -240,5 +241,6 @@ print(f"  With examples:     {has_examples:,}")
 print(f"  With related:      {has_related:,}")
 
 import subprocess
+
 sz = subprocess.check_output(['du','-sh', str(OUT)]).decode().split()[0]
 print(f"  File size: {sz}")

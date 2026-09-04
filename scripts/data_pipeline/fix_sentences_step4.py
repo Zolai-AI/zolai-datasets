@@ -9,10 +9,10 @@ from pathlib import Path
 
 COMBINED = Path("data/master/combined/sentences.jsonl")
 BURMESE  = re.compile(r"[\u1000-\u109F]")
-GERMAN   = re.compile(r"\b(und|der|die|das|ist|ein|eine|nicht|mit|von|zu)\b", re.I)
-ENGLISH  = re.compile(r"\b(the|is|are|was|were|have|has|this|that|with|from|they|their|will|would|could|should)\b", re.I)
-FORBIDDEN= re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.I)
-TEDIM    = re.compile(r"\b(pasian|gam|topa|tapa|kumpipa|ahi|khi|leh|nang|kei|amah|bang|cih|pai|piang|sak|zong|pen|ding|khin|ngei|hih|tua|hi|ka|na|in|om|nei|ne)\b", re.I)
+GERMAN   = re.compile(r"\b(und|der|die|das|ist|ein|eine|nicht|mit|von|zu)\b", re.IGNORECASE)
+ENGLISH  = re.compile(r"\b(the|is|are|was|were|have|has|this|that|with|from|they|their|will|would|could|should)\b", re.IGNORECASE)
+FORBIDDEN= re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.IGNORECASE)
+TEDIM    = re.compile(r"\b(pasian|gam|topa|tapa|kumpipa|ahi|khi|leh|nang|kei|amah|bang|cih|pai|piang|sak|zong|pen|ding|khin|ngei|hih|tua|hi|ka|na|in|om|nei|ne)\b", re.IGNORECASE)
 
 cats: Counter = Counter()
 sources: Counter = Counter()

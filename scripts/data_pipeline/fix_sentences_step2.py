@@ -10,10 +10,10 @@ from pathlib import Path
 COMBINED = Path("data/master/combined")
 SRC      = COMBINED / "sentences.jsonl"   # original (still has lcea)
 INST_OUT = COMBINED / "instructions.jsonl"
-LCEA     = re.compile(r"^###\s*Instruction:\s*", re.I)
-SPLIT    = re.compile(r"###\s*(?:Instruction|Input|Response):\s*\n?", re.I)
-TR       = re.compile(r"translat", re.I)
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.I)
+LCEA     = re.compile(r"^###\s*Instruction:\s*", re.IGNORECASE)
+SPLIT    = re.compile(r"###\s*(?:Instruction|Input|Response):\s*\n?", re.IGNORECASE)
+TR       = re.compile(r"translat", re.IGNORECASE)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa|falam|hakha|mizo|lushei)\b|(?<!\w)(tua|tua)(?!\w)", re.IGNORECASE)
 
 def md5(s: str) -> str:
     return hashlib.md5(s.encode()).hexdigest()

@@ -243,8 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         # Save vocab JSONL
         out_path = OUT_VOCAB / f"{args.book.lower()}_ch{ch:03d}_vocab.jsonl"
         with open(out_path, "w", encoding="utf-8") as f:
-            for row in vocab_rows:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in vocab_rows)
 
         if not unknown:
             print("  ✅ No gaps!")

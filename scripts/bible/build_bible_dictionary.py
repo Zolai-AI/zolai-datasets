@@ -16,9 +16,11 @@ Strategy — corpus-driven, no hardcoded pairs:
 7. Zolai Standard corrections: TDB77-only words that have a Tedim2010 equivalent
 """
 
-import json, re, glob
+import glob
+import json
+import re
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict, Counter
 
 DIALECT = "tedim"
 SOURCE  = "Bible-Parallel-Corpus"
@@ -34,7 +36,6 @@ DIALECT_CORRECTIONS = {
     "topa":       "topa",
     "kumpipa": "pasian",
     "tua":           "tua",
-    "tua":          "tua",
 }
 
 # Zolai Standard negation usage notes (corpus-verified)
@@ -68,11 +69,11 @@ KEEP_SHORT = {"lo","kei","om","mu","pa","nu","ci"}
 def parse_file(path):
     """Yield (ref, zo_tdm, zo_tdb, en) from a parallel markdown file."""
     ref_pat  = re.compile(r'\*\*(\d+:\d+)\*\*')
-    tdm_pat  = re.compile(r'^Tedim2010:\s*(.+)', re.I)
-    tdb_pat  = re.compile(r'^TDB77:\s*(.+)', re.I)
-    kjv_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+    tdm_pat  = re.compile(r'^Tedim2010:\s*(.+)', re.IGNORECASE)
+    tdb_pat  = re.compile(r'^TDB77:\s*(.+)', re.IGNORECASE)
+    kjv_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
     # Also handle Tedim_Chin, HCL06, FCL variants
-    alt_pat  = re.compile(r'^(?:Tedim_Chin|HCL06|FCL):\s*(.+)', re.I)
+    alt_pat  = re.compile(r'^(?:Tedim_Chin|HCL06|FCL):\s*(.+)', re.IGNORECASE)
 
     ref = ""
     zo_tdm = zo_tdb = en = ""
@@ -146,7 +147,7 @@ def study_corpus(bible_dir):
 
     print(f"Studying {len(seen)} Bible books...")
 
-    for fname, fpath in seen.items():
+    for fpath in seen.values():
         book = re.sub(r'_(?:TDB77|Tedim_Chin|HCL06|FCL)?_?Parallel$', '', Path(fpath).stem)
 
         for ref, zo_verse, tdb_verse, en_verse in parse_file(fpath):
@@ -208,7 +209,7 @@ def infer_relations(zo_en, zo_zo, zo_neg, book_count, total_verses):
             en_to_zo[top_en].append((zo, en_counter.most_common(1)[0][1]))
 
     synonyms = defaultdict(list)
-    for en, zo_list in en_to_zo.items():
+    for zo_list in en_to_zo.values():
         strong = [(zo, cnt) for zo, cnt in zo_list if cnt > 10]
         if len(strong) > 1:
             strong.sort(key=lambda x: -x[1])
@@ -221,8 +222,8 @@ def infer_relations(zo_en, zo_zo, zo_neg, book_count, total_verses):
 
     # Filter: words appearing in >50% of all verses are too common to be "related"
     # They co-occur with everything — not meaningful
-    high_freq_threshold = total_verses * 0.50
-    high_freq = {w for w, books in book_count.items()
+    total_verses * 0.50
+    {w for w, books in book_count.items()
                  if sum(1 for _ in books) > 0  # placeholder — use zo_zo total
                 }
     # Better: use raw co-occurrence count as proxy for frequency
@@ -344,8 +345,7 @@ def main():
     entries = build_entries(zo_en, zo_zo, zo_neg, zo_examples, tdb_to_tdm, book_count, total_verses)
 
     with open(out_zo_en, "w", encoding="utf-8") as f:
-        for e in entries:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
     print(f"Wrote {len(entries)} ZO→EN entries → {out_zo_en}")
 
     # EN→ZO reverse index

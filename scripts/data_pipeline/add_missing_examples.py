@@ -7,9 +7,10 @@ Sources (in priority order):
 Picks shortest clear sentence (5-15 words) containing the word.
 """
 
-import json, re, glob
+import glob
+import json
+import re
 from pathlib import Path
-from collections import defaultdict
 
 MASTER  = "data/dictionary/processed/dict_master_v1.jsonl"
 CORPUS  = "data/corpus/corpus_unified_v1.jsonl"
@@ -18,8 +19,8 @@ BIBLE_DIRS = [
     "data/corpus/bible/markdown/Parallel_Corpus/Tedim_Chin",
 ]
 
-zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.I)
-en_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.IGNORECASE)
+en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
 ref_pat = re.compile(r'\*\*(\d+:\d+)\*\*')
 
 def tokenize(text):

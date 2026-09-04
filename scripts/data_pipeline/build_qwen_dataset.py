@@ -119,9 +119,7 @@ def is_bad_assistant(text: str) -> bool:
         return True
     if _EN_ONLY.match(t) and len(t) < 30:
         return True
-    if _CRAWL_NOISE.search(t):
-        return True
-    return False
+    return bool(_CRAWL_NOISE.search(t))
 
 def chatml(user: str, assistant: str) -> str:
     return (
@@ -200,8 +198,7 @@ CONVERTERS = {
 
 def write_jsonl(rows: list[str], path: Path) -> None:
     with open(path, "w", encoding="utf-8") as f:
-        for text in rows:
-            f.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps({"text": text}, ensure_ascii=False) + "\n" for text in rows)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 

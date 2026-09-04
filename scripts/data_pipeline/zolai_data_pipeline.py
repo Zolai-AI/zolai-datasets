@@ -52,7 +52,7 @@ def build_master():
             hw_clean = hw.lower().replace("/a", "").strip()
             if hw_clean not in master:
                 master[hw_clean] = {"translations": set(), "pos": set(), "sources": set(), "explanation": ""}
-            pos_match = re.match(r'^([a-z]{1,4}\.?)\s+(.*)', raw_zo, re.I)
+            pos_match = re.match(r'^([a-z]{1,4}\.?)\s+(.*)', raw_zo, re.IGNORECASE)
             if pos_match:
                 master[hw_clean]["pos"].add(pos_match.group(1).lower().replace(".", ""))
                 content = pos_match.group(2)
@@ -66,9 +66,9 @@ def build_master():
     for hw in sorted(master.keys()):
         final_dict[hw] = {
             "headword": hw,
-            "translations": sorted(list(master[hw]["translations"])),
-            "pos": sorted(list(master[hw]["pos"])),
-            "sources": sorted(list(master[hw]["sources"])),
+            "translations": sorted(master[hw]["translations"]),
+            "pos": sorted(master[hw]["pos"]),
+            "sources": sorted(master[hw]["sources"]),
             "explanation": master[hw]["explanation"]
         }
 
@@ -133,8 +133,7 @@ def generate_lexicon_md():
             md.write(f"### {cat}\n")
             md.write("| English | Zo_Tdm | Status | Notes |\n")
             md.write("|---------|--------|--------|-------|\n")
-            for i in items:
-                md.write(f"| {i['eng']} | {i['zo']} | {i['status']} | {i['notes']} |\n")
+            md.writelines(f"| {i['eng']} | {i['zo']} | {i['status']} | {i['notes']} |\n" for i in items)
             md.write("\n")
     print(f"Generated {output_path}.")
 

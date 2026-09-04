@@ -10,9 +10,12 @@ All-in-one pipeline:
 7. Update wiki memory files
 """
 
-import json, re, shutil
+import json
+import re
+import shutil
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict, Counter
+
 
 # ── 1. Copy NAH ────────────────────────────────────────────────────────────────
 def fix_nah():
@@ -226,8 +229,8 @@ def cefr_tag(word, entry):
 def generate_instructions(limit=50000):
     """Generate instruction pairs directly from Bible parallel files."""
     instructions = []
-    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.I)
-    en_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.IGNORECASE)
+    en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
     ref_pat = re.compile(r'\*\*(\d+:\d+)\*\*')
 
     bible_dir = Path("data/corpus/bible/markdown/Parallel_Corpus/TDB77")
@@ -330,13 +333,12 @@ def main():
     instructions = generate_instructions(limit=50000)
     out_inst = Path("data/training/instructions_bible_v1.jsonl")
     with open(out_inst, "w", encoding="utf-8") as f:
-        for inst in instructions:
-            f.write(json.dumps(inst, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(inst, ensure_ascii=False) + "\n" for inst in instructions)
     print(f"  Saved {len(instructions)} instruction pairs → {out_inst}")
 
     # 6. CEFR stats
     cefr_counts = Counter(e.get("cefr","?") for e in master.values())
-    print(f"\n── CEFR distribution ──")
+    print("\n── CEFR distribution ──")
     for level in ["A1","A2","B1","B2","C1","C2"]:
         print(f"  {level}: {cefr_counts.get(level,0)}")
 

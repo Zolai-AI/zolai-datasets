@@ -247,8 +247,7 @@ def read_jsonl(path: Path) -> list[dict]:
 
 def write_jsonl(rows: list[dict], path: Path) -> None:
     with open(path, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
 
 
 def dedup(rows: list[dict]) -> list[dict]:

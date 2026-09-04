@@ -47,9 +47,9 @@ SUFFIXES = [
     "pihna","pih","na","te","ah","in","un","a",
 ]
 
-FORBIDDEN = re.compile(r"\b(pathian|bawipa|siangpahrang|fapa)\b|(?<!\w)(cu|cun)(?!\w)", re.I)
-COND_NEG  = re.compile(r"\blo\s+leh\b", re.I)
-PLURAL_VIO = re.compile(r"\bi\b.{0,30}\buh\b", re.I)
+FORBIDDEN = re.compile(r"\b(pathian|bawipa|siangpahrang|fapa)\b|(?<!\w)(cu|cun)(?!\w)", re.IGNORECASE)
+COND_NEG  = re.compile(r"\blo\s+leh\b", re.IGNORECASE)
+PLURAL_VIO = re.compile(r"\bi\b.{0,30}\buh\b", re.IGNORECASE)
 HTML_ENT  = re.compile(r"&#\d+;|&amp;|&quot;|&lt;|&gt;")
 
 
@@ -244,7 +244,7 @@ def process_book(
     if not refs:
         return {"book": book, "verses": 0, "gaps": 0, "resolved": 0, "flags": 0}
 
-    chapters = sorted(set(int(r.split(".")[1].split(":")[0]) for r in refs))
+    chapters = sorted({int(r.split(".")[1].split(":")[0]) for r in refs})
     OUT_VOCAB.mkdir(parents=True, exist_ok=True)
 
     all_gaps: list[dict] = []
@@ -325,8 +325,7 @@ def process_book(
         if vocab_rows:
             out = OUT_VOCAB / f"{book.lower()}_ch{ch:03d}_vocab.jsonl"
             with open(out, "w", encoding="utf-8") as f:
-                for row in vocab_rows:
-                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                f.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in vocab_rows)
 
         known_count = sum(1 for r in vocab_rows if r["in_dictionary"])
         pct = known_count * 100 // len(vocab_rows) if vocab_rows else 0
@@ -337,14 +336,12 @@ def process_book(
 
     # Append to global outputs
     with open(RESOLVED_OUT, "a", encoding="utf-8") as f:
-        for e in all_resolved:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in all_resolved)
     with open(GAPS_OUT, "a", encoding="utf-8") as f:
         for g in all_gaps:
             f.write(json.dumps(g, ensure_ascii=False) + "\n")
     with open(FLAGS_OUT, "a", encoding="utf-8") as f:
-        for fl in all_flags:
-            f.write(json.dumps(fl, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(fl, ensure_ascii=False) + "\n" for fl in all_flags)
 
     return {
         "book": book, "verses": len(refs),

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Extract vocabulary with context and usage from all 66 Bible books."""
 from __future__ import annotations
+
+import json
 import os
-import json, time, re, requests
-from pathlib import Path
+import re
+import time
 from datetime import datetime
+from pathlib import Path
+
+import requests
 
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
 GROQ_KEY = os.getenv("GROQ_API_KEY", "")
@@ -163,7 +168,7 @@ def main():
             
             try:
                 data, provider = call_api(chunk_text)
-                print(f" saving...", end="", flush=True)
+                print(" saving...", end="", flush=True)
                 items = save_results(book_name, chunk_idx, data)
                 total_items += items
                 

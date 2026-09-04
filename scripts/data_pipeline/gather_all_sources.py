@@ -15,7 +15,9 @@ Unified output schema:
 }
 """
 
-import json, re, os
+import json
+import os
+import re
 from pathlib import Path
 
 ROOT    = Path(__file__).resolve().parents[2]
@@ -29,11 +31,9 @@ def is_noise(text: str) -> bool:
     if not text or len(text.strip()) < 3:
         return True
     t = text.strip()
-    if t.startswith("###") or t.startswith("[INST]") or t.startswith("<s>"):
+    if t.startswith(("###", "[INST]", "<s>")):
         return True
-    if t.startswith("<!DOCTYPE") or t.startswith("<html"):
-        return True
-    return False
+    return bool(t.startswith(("<!DOCTYPE", "<html")))
 
 written = 0
 skipped = 0
@@ -132,7 +132,7 @@ with open(OUT, "w") as out:
         fpath = texts_path / fname
         if fname in skip_texts or fpath.is_dir():
             continue
-        if not (fname.endswith(".md") or fname.endswith(".txt")):
+        if not (fname.endswith((".md", ".txt"))):
             continue
         if fname == "zolai_sinna_raw.txt":
             continue  # HTML dump, not usable
@@ -144,7 +144,7 @@ with open(OUT, "w") as out:
         for para in re.split(r'\n{2,}', text):
             para = para.strip()
             # Skip markdown headers, code blocks, table rows
-            if para.startswith("#") or para.startswith("|") or para.startswith("```"):
+            if para.startswith(("#", "|", "```")):
                 continue
             if is_noise(para):
                 continue
@@ -161,7 +161,7 @@ with open(OUT, "w") as out:
                 continue
             for para in re.split(r'\n{2,}', text):
                 para = para.strip()
-                if para.startswith("#") or para.startswith("|") or is_noise(para):
+                if para.startswith(("#", "|")) or is_noise(para):
                     continue
                 emit(out, rec(zo=para, source="zokam_bible",
                               dialect="Zokam", ref=fpath.name))
@@ -428,6 +428,7 @@ print(f"Skipped : {skipped:,}")
 print(f"Output  : {OUT}")
 
 from collections import Counter
+
 sources = Counter()
 types   = Counter()
 dialects = Counter()
@@ -453,5 +454,6 @@ for k, v in dialects.most_common():
     print(f"  {v:>10,}  {k}")
 
 import subprocess
+
 sz = subprocess.check_output(["du", "-sh", str(OUT)]).decode().split()[0]
 print(f"\nFile size: {sz}")

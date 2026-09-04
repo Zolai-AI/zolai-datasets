@@ -2,10 +2,10 @@
 """Automated system fixer - fixes all issues and cleans git history."""
 
 import json
-import subprocess
 import re
+import subprocess
 from pathlib import Path
-from typing import Dict, List
+
 
 class AutomatedSystemFixer:
     """Automatically fixes all detected issues."""
@@ -15,7 +15,7 @@ class AutomatedSystemFixer:
         self.fixes_applied = []
         self.errors = []
     
-    def fix_wiki_examples(self) -> Dict:
+    def fix_wiki_examples(self) -> dict:
         """Fix wiki examples for Zolai Standard compliance."""
         print("🔧 Fixing Wiki Examples...")
         
@@ -28,7 +28,6 @@ class AutomatedSystemFixer:
             "tapa": "tapa",
             "topa": "topa",
             "kumpipa": "kumpipa",
-            "tua": "tua",
             "tua": "tua"
         }
         
@@ -59,11 +58,11 @@ class AutomatedSystemFixer:
                     fixed_count += 1
                     self.fixes_applied.append(f"Fixed: {md_file.relative_to(self.project_root)}")
             except Exception as e:
-                self.errors.append(f"Error fixing {md_file}: {str(e)}")
+                self.errors.append(f"Error fixing {md_file}: {e!s}")
         
         return {"status": "✅ COMPLETE", "files_fixed": fixed_count}
     
-    def fix_readme_examples(self) -> Dict:
+    def fix_readme_examples(self) -> dict:
         """Fix README examples."""
         print("🔧 Fixing README Examples...")
         
@@ -98,10 +97,10 @@ class AutomatedSystemFixer:
             
             return {"status": "✅ ALREADY COMPLIANT"}
         except Exception as e:
-            self.errors.append(f"Error fixing README: {str(e)}")
-            return {"status": f"❌ ERROR: {str(e)}"}
+            self.errors.append(f"Error fixing README: {e!s}")
+            return {"status": f"❌ ERROR: {e!s}"}
     
-    def remove_sensitive_files(self) -> Dict:
+    def remove_sensitive_files(self) -> dict:
         """Remove sensitive files from working directory."""
         print("🔐 Removing Sensitive Files...")
         
@@ -126,11 +125,11 @@ class AutomatedSystemFixer:
                     removed_count += 1
                     self.fixes_applied.append(f"Removed: {file_pattern}")
                 except Exception as e:
-                    self.errors.append(f"Error removing {file_pattern}: {str(e)}")
+                    self.errors.append(f"Error removing {file_pattern}: {e!s}")
         
         return {"status": "✅ COMPLETE", "files_removed": removed_count}
     
-    def update_gitignore(self) -> Dict:
+    def update_gitignore(self) -> dict:
         """Ensure .gitignore is comprehensive."""
         print("🔒 Updating .gitignore...")
         
@@ -172,10 +171,10 @@ class AutomatedSystemFixer:
             
             return {"status": "✅ ALREADY COMPLETE"}
         except Exception as e:
-            self.errors.append(f"Error updating .gitignore: {str(e)}")
-            return {"status": f"❌ ERROR: {str(e)}"}
+            self.errors.append(f"Error updating .gitignore: {e!s}")
+            return {"status": f"❌ ERROR: {e!s}"}
     
-    def clean_git_history(self) -> Dict:
+    def clean_git_history(self) -> dict:
         """Clean git history of sensitive files."""
         print("🧹 Cleaning Git History...")
         
@@ -192,7 +191,7 @@ class AutomatedSystemFixer:
             
             filter_cmd = f"git rm --cached --ignore-unmatch {' '.join(sensitive_files)}"
             
-            result = subprocess.run(
+            subprocess.run(
                 [
                     "git", "filter-branch", "--force", "--index-filter",
                     filter_cmd,
@@ -226,10 +225,10 @@ class AutomatedSystemFixer:
             self.fixes_applied.append("Cleaned: Git history")
             return {"status": "✅ CLEANED"}
         except Exception as e:
-            self.errors.append(f"Error cleaning git history: {str(e)}")
-            return {"status": f"❌ ERROR: {str(e)}"}
+            self.errors.append(f"Error cleaning git history: {e!s}")
+            return {"status": f"❌ ERROR: {e!s}"}
     
-    def commit_and_push(self) -> Dict:
+    def commit_and_push(self) -> dict:
         """Commit all fixes and push."""
         print("📤 Committing and Pushing...")
         
@@ -262,10 +261,10 @@ class AutomatedSystemFixer:
             else:
                 return {"status": "ℹ️ NO CHANGES TO COMMIT"}
         except Exception as e:
-            self.errors.append(f"Error committing: {str(e)}")
-            return {"status": f"❌ ERROR: {str(e)}"}
+            self.errors.append(f"Error committing: {e!s}")
+            return {"status": f"❌ ERROR: {e!s}"}
     
-    def generate_report(self) -> Dict:
+    def generate_report(self) -> dict:
         """Generate fix report."""
         report = {
             "timestamp": str(Path.cwd()),
@@ -285,7 +284,7 @@ class AutomatedSystemFixer:
         
         return report
     
-    def display_summary(self, report: Dict):
+    def display_summary(self, report: dict):
         """Display fix summary."""
         print("\n" + "="*70)
         print("🔧 AUTOMATED SYSTEM FIXER REPORT")

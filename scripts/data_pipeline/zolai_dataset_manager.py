@@ -38,8 +38,7 @@ class DatasetManager:
     def export_unified(self, data, filename="unified_corpus.jsonl"):
         output = self.root / filename
         with open(output, "w", encoding="utf-8") as f:
-            for item in data:
-                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in data)
         print(f"Exported to {output}")
 
 if __name__ == "__main__":

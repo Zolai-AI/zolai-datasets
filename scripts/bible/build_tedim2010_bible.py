@@ -45,7 +45,6 @@ def parse_parallel_file(path: Path) -> list[dict]:
         return []
 
     # Detect current chapter
-    chapter = 1
     entries = []
     # Split into verse blocks by **ch:v** markers
     blocks = re.split(r'\*\*(\d+:\d+)\*\*', text)
@@ -90,8 +89,7 @@ def main() -> int:
     with open(OUT, "w", encoding="utf-8") as f:
         for path in files:
             entries = parse_parallel_file(path)
-            for e in entries:
-                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
             total += len(entries)
             if len(entries) == 0:
                 gaps += 1

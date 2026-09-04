@@ -16,9 +16,9 @@ def parse_tbr17_html(html: str, book: str, chapter: int) -> dict[str, str]:
     html = re.sub(r'#[A-Z][a-zA-Z0-9\s:;,\.]+(?=\s*\d|\s*[A-Z\u1000]|$)', '', html)
 
     # Find the main chapter text block — between chapter heading and "Currently Selected"
-    main = re.search(r'# PIANCILNA \d+\s*\n(.*?)Currently Selected:', html, re.S | re.I)
+    main = re.search(r'# PIANCILNA \d+\s*\n(.*?)Currently Selected:', html, re.DOTALL | re.IGNORECASE)
     if not main:
-        main = re.search(r'TBR17\s*\n.*?# PIANCILNA \d+\s*\n(.*?)Currently Selected:', html, re.S | re.I)
+        main = re.search(r'TBR17\s*\n.*?# PIANCILNA \d+\s*\n(.*?)Currently Selected:', html, re.DOTALL | re.IGNORECASE)
     if not main:
         return verses
 
@@ -28,7 +28,7 @@ def parse_tbr17_html(html: str, book: str, chapter: int) -> dict[str, str]:
 
     # Extract verses: number followed by text
     # Pattern: digit(s) at start or after newline, followed by Zolai text
-    verse_pattern = re.finditer(r'(?:^|\n)(\d+)([A-Z\u1000-\u109F\u02BC\u2018\u2019\u201C\u201D][^\n\d]{5,}?)(?=\n\d+|\n*$)', text, re.M)
+    verse_pattern = re.finditer(r'(?:^|\n)(\d+)([A-Z\u1000-\u109F\u02BC\u2018\u2019\u201C\u201D][^\n\d]{5,}?)(?=\n\d+|\n*$)', text, re.MULTILINE)
 
     for m in verse_pattern:
         vnum = m.group(1)
@@ -39,7 +39,7 @@ def parse_tbr17_html(html: str, book: str, chapter: int) -> dict[str, str]:
             verses[f"{chapter}:{vnum}"] = vtext
 
     # Also handle combined verses like "17-18"
-    combined = re.finditer(r'(\d+)-(\d+)([A-Z\u1000-\u109F][^\n\d]{5,}?)(?=\n\d+|\n*$)', text, re.M)
+    combined = re.finditer(r'(\d+)-(\d+)([A-Z\u1000-\u109F][^\n\d]{5,}?)(?=\n\d+|\n*$)', text, re.MULTILINE)
     for m in combined:
         v1, v2 = m.group(1), m.group(2)
         vtext = re.sub(r'\s+', ' ', m.group(3)).strip()

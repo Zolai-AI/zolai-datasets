@@ -6,7 +6,6 @@ Sources: Tedim2010 (ZVS), TDB77, TBR17
 """
 import json
 from pathlib import Path
-from collections import defaultdict
 
 SOURCES = [
     ("data/parallel/bible_parallel_tedim2010_kjv.jsonl", "Tedim2010"),
@@ -23,11 +22,12 @@ MISSING = {
 
 import re
 
+
 def parse_markdown_pairs(path, book):
     """Extract (zo, en, ref) from a parallel markdown file."""
     ref_pat = re.compile(r'\*\*(\d+:\d+)\*\*')
-    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin|HCL06|FCL):\s*(.+)', re.I)
-    en_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin|HCL06|FCL):\s*(.+)', re.IGNORECASE)
+    en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
     ref = zo = en = ""
     pairs = []
     for raw in open(path, encoding="utf-8"):
@@ -112,8 +112,7 @@ def main():
             print(f"  {version} {book} (missing): +{added} pairs")
 
     with open(OUT, "w", encoding="utf-8") as f:
-        for inst in instructions:
-            f.write(json.dumps(inst, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(inst, ensure_ascii=False) + "\n" for inst in instructions)
 
     print(f"\nTotal: {len(instructions)} instruction pairs → {OUT}")
 

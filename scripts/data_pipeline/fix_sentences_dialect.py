@@ -13,10 +13,10 @@ FORBIDDEN = re.compile(
     r"\b(pasian|topa|kumpipa|nunnak|zalenna)\b"
     r"|(?<!\w)(tua\b|tua\b)"
     r"|\b(falam|hakha|mizo|lushei)\s+(pau|dialect|chin|language|version|bible|text|script)\b",
-    re.I)
-FCL_CONN  = re.compile(r"\b(cule|cutikah)\b", re.I)
-EXPLAIN   = re.compile(r"(never use|do not use|forbidden|incorrect|wrong|avoid|hakha|falam)", re.I)
-QUOTE_CTX = re.compile(r"zalenna.*cih|zalenna.*policy|zalenna.*thukhu", re.I)
+    re.IGNORECASE)
+FCL_CONN  = re.compile(r"\b(cule|cutikah)\b", re.IGNORECASE)
+EXPLAIN   = re.compile(r"(never use|do not use|forbidden|incorrect|wrong|avoid|hakha|falam)", re.IGNORECASE)
+QUOTE_CTX = re.compile(r"zalenna.*cih|zalenna.*policy|zalenna.*thukhu", re.IGNORECASE)
 
 def md5(s: str) -> str:
     return hashlib.md5(s.encode()).hexdigest()

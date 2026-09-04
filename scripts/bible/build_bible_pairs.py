@@ -74,7 +74,7 @@ if tbr17_file.exists():
 print(f"  TBR17: {len(tbr17):,} verses")
 
 # Forbidden dialect check
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua|tua)(?!\w)", re.I)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua|tua)(?!\w)", re.IGNORECASE)
 
 # Load existing hashes
 print("\nLoading existing hashes...", flush=True)

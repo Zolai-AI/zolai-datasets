@@ -6,12 +6,14 @@ Clean dict_master_v1.jsonl:
 3. Shorten long examples to max 12 words
 4. Filter noisy English-sentence examples
 """
-import json, re, random
+import json
+import random
+import re
 from pathlib import Path
 
 MASTER = "data/dictionary/processed/dict_master_v1.jsonl"
 
-EN_SUFFIXES = re.compile(r'(tion|ight|ough|ck$|ical|ism$|ist$|ize$|ful$|less$|ness$|ment$|ance$|ence$|ble$|ank$|ank |wh)', re.I)
+EN_SUFFIXES = re.compile(r'(tion|ight|ough|ck$|ical|ism$|ist$|ize$|ful$|less$|ness$|ment$|ance$|ence$|ble$|ank$|ank |wh)', re.IGNORECASE)
 EN_WORDS = {
     'ankle','loiter','diacritical','chamberlain','lawyer','doctor','teacher',
     'christian','english','french','german','latin','greek','hebrew',
@@ -23,8 +25,7 @@ def is_english_hw(word):
     w = word.lower().strip("'")
     if w in EN_WORDS: return True
     if EN_SUFFIXES.search(w) and len(w) > 5: return True
-    if re.search(r'(ck|ght|tion|ical|ism|ize)', w): return True
-    return False
+    return bool(re.search(r'(ck|ght|tion|ical|ism|ize)', w))
 
 def zolai_ratio(text):
     """Fraction of words that look like Zolai (not English)."""
@@ -43,7 +44,7 @@ def best_example(examples):
         if n < 4: continue
         scored.append((abs(n-7), n, i, ex))
     if not scored: return None
-    return sorted(scored)[0][3]
+    return min(scored)[3]
 
 def shorten(ex):
     zo = ex.get("zo","").strip()

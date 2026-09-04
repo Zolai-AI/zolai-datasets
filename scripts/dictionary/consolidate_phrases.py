@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Consolidate extracted phrases into master dictionary."""
 from __future__ import annotations
-import json, re
-from pathlib import Path
+
+import json
+import re
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 
 WIKI_VOCAB = Path(str(Path(__file__).resolve().parents[1]) + "/wiki/vocabulary")
 MASTER_DICT = Path(str(Path(__file__).resolve().parents[1]) + "/data/master/combined/dictionary.jsonl")

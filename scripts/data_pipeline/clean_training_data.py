@@ -37,7 +37,7 @@ BAD_DIALECTS = {"FCL", "HCL06"}
 def clean_record(obj: dict) -> dict | None:
     text = obj.get("text", "").strip()
 
-    if text.startswith("###") or text.startswith("[INST]"):
+    if text.startswith(("###", "[INST]")):
         return None
     if ENCODING_NOISE.search(text):
         return None
@@ -86,7 +86,7 @@ def clean_file(src: Path, dst: Path, dry_run: bool) -> dict:
 
             text = obj.get("text", "")
             # Track reason (order matters — first match wins for stats)
-            if text.startswith("###") or text.startswith("[INST]"):
+            if text.startswith(("###", "[INST]")):
                 stats["hash_noise"] += 1
                 continue
             if ENCODING_NOISE.search(text):

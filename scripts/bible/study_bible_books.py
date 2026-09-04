@@ -9,9 +9,11 @@ Outputs a structured learning record per verse with:
   - Running dictionary updated after each book
 """
 
-import json, re, glob
+import glob
+import json
+import re
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict, Counter
 
 # Canonical Bible book order (66 books)
 BOOK_ORDER = [
@@ -62,8 +64,8 @@ def tokenize(text):
 def parse_book(path):
     """Yield (chapter, verse, zo_verse, en_verse) from a parallel markdown."""
     ref_pat = re.compile(r'\*\*(\d+):(\d+)\*\*')
-    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.I)
-    en_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.IGNORECASE)
+    en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
 
     ch = vs = ""
     zo = en = ""
@@ -228,8 +230,7 @@ def save_book_study(book_code, book_record, book_num):
         }, ensure_ascii=False) + "\n")
 
         # New vocab
-        for v in sorted(book_record["new_vocab"], key=lambda x: -x["freq"]):
-            f.write(json.dumps({"type": "vocab", **v}, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps({"type": "vocab", **v}, ensure_ascii=False) + "\n" for v in sorted(book_record["new_vocab"], key=lambda x: -x["freq"]))
 
         # Grammar patterns (deduplicated by marker+context)
         seen_pat = set()
@@ -298,8 +299,7 @@ def main():
     # Save final dictionary
     entries = build_final_dict(known_vocab)
     with open(OUT_DICT, "w", encoding="utf-8") as f:
-        for e in entries:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
     print(f"Dictionary saved → {OUT_DICT} ({len(entries)} entries)")
 
 

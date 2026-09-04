@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -17,7 +16,7 @@ SOURCES  = ROOT / "data/master/sources"
 COMBINED = ROOT / "data/master/combined"
 KJV_DIR  = ROOT / "resources/Chin-Bible/King James Version/USX_1"
 
-FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.I)
+FORBIDDEN = re.compile(r"\b(pasian|topa|kumpipa)\b|(?<!\w)(tua\b|tua\b)", re.IGNORECASE)
 BIBLE_SOURCES = {"TDB_online", "TB77_online", "TBR17", "Tedim2010",
                  "bible_TBR17_KJV", "bible_TDB77_KJV", "bible_Tedim_Chin_Bible_KJV",
                  "bible_parallel_tdb77.jsonl", "bible_parallel_tedim2010.jsonl",

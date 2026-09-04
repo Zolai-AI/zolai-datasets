@@ -6,9 +6,11 @@ Enrich dict_master_v1.jsonl by scanning all Bible parallel files:
 - Add simple short example: shortest verse containing the word
 """
 
-import json, re, glob
+import glob
+import json
+import re
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict, Counter
 
 BIBLE_DIRS = [
     "data/corpus/bible/markdown/Parallel_Corpus/TDB77",
@@ -31,8 +33,8 @@ EN_STOP = {
     "will","said","unto","upon","which","who","then","when","also","now",
 }
 
-zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.I)
-en_pat  = re.compile(r'^KJV:\s*(.+)', re.I)
+zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin):\s*(.+)', re.IGNORECASE)
+en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
 ref_pat = re.compile(r'\*\*(\d+:\d+)\*\*')
 
 
@@ -154,8 +156,7 @@ def main():
     entries = enrich_master(en_counter, best_example)
 
     with open(OUT, "w", encoding="utf-8") as f:
-        for e in entries:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
     print(f"Saved {len(entries)} entries → {OUT}")
 
 
