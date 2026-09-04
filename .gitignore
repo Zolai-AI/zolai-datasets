@@ -7,8 +7,21 @@ __pycache__/
 node_modules/
 .next/
 target/
-data/
 artifacts/
 .venv/
 *.jsonl
 !kaggle_dataset/*.json
+
+# Data directory — explicitly ignore bulk subdirs, keep pointer/docs files
+data/dictionary/
+data/archive/
+data/corpus/
+data/raw/
+data/runs/
+data/exports/
+data/adapter/
+data/eval/
+data/clean/
+data/qwen/
+data/tmp_processing/
+data/parallel/
