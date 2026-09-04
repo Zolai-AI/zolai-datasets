@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  manifest-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate DATASET_MANIFEST.json
+        run: python3 -c "import json; json.load(open('data/DATASET_MANIFEST.json')); print('DATASET_MANIFEST.json OK')"
+
+      - name: Validate ARCHIVE_MANIFEST.json
+        run: python3 -c "import json; json.load(open('data/ARCHIVE_MANIFEST.json')); print('ARCHIVE_MANIFEST.json OK')"
+
+      - name: Check DATA_INDEX.md lists manifests
+        run: |
+          grep -q "DATASET_MANIFEST" data/DATA_INDEX.md && echo "DATASET_MANIFEST referenced" || (echo "ERROR: DATASET_MANIFEST not in DATA_INDEX.md" && exit 1)
+          grep -q "ARCHIVE_MANIFEST" data/DATA_INDEX.md && echo "ARCHIVE_MANIFEST referenced" || (echo "ERROR: ARCHIVE_MANIFEST not in DATA_INDEX.md" && exit 1)
