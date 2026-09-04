@@ -32,3 +32,6 @@ data/clean/
 data/qwen/
 data/tmp_processing/
 data/parallel/
+
+# Orchestra session-claims runtime artifact
+.pcore-claims/
