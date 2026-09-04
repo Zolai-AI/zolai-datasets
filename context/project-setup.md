@@ -18,7 +18,7 @@ the monorepo split. Fill in order 1→7.
 - Python repos: `pyproject.toml` `version` + `zolai/__init__.py __version__`.
 - Node repos: `package.json` `version`.
 - Rust/Tauri: `Cargo.toml` `version`.
-- Datasets: timestamped manifest (not semver).
+- Datasets: timestamped manifest (not semver). Bulk data lives in the container shared folder at `../data` (6.3G, not a git repo).
 - Tag each release: `v<major>.<minor>.<patch>`.
 
 ### Orchestration Hooks
