@@ -1,3 +1,4 @@
-# UI Context
+# UI Context — Zolai Datasets
 
-Not applicable for Zolai Datasets (not a web repo).
+Not applicable — this is a data/corpus repo with no user-facing UI.
+Consumers: `zolai-core` (RAG feed via `zolai/`) and `zolai-training` (datasets).

@@ -1,3 +1,6 @@
-# progress-tracker
+# Progress Tracker
 
-Fill for Zolai Datasets.
+## 2026-09-04 — Setup baseline
+- Repo connected to `Zolai-AI/zolai-datasets`;
+- Received monorepo `data/` (6.3GB: corpora, dictionaries, models) after distribution.
+- Backlog D (HF/Kaggle export) open.
