@@ -107,6 +107,17 @@ data/
 
 ---
 
+## Data Manifests
+
+The following JSON manifest files are the single source of truth for data inventory and provenance:
+
+| Manifest | Purpose |
+|---|---|
+| `data/DATASET_MANIFEST.json` | Tracks all published datasets with metadata (size, row count, license, HF/Kaggle links) |
+| `data/ARCHIVE_MANIFEST.json` | Tracks archived/superseded data that is retained for reference but no longer active |
+
+---
+
 ## The One Rule
 
 **Always train from `training/master.jsonl`.**
