@@ -8,6 +8,7 @@ Dictionary-first • Evidence-scoring • No external NLP libs
 import json
 import re
 import argparse
+import random
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1102,7 +1103,7 @@ class VerseAnalyzer:
         if structure["subject"] and structure["verb"]:
             pattern["template"] = f"Subject + [Object] + {structure['verb']}"
             pattern["zo_pattern"] = f"[Subject] + [Object] + {structure['verb']}"
-            pattern["en_pattern"] = f"[Subject] + [Object] + [verb]"
+            pattern["en_pattern"] = "[Subject] + [Object] + [verb]"
         return pattern
 
 
