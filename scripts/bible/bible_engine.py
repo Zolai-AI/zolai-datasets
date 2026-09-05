@@ -302,7 +302,7 @@ class GlossingEngine:
         """Gloss a verse with phrase-first, then word-by-word fallback.
 
         Strategy:
-        1. Try to match multi-word phrases (longest first)
+        1. Try to match multi-word phrases (2-5 words, longest first)
         2. For unmatched segments, fall back to single-word lookup
         """
         words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
@@ -313,8 +313,8 @@ class GlossingEngine:
         i = 0
         while i < len(words):
             matched = False
-            # Try multi-word phrases (longest first, up to 8 words)
-            for length in range(min(8, len(words) - i), 1, -1):
+            # Try multi-word phrases (2-5 words, longest first)
+            for length in range(min(5, len(words) - i), 1, -1):
                 candidate = " ".join(w.lower() for w in words[i:i + length])
                 if candidate in self.phrase_dict:
                     self.stats["phrase_hit"] += 1
@@ -918,7 +918,7 @@ class VerseAnalyzer:
         self.particles = particles
 
     def analyze_verse(self, verse: dict) -> dict:
-        """Full analysis of a single verse."""
+        """Full analysis of a single verse with comprehensive study output."""
         ref = verse.get("ref", "")
         zo = verse.get("zo_tedim2010") or verse.get("zo_tdb77") or ""
         en = verse.get("en_kJV") or ""
@@ -929,7 +929,7 @@ class VerseAnalyzer:
         if not zo:
             return {"ref": ref, "error": "no_zo_text"}
 
-        # 1. Glossing
+        # 1. Glossing (phrase-first, then word-by-word)
         glosses = self.glossing.gloss_verse(zo)
         dict_rate = sum(1 for g in glosses if g["source"] != "miss") / len(glosses) if glosses else 0
 
@@ -938,7 +938,7 @@ class VerseAnalyzer:
 
         # 3. Morphology
         words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo)
-        morphemes = [self.morphology.analyze(w) for w in words[:20]]  # limit for speed
+        morphemes = [self.morphology.analyze(w) for w in words[:20]]
 
         # 4. Grammar patterns
         grammar_matches = self.grammar.match_all(zo)
@@ -955,9 +955,21 @@ class VerseAnalyzer:
         question_analysis = self.contrastive.analyze_question(zo)
         tense_analysis = self.contrastive.analyze_tense(zo, en)
 
-        # 7. Identify verbs and particles in verse
+        # 7. Identify verbs and particles
         found_verbs = [w for w in zo_words if self.verbs.is_verb(w)]
         found_particles = [w for w in zo_words if self.particles.is_particle(w)]
+
+        # 8. Sentence structure breakdown (Subject + Object + Verb)
+        sentence_structure = self._analyze_sentence_structure(zo, glosses)
+
+        # 9. Word combination analysis (how words combine to change meaning)
+        word_combinations = self._analyze_word_combinations(glosses)
+
+        # 10. Key vocabulary with frequency
+        vocabulary = self._extract_vocabulary(glosses, words)
+
+        # 11. Reusable sentence pattern
+        sentence_pattern = self._extract_sentence_pattern(zo, en, sentence_structure)
 
         return {
             "ref": ref,
@@ -981,9 +993,117 @@ class VerseAnalyzer:
             },
             "verbs_found": found_verbs,
             "particles_found": found_particles,
+            "sentence_structure": sentence_structure,
+            "word_combinations": word_combinations,
+            "vocabulary": vocabulary,
+            "sentence_pattern": sentence_pattern,
             "word_count": len(zo_words),
             "analysis_timestamp": datetime.now().isoformat(),
         }
+
+    def _analyze_sentence_structure(self, zo: str, glosses: list[dict]) -> dict:
+        """Analyze sentence structure: Subject + Object + Verb."""
+        # Simple heuristic: find ergative "in" for subject, verb at end
+        structure = {"subject": "", "object": "", "verb": "", "pattern": "SOV"}
+        zo_words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo)
+
+        # Find ergative marker "in" — word before it is likely subject
+        for i, w in enumerate(zo_words):
+            if w.lower() == "in" and i > 0:
+                # Check if previous word is a noun (not a particle)
+                prev = zo_words[i - 1].lower()
+                if prev not in ("a", "the", "leh", "hang"):
+                    structure["subject"] = " ".join(zo_words[max(0, i - 2):i + 1])
+                    break
+
+        # Find verb — usually last content word before "hi" or sentence end
+        for i in range(len(zo_words) - 1, -1, -1):
+            w = zo_words[i].lower()
+            if w in ("hi", "hen", "ah"):
+                if i > 0:
+                    verb_word = zo_words[i - 1]
+                    for g in glosses:
+                        if g["word"].lower() == verb_word.lower():
+                            if g["source"] in ("dict_zo_en", "vocab_index"):
+                                structure["verb"] = verb_word
+                                break
+                break
+
+        # Object = everything between subject and verb
+        if structure["subject"] and structure["verb"]:
+            subj_end = zo.lower().find(structure["subject"].lower().split()[0])
+            verb_start = zo.lower().rfind(structure["verb"].lower())
+            if subj_end >= 0 and verb_start > subj_end:
+                obj_text = zo[subj_end + len(structure["subject"]):verb_start].strip()
+                if obj_text:
+                    structure["object"] = obj_text
+
+        return structure
+
+    def _analyze_word_combinations(self, glosses: list[dict]) -> list[dict]:
+        """Analyze how word combinations change meaning."""
+        combinations = []
+        for i in range(len(glosses) - 1):
+            g1 = glosses[i]
+            g2 = glosses[i + 1]
+            # Skip if either is a miss
+            if g1["source"] == "miss" or g2["source"] == "miss":
+                continue
+            # Check if this is a meaningful combination
+            w1 = g1["word"].lower()
+            w2 = g2["word"].lower()
+            combo = f"{w1} {w2}"
+            # Known meaningful combinations
+            known_combos = {
+                "a hi": "is/am/are (copula)",
+                "ci hi": "said (quotative + declarative)",
+                "leh leh": "and (coordination)",
+                "in a": "ergative + 3rd person",
+                "a in": "3rd person + ergative",
+                "in in": "ergative + ergative (emphasis)",
+                "lo hi": "not (negation + declarative)",
+                "hen hi": "let it be (hortative + declarative)",
+            }
+            for pattern, meaning in known_combos.items():
+                if w1 in pattern and w2 in pattern:
+                    combinations.append({
+                        "words": combo,
+                        "meaning": meaning,
+                        "type": "grammatical",
+                    })
+                    break
+        return combinations
+
+    def _extract_vocabulary(self, glosses: list[dict], words: list[str]) -> list[dict]:
+        """Extract key vocabulary with frequency info."""
+        vocab = []
+        seen = set()
+        for g in glosses:
+            w = g["word"].lower()
+            if w in seen or g["source"] == "miss":
+                continue
+            seen.add(w)
+            vocab.append({
+                "word": g["word"],
+                "meaning": g["gloss"],
+                "source": g["source"],
+                "confidence": g.get("confidence", "low"),
+            })
+        return vocab[:20]  # Limit to 20 words
+
+    def _extract_sentence_pattern(self, zo: str, en: str, structure: dict) -> dict:
+        """Extract reusable sentence pattern."""
+        pattern = {
+            "zo_pattern": "",
+            "en_pattern": "",
+            "template": "",
+            "substitutions": [],
+        }
+        if structure["subject"] and structure["verb"]:
+            pattern["template"] = f"Subject + [Object] + {structure['verb']}"
+            pattern["zo_pattern"] = f"[Subject] + [Object] + {structure['verb']}"
+            pattern["en_pattern"] = f"[Subject] + [Object] + [verb]"
+        return pattern
 
 
 # ══════════════════════════════════════════════════════════════════════

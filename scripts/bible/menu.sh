@@ -514,7 +514,7 @@ cmd_engine_study() {
     3)  BOOK_FLAG="--book GEN,EXO,LEV,NUM,DEU" ;;
     4)  BOOK_FLAG="--book MAT,MRK,LUK,JHN" ;;
     A|a)  read -p "  Book code: " bc; BOOK_FLAG="--book ${bc^^}" ;;
-    *)  read -p "  Book code [GEN]: " bc; BOOK_FLAG="--book ${bc:-GEN^^}" ;;
+    *)  read -p "  Book code [GEN]: " bc; BOOK_FLAG="--book $(echo "${bc:-GEN}" | tr '[:lower:]' '[:upper:]')" ;;
   esac
   echo ""
   echo -e "${G}Starting Bible Engine analysis...${NC}"
