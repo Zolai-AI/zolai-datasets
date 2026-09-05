@@ -702,6 +702,11 @@ while true; do
   echo -e "  ${G}F${NC}) 🔍 Corpus search (patterns + words)"
   echo -e "  ${G}G${NC}) 📦 Export training datasets"
   echo ""
+  echo ""
+  echo -e "  ${M}── Paragraph Engine ───────────────────${NC}"
+  echo -e "  ${G}I${NC}) 📝 Paragraph Analysis (analyze user text)"
+  echo -e "  ${G}J${NC}) ✍️  Paraphrase & Style Transfer"
+  echo -e "  ${G}K${NC}) 📚 Paragraph Knowledge Base"
   echo -e "  ${G}H${NC}) 🧠 Knowledge Vectors (RAG index status)"
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
@@ -724,6 +729,9 @@ while true; do
     F|f) cmd_engine_search ;;
     G|g) cmd_engine_export ;;
     H|h) cmd_knowledge_vectors ;;
+    I|i) cmd_para_analyze ;;
+    J|j) cmd_para_paraphrase ;;
+    K|k) cmd_para_knowledge ;;
     0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
