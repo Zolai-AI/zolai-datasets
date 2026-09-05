@@ -234,41 +234,19 @@ cmd_version_compare() {
   read -p "Press Enter to return to menu..."
 }
 
-cmd_chuak_check() {
+
+
+cmd_check_non_zolai() {
   banner
-  echo -e "${Y}Checking 'chuak' status:${NC}"
+  echo -e "${Y}Checking for non-Zolai words in dictionaries:${NC}"
   echo ""
-  $PYTHON -c "
-import json, subprocess
-print('  === chuak Analysis ===')
-print()
-print('  chuak is a VERB ROOT meaning \"to come out / to exit\"')
-print('  It appears in compound words, not as standalone:')
-print()
-
-# Check wiki compounds
-result = subprocess.run(['grep', '-r', 'chuak', '../zolai-wiki/vocabulary/wordlists/', '-n'], 
-                       capture_output=True, text=True, cwd='$WORKSPACE')
-compounds = {}
-for line in result.stdout.split('\n')[:20]:
-    if 'chuak' in line:
-        parts = line.split('|')
-        if len(parts) > 2:
-            word = parts[1].strip().split('-')[0]
-            if 'chuak' in word.lower():
-                compounds[word] = parts[2].strip()[:60]
-
-for word, meaning in sorted(compounds.items()):
-    print(f'    {word:30s} = {meaning}')
-
-print()
-print('  Status: chuak is a valid verb root, not a standalone word')
-print('  Correct use: chuakthar (newborn), chuak (exit), etc.')
-"
-  log_event "chuak_check" ""
+  WORKSPACE="$WORKSPACE" $PYTHON "$SCRIPT_DIR/check_non_zolai.py"
+  log_event "check_non_zolai" ""
   echo ""
   read -p "Press Enter to return to menu..."
 }
+
+
 
 cmd_fix_paths() {
   banner
@@ -377,7 +355,7 @@ while true; do
   echo -e "  ${G}8${NC}) 🧹 Data cleanup status"
   echo -e "  ${G}9${NC}) 🔨 Build full knowledge base (66 books)"
   echo -e "  ${G}A${NC}) 📊 Version comparison (TDB77 vs Tedim2010)"
-  echo -e "  ${G}B${NC}) 🔍 Check 'chuak' status"
+  echo -e "  ${G}B${NC}) 🔍 Check for non-Zolai words"
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -392,7 +370,7 @@ while true; do
     8) cmd_clean_data ;;
     9) cmd_build_kb ;;
     A|a) cmd_version_compare ;;
-    B|b) cmd_chuak_check ;;
+    B|b) cmd_check_non_zolai ;;
     0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
