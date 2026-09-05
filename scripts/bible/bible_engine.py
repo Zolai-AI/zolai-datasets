@@ -11,7 +11,6 @@ import argparse
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-import random
 from typing import ClassVar
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1045,7 +1044,6 @@ class LearningManager:
         if not words:
             return {"error": "no_words_for_level"}
 
-        import random
         word = random.choice(words)
         correct = word["translation"]
         wrong_options = []
