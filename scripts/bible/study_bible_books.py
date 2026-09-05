@@ -126,13 +126,28 @@ def call_pcore_brain_ai(words: list[str], context: str = "",
         pairs = [f"{k}={v}" for k, v in list(known_words.items())[:15]]
         known_ctx = f"\nKnown words in verse: {', '.join(pairs)}"
 
-    prompt = f"""Translate these Zolai/Tedim words to English (Bible context).
+    prompt = f"""Translate these Zolai/Tedim words to English. Use Bible context.
 {known_ctx}
-ZVS 2018 rules: SOV order, ergative 'in', 'hiam' = question marker.
-Forbidden: pathian→pasian, ram→gam, fapa→tapa, bawipa→topa
+Grammar rules:
+- SOV word order (Subject-Object-Verb)
+- Ergative marker: 'in' marks the agent of transitive verbs
+- Tense: -sak (past), -nak (gerund/progressive), -ah (present), -hen (future)
+- Negation: 'si' before verb
+- Question marker: 'hiam' (not 'ze')
+- Conjunction: 'leh' (and/but)
+
+Forbidden forms (use modern ZVS 2018):
+- pathian → pasian (God)
+- ram → gam (earth/ground)
+- fapa → tapa (like/as)
+- bawipa → topa (lord/master)
+- siangpahrang → kumpipa (devil)
+
+Common words: pasian=God, topa=Lord, gam=earth, vantung=heaven, tui=water, mi=person, numei=woman, sing=tree, nek=eat, hiam=question marker, a=possessive
+
 Words to translate: {word_list}
-Reply ONLY as JSON: {{"word": "meaning", "word2": "meaning2"}}
-No explanations, just the JSON object."""
+Reply ONLY as JSON with single-word translations: {{"word": "meaning"}}
+No definitions, no explanations — just the word and its English equivalent."""
 
     for attempt in range(3):
         try:
@@ -248,11 +263,19 @@ class GlossingEngine:
         words_to_lookup = list({w[0] for w in self._pending_words})[:20]
         context = self._pending_words[0][1] if self._pending_words else ""
 
-        # RAG: collect known dict words from this verse for context
+        # RAG: collect known dict words + similar words for context
         known_words: dict[str, str] = {}
         for w, _, _ in self._pending_words:
             if w in self.zo_en:
                 known_words[w] = self.zo_en[w][0] if self.zo_en[w] else "?"
+            # Also find prefix-similar words for morphological hints
+            for dw in self.zo_en:
+                if len(dw) >= 4 and dw != w and (dw.startswith(w[:3]) or w.startswith(dw[:3])):
+                    known_words[dw] = self.zo_en[dw][0] if self.zo_en[dw] else "?"
+                    if len(known_words) >= 20:
+                        break
+            if len(known_words) >= 20:
+                break
 
         results = call_pcore_brain_ai(words_to_lookup, context, known_words)
         for w, _, orig_word in self._pending_words:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
 #  ZOLAI BIBLE STUDY — Master Menu v2.0
-#  AI-assisted glossing with OpenCode free models
+#  AI-assisted glossing with P-Core Brain API
 #  All 66 books • Full knowledge base • Version comparison
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
@@ -37,15 +37,19 @@ log_event() {
 # ── Model selection ─────────────────────────────────────────
 select_model() {
   echo -e "${Y}Available free models:${NC}"
-  echo -e "  ${G}1${NC}) mimo-v2.5-free              ${C}(~15s, tested ✅)${NC}"
-  echo -e "  ${G}2${NC}) nemotron-3.5-lightning-free  ${C}(~15s, tested ✅)${NC}"
-  echo -e "  ${G}3${NC}) No AI — dictionary only"
+  echo -e "  ${G}1${NC}) auto (best available)       ${C}(recommended)${NC}"
+  echo -e "  ${G}2${NC}) mimo-v2.5-free              ${C}(tested ✅)${NC}"
+  echo -e "  ${G}3${NC}) nemotron-3-ultra-free        ${C}(untested)${NC}"
+  echo -e "  ${G}4${NC}) hy3-free                     ${C}(untested)${NC}"
+  echo -e "  ${G}5${NC}) No AI — dictionary only"
   echo ""
   read -p "  Select model [1]: " choice
   case "$choice" in
-    2)  MODEL="opencode/nemotron-3.5-lightning-free"; AI_FLAG="" ;;
-    3)  MODEL=""; AI_FLAG="--no-ai" ;;
-    *)  MODEL="opencode/mimo-v2.5-free"; AI_FLAG="" ;;
+    2)  MODEL="opencode/mimo-v2.5-free"; AI_FLAG="" ;;
+    3)  MODEL="opencode/nemotron-3-ultra-free"; AI_FLAG="" ;;
+    4)  MODEL="opencode/hy3-free"; AI_FLAG="" ;;
+    5)  MODEL=""; AI_FLAG="--no-ai" ;;
+    *)  MODEL="auto"; AI_FLAG="" ;;
   esac
   echo -e "  → Using: ${G}${MODEL:-dict-only}${NC}"
   log_event "model_select" "${MODEL:-dict-only}"
@@ -61,9 +65,9 @@ select_books() {
   echo -e "  ${G}4${NC}) Pentateuch (GEN,EXO,LEV,NUM,DEU)"
   echo -e "  ${G}5${NC}) Psalms + Proverbs"
   echo -e "  ${G}6${NC}) Gospels (MAT,MRK,LUK,JHN)"
-  echo -e "  ${G}7${NC}) Historical (GEN-EST)"
+  echo -e "  ${G}7${NC}) Historical narrative (JOS-EST)"
   echo -e "  ${G}8${NC}) Poetic (JOB,PSA,PRO,ECC,SNG)"
-  echo -e "  ${G}9${NC}) Prophetic (ISA-DAN, HOS-REV)"
+  echo -e "  ${G}9${NC}) Prophetic (ISA-MAL)"
   echo -e "  ${G}A${NC}) Single book (type code)"
   echo -e "  ${G}B${NC}) Custom list (comma-separated)"
   echo ""
@@ -74,8 +78,9 @@ select_books() {
     4)  BOOK_FLAG="--book GEN,EXO,LEV,NUM,DEU" ;;
     5)  BOOK_FLAG="--book PSA,PRO" ;;
     6)  BOOK_FLAG="--book MAT,MRK,LUK,JHN" ;;
-    7)  BOOK_FLAG="--book JOB,PSA,PRO,ECC,SNG" ;;
-    8)  BOOK_FLAG="--book ISA,JER,LAM,EZK,DAN,HOS,JOE,AMO,OBA,JON,MIC,NAM,HAB,ZEP,HAG,ZEC,MAL" ;;
+    7)  BOOK_FLAG="--book JOS,JUG,RUT,1SA,2SA,1KI,2KI,1CH,2CH,EZR,NEH,EST" ;;
+    8)  BOOK_FLAG="--book JOB,PSA,PRO,ECC,SNG" ;;
+    9)  BOOK_FLAG="--book ISA,JER,LAM,EZK,DAN,HOS,JOE,AMO,OBA,JON,MIC,NAM,HAB,ZEP,HAG,ZEC,MAL" ;;
     A|a)  read -p "  Book code: " bc; BOOK_FLAG="--book ${bc^^}" ;;
     B|b)  read -p "  Books (comma-sep): " bs; BOOK_FLAG="--book ${bs^^}" ;;
     *)  BOOK_FLAG="" ;;
