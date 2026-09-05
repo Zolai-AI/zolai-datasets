@@ -3,6 +3,12 @@ import os
 import sqlite3
 import sys
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 DB_PATH = 'data/master_unified_dictionary.db'
 
 def search(query):

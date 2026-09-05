@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 # --- Dialect Filter ---
-FORBIDDEN_DIALECTS = {"FCL", "HCL", "HCL06", "Hakha", "Falam", "Chin", "Burmese"}
+FORBIDDEN_DIALECTS = {"HCL", "Hakha", "Falam", "Chin", "Burmese"}
 
 # --- Level Patterns (Heuristics) ---
 P_A2 = re.compile(r"\b(tua ciangin|ding hi|khin hi|ngei hi|nuam hi|te|uh hi)\b", re.IGNORECASE)
@@ -129,7 +129,7 @@ def main():
                     metadata = record.get("metadata", {})
                     # Also check instruction for dialect filter
                     instr = record.get("instruction", "")
-                    if any(d in instr for d in ("FCL", "HCL", "Hakha", "Falam")):
+                    if any(d in instr for d in ("HCL", "Hakha", "Falam")):
                         skipped += 1
                         continue
 

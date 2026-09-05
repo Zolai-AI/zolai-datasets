@@ -6,6 +6,13 @@ Targets: zo_en_singlewords_v1.jsonl, wordlist_zo_en_v1.jsonl
 """
 import json
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 NEW_ENTRIES = [
     {
         "zolai": "Papi",

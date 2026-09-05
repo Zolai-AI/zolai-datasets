@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parents[3]
 OUT  = ROOT / "kaggle_bundle/data/zolai_tedim_train.jsonl"
 
 SYSTEM = (
@@ -21,7 +21,7 @@ SYSTEM = (
 
 # ── Filters ──────────────────────────────────────────────────────────────────
 BAD_OUT   = [" cu ", " cun ", "pathian", "bawipa", "siangpahrang", "fapa "]
-BAD_INSTR = ["FCL", "Hakha", "Falam", "HCL", "Zokam"]
+BAD_INSTR = ["FCL", "Hakha", "Falam", "HCL"]
 # Placeholder outputs from routing_synthetic — skip these
 BAD_PLACEHOLDER = ["[Generating ", "Respond: ["]
 TEDIM_OK  = {"", "Tedim", "Tedim_Chin", "Zolai", "tedim", "tedim_chin", "zolai"}

@@ -26,6 +26,13 @@ import re
 import unicodedata
 from pathlib import Path
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 FORBIDDEN = re.compile(
     r"\b(pathian|fapa|bawipa|siangpahrang)\b|\bram\b|\bcu\b|\bcun\b",
     re.IGNORECASE,

@@ -26,7 +26,7 @@ import re
 def parse_markdown_pairs(path, book):
     """Extract (zo, en, ref) from a parallel markdown file."""
     ref_pat = re.compile(r'\*\*(\d+:\d+)\*\*')
-    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin|HCL06|FCL):\s*(.+)', re.IGNORECASE)
+    zo_pat  = re.compile(r'^(?:TDB77|Tedim2010|Tedim_Chin|Zokam):\s*(.+)', re.IGNORECASE)
     en_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
     ref = zo = en = ""
     pairs = []
@@ -118,5 +118,5 @@ def main():
 
 if __name__ == "__main__":
     import os
-    os.chdir(Path(__file__).parent.parent.parent)
+    os.chdir(Path(__file__).resolve().parents[3])
     main()

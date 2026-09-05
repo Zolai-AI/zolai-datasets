@@ -6,6 +6,13 @@ Output: data/Zolai_All_Words_Sheet.csv
 import csv
 import json
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 INPUT = "data/dictionary/wordlists/zo_en_singlewords_v1.jsonl"
 OUTPUT = "data/Zolai_All_Words_Sheet.csv"
 

@@ -72,8 +72,8 @@ def parse_file(path):
     tdm_pat  = re.compile(r'^Tedim2010:\s*(.+)', re.IGNORECASE)
     tdb_pat  = re.compile(r'^TDB77:\s*(.+)', re.IGNORECASE)
     kjv_pat  = re.compile(r'^KJV:\s*(.+)', re.IGNORECASE)
-    # Also handle Tedim_Chin, HCL06, FCL variants
-    alt_pat  = re.compile(r'^(?:Tedim_Chin|HCL06|FCL):\s*(.+)', re.IGNORECASE)
+    # Also handle Tedim_Chin, Zokam variants
+    alt_pat  = re.compile(r'^(?:Tedim_Chin|Zokam):\s*(.+)', re.IGNORECASE)
 
     ref = ""
     zo_tdm = zo_tdb = en = ""
@@ -148,7 +148,7 @@ def study_corpus(bible_dir):
     print(f"Studying {len(seen)} Bible books...")
 
     for fpath in seen.values():
-        book = re.sub(r'_(?:TDB77|Tedim_Chin|HCL06|FCL)?_?Parallel$', '', Path(fpath).stem)
+        book = re.sub(r'_(?:TDB77|Tedim_Chin|Zokam)?_?Parallel$', '', Path(fpath).stem)
 
         for ref, zo_verse, tdb_verse, en_verse in parse_file(fpath):
             total_verses[0] += 1

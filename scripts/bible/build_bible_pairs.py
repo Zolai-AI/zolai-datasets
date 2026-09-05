@@ -12,6 +12,13 @@ import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 ROOT     = Path(__file__).parent.parent
 COMBINED = ROOT / "data/master/combined"
 BIBLE    = ROOT / "resources/Chin-Bible"

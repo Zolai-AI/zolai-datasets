@@ -16,6 +16,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 ROOT    = Path(__file__).resolve().parents[1]
 IN_FILE = ROOT / "data/processed/master_dictionary_enriched.jsonl"
 OUT     = ROOT / "data/processed/master_dictionary_semantic.jsonl"

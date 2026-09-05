@@ -28,6 +28,13 @@ import subprocess
 import unicodedata
 from pathlib import Path
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 CLEAN_DIR   = Path("data/clean")
 OUT_DIR     = Path("data/qwen")

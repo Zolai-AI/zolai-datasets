@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-input_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_v1.jsonl")
-output_file = Path(str(Path(__file__).resolve().parents[2]) + "/data/corpus/corpus_master_deduped.jsonl")
+input_file = Path(str(Path(__file__).resolve().parents[3]) + "/data/corpus/corpus_master_v1.jsonl")
+output_file = Path(str(Path(__file__).resolve().parents[3]) + "/data/corpus/corpus_master_deduped.jsonl")
 
 seen = set()
 kept = 0

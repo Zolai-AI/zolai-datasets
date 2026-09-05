@@ -31,7 +31,7 @@ def process_entry(entry):
     return entry
 
 input_path = '/tmp/batch_final_raw.jsonl'
-output_path = str(Path(__file__).resolve().parents[1]) + "/tmp/batch_final_perfect.jsonl'
+output_path = str(Path(__file__).resolve().parents[1]) + "/tmp/batch_final_perfect.jsonl"
 
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 

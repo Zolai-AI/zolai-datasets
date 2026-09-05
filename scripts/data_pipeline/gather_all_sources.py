@@ -20,7 +20,7 @@ import os
 import re
 from pathlib import Path
 
-ROOT    = Path(__file__).resolve().parents[2]
+ROOT    = Path(__file__).resolve().parents[3]
 DATA    = ROOT / "data"
 KAGGLE  = ROOT / "kaggle_dataset"
 OUT     = DATA / "master_source_v1.jsonl"
@@ -127,7 +127,7 @@ with open(OUT, "w") as out:
     # ── 5. CORPUS TEXTS (markdown/txt files) ────────────────────────────────
     print("5. corpus/texts/*.md ...")
     texts_path = DATA / "corpus/texts"
-    skip_texts = {"Zokam_Standard_Version_Bible"}  # Zokam dialect — tag separately
+    skip_texts = set()  # Include Zokam as part of Zolai dialect
     for fname in os.listdir(texts_path):
         fpath = texts_path / fname
         if fname in skip_texts or fpath.is_dir():

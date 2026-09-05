@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-DATA = Path(str(Path(__file__).resolve().parents[2]) + "/data")
+DATA = Path(str(Path(__file__).resolve().parents[3]) + "/data")
 
 # Simple standalone examples (verified, non-Bible)
 SIMPLE = {

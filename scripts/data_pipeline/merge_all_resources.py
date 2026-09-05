@@ -1,6 +1,13 @@
 import json
 from pathlib import Path
 
+# ── Path resolution ─────────────────────────────────────────────────────────
+import os
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
+os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
+
+
 DATA = Path("data/training")
 CURRENT_FILE = DATA / "master_train_production_complete.jsonl"
 OUTPUT_FILE = DATA / "master_train_complete_all_resources.jsonl"

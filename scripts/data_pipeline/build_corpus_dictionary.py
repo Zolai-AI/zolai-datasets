@@ -31,7 +31,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-DATA = Path(str(Path(__file__).resolve().parents[2]) + "/data")
+DATA = Path(str(Path(__file__).resolve().parents[3]) + "/data")
 OUT  = DATA / "dictionary/processed/dict_corpus_v1.jsonl"
 
 # ── Grammar particles (manually verified from corpus) ─────────────────────────
