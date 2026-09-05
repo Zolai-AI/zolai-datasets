@@ -19,7 +19,7 @@ banner() {
   echo -e "${C}╔══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${C}║${NC}  ${M}ZOLAI BIBLE STUDY${NC} — AI-Assisted Context-Aware Glossing  ${C}║${NC}"
   echo -e "${C}║${NC}  ${B}66 Books • Full Knowledge Base • Version Comparison    ${C}║${NC}"
-  echo -e "${C}║${NC}  ${B}OpenCode Free Models • Dictionary-First • AI Disambig  ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}P-Core Brain API • Dictionary-First • AI Disambig  ${C}║${NC}"
   echo -e "${C}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
 }
