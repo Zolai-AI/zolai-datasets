@@ -237,14 +237,20 @@ with open(path) as f:
                 trans_str = ' | '.join(str(t)[:40] for t in trans[:3] if isinstance(t,str))
             else:
                 trans_str = str(trans)[:80]
-            pos = d.get('pos','')
+            raw_pos = d.get('pos','')
+            if isinstance(raw_pos, str):
+                pos = raw_pos
+            elif isinstance(raw_pos, list):
+                pos = ' | '.join(str(p) for p in raw_pos[:3])
+            else:
+                pos = str(raw_pos)
             found.append((hw, trans_str, pos))
             if len(found) >= 20:
                 break
 if found:
     print(f'  Found {len(found)} matches:\n')
     for hw, trans, pos in found:
-        print(f'  {hw:25s} [{pos:5s}] → {trans}')
+        print(f'  {hw:25s} [{pos:20s}] → {trans}')
 else:
     print(f'  No matches for "{query}"')
 "
@@ -646,6 +652,32 @@ cmd_engine_export() {
   read -p "Press Enter to return to menu..."
 }
 
+cmd_knowledge_vectors() {
+  banner
+  echo -e "${Y}🧠 Knowledge Vectors (RAG Index)${NC}"
+  echo ""
+  KNOWLEDGE_FILE="$DATA/knowledge/knowledge_vectors.jsonl"
+  if [ -f "$KNOWLEDGE_FILE" ]; then
+    echo -e "  ${G}✅ Knowledge vectors file present${NC}"
+    echo -e "  Size: $(wc -c < "$KNOWLEDGE_FILE") bytes"
+    echo -e "  Rows: $(wc -l < "$KNOWLEDGE_FILE")"
+    echo ""
+    echo -e "  ${C}Use:${NC}"
+    echo -e "  ${G}from zolai.knowledge.retrieve import load_index, retrieve, format_context${NC}"
+    echo -e "  ${G}idx = load_index()${NC}"
+    echo -e "  ${G}results = retrieve('God', top_k=3)${NC}"
+  else
+    echo -e "  ${R}❌ Knowledge vectors file not found${NC}"
+    echo -e "  Expected: $KNOWLEDGE_FILE"
+    echo -e "  ${C}To download:${NC}"
+    echo -e "    ${G}huggingface-cli download peterpausianlian/zolai-knowledge-vectors${NC}"
+    echo -e "    ${G}  knowledge_vectors.jsonl --repo-type dataset${NC}"
+    echo -e "    ${G}  Into: $DATA/knowledge/${NC}"
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -670,6 +702,7 @@ while true; do
   echo -e "  ${G}F${NC}) 🔍 Corpus search (patterns + words)"
   echo -e "  ${G}G${NC}) 📦 Export training datasets"
   echo ""
+  echo -e "  ${G}H${NC}) 🧠 Knowledge Vectors (RAG index status)"
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -690,7 +723,87 @@ while true; do
     E|e) cmd_engine_review ;;
     F|f) cmd_engine_search ;;
     G|g) cmd_engine_export ;;
+    H|h) cmd_knowledge_vectors ;;
     0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
 done
+
+# ── Paragraph Engine ─────────────────────────────────────────
+cmd_para_analyze() {
+  echo -e "${C}═══ Paragraph Analysis ═══${NC}"
+  echo ""
+  echo -e "  Enter a Zo paragraph (or provide a file):"
+  echo -e "  ${Y}Tip: Paste multiple lines, then press Ctrl+D when done${NC}"
+  echo ""
+  local tmpfile=$(mktemp /tmp/para_input_XXXXXX.txt)
+  cat > "$tmpfile"
+  local text=$(cat "$tmpfile" | tr '\n' ' ')
+  rm -f "$tmpfile"
+  
+  if [ -z "$text" ]; then
+    echo -e "${R}No text provided.${NC}"
+    return
+  fi
+  
+  python3 "$SCRIPT_DIR/paragraph_engine.py" --analyze --text "$text"
+}
+
+cmd_para_paraphrase() {
+  echo -e "${C}═══ Paraphrase & Style Transfer ═══${NC}"
+  echo ""
+  echo -e "  Enter a Zo paragraph:"
+  echo ""
+  local tmpfile=$(mktemp /tmp/para_input_XXXXXX.txt)
+  cat > "$tmpfile"
+  local text=$(cat "$tmpfile" | tr '\n' ' ')
+  rm -f "$tmpfile"
+  
+  if [ -z "$text" ]; then
+    echo -e "${R}No text provided.${NC}"
+    return
+  fi
+  
+  echo ""
+  echo -e "  Paraphrase level:"
+  echo -e "    ${G}1${NC}) Minimal (change few words)"
+  echo -e "    ${G}2${NC}) Moderate (change vocab + structure)"
+  echo -e "    ${G}3${NC}) Strong (substantial rewrite)"
+  echo -e "    ${G}4${NC}) Structural (reorganize)"
+  echo -e "    ${G}5${NC}) Style (transform style)"
+  echo ""
+  read -p "  Select level [2]: " level_choice
+  level_choice="${level_choice:-2}"
+  
+  echo ""
+  echo -e "  Output style:"
+  echo -e "    ${G}1${NC}) Simple Zo"
+  echo -e "    ${G}2${NC}) Natural Zo"
+  echo -e "    ${G}3${NC}) Formal Zo"
+  echo -e "    ${G}4${NC}) Professional Zo"
+  echo -e "    ${G}5${NC}) Literary Zo"
+  echo -e "    ${G}6${NC}) Conversational Zo"
+  echo -e "    ${G}7${NC}) All styles"
+  echo ""
+  read -p "  Select style [2]: " style_choice
+  style_choice="${style_choice:-2}"
+  
+  local style_flag=""
+  case "$style_choice" in
+    1) style_flag="--style simple" ;;
+    2) style_flag="--style natural" ;;
+    3) style_flag="--style formal" ;;
+    4) style_flag="--style professional" ;;
+    5) style_flag="--style literary" ;;
+    6) style_flag="--style conversational" ;;
+    7) style_flag="--multi-style" ;;
+    *) style_flag="--style natural" ;;
+  esac
+  
+  python3 "$SCRIPT_DIR/paragraph_engine.py" --paraphrase --level "$level_choice" $style_flag --text "$text"
+}
+
+cmd_para_knowledge() {
+  echo -e "${C}═══ Paragraph Knowledge Base ═══${NC}"
+  python3 "$SCRIPT_DIR/paragraph_engine.py" --stats
+}
