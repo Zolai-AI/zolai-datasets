@@ -570,14 +570,16 @@ def step_evidence_graph(force: bool = False) -> bool:
     word_to_verses: dict[str, list[str]] = defaultdict(list)
     for verse in aligned:
         for w in verse.get("word_alignments", []):
-            word_to_verses[w.get("zo", "").lower()].append(verse.get("id", ""))
+            zo_w = (w.get("zo") or "").lower()
+            if zo_w:
+                word_to_verses[zo_w].append(verse.get("id", ""))
 
     # Build phrase→verses mapping
     phrase_to_verses: dict[str, list[str]] = defaultdict(list)
     for verse in aligned:
-        zo = verse.get("zo", "").lower()
+        zo = (verse.get("zo") or "").lower()
         for phrase in phrases:
-            pt = phrase.get("phrase", "").lower()
+            pt = (phrase.get("phrase") or "").lower()
             if pt and pt in zo:
                 phrase_to_verses[phrase.get("id", "")].append(verse.get("id", ""))
 
@@ -610,7 +612,7 @@ def step_evidence_graph(force: bool = False) -> bool:
             "evidence": make_evidence(
                 examples_count=len(connections),
                 references=[],
-                confidence=v.get("evidence", {}).get("confidence", UNCERTAIN),
+                confidence=(v.get("evidence") or {}).get("confidence", UNCERTAIN),
                 evidence_type="BIBLE_EVIDENCE",
             ),
             "provenance": make_provenance(["vocabulary.jsonl", "verse_alignment.jsonl"]),
@@ -634,7 +636,7 @@ def step_evidence_graph(force: bool = False) -> bool:
             "evidence": make_evidence(
                 examples_count=len(connections),
                 references=[],
-                confidence=ph.get("evidence", {}).get("confidence", UNCERTAIN),
+                confidence=(ph.get("evidence") or {}).get("confidence", UNCERTAIN),
                 evidence_type="CORPUS_PATTERN",
             ),
             "provenance": make_provenance(["phrases.jsonl", "verse_alignment.jsonl"]),

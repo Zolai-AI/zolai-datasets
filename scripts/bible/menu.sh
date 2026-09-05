@@ -188,9 +188,9 @@ cmd_dict_zo_en() {
   if [ -z "$query" ]; then return; fi
   echo ""
   $PYTHON -c "
-import json
-q = '$query'.strip().lower()
-path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
+import json, sys
+q = sys.argv[1].strip().lower()
+path = sys.argv[2]
 found = []
 with open(path) as f:
     for line in f:
@@ -199,20 +199,26 @@ with open(path) as f:
         if q in hw:
             eng = d.get('english','')
             if isinstance(eng, list):
-                eng_str = ' | '.join(e[:40] for e in eng[:3])
+                eng_str = ' | '.join(str(e) for e in eng[:3])
             else:
-                eng_str = str(eng)[:80]
+                eng_str = str(eng)
             freq = d.get('frequency', 0)
-            found.append((hw, eng_str, freq))
-            if len(found) >= 20:
-                break
+            # Score: exact=3, starts_with=2, contains=1
+            if q == hw: score = 3
+            elif hw.startswith(q): score = 2
+            else: score = 1
+            found.append((score, freq, hw, eng_str))
+# Sort by score desc, then freq desc
+found.sort(key=lambda x: (-x[0], -x[1]))
 if found:
-    print(f'  Found {len(found)} matches:\n')
-    for hw, eng, freq in sorted(found, key=lambda x: -x[2]):
-        print(f'  {hw:30s} → {eng}')
+    print(f'  Found {len(found)} matches:
+')
+    for score, freq, hw, eng in found[:30]:
+        marker = ' ← exact' if score == 3 else ''
+        print(f'  {hw:30s} → {eng}{marker}')
 else:
-    print(f'  No matches for "{query}"')
-"
+    print(f'  No matches for "{q}"')
+" "$query" "$DATA/dictionary/processed/dict_zo_en_clean.jsonl"
   echo ""
   read -p "  Press Enter..."
 }
@@ -223,9 +229,9 @@ cmd_dict_en_zo() {
   if [ -z "$query" ]; then return; fi
   echo ""
   $PYTHON -c "
-import json
-q = '$query'.strip().lower()
-path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+import json, sys
+q = sys.argv[1].strip().lower()
+path = sys.argv[2]
 found = []
 with open(path) as f:
     for line in f:
@@ -234,26 +240,45 @@ with open(path) as f:
         if q in hw:
             trans = d.get('translations',[])
             if isinstance(trans, list):
-                trans_str = ' | '.join(str(t)[:40] for t in trans[:3] if isinstance(t,str))
+                # Filter to good Zolai translations only
+                good = []
+                seen = set()
+                for t in trans:
+                    t = str(t).strip()
+                    tl = t.lower()
+                    if len(good) >= 3: break
+                    # Skip junk
+                    if not t or tl in ('', '1', '2', '3'): continue
+                    # Skip English echoes
+                    if tl == hw or tl == q: continue
+                    if tl == hw + 's' or tl == hw + 'es': continue
+                    # Skip if it's just English words (no Zolai chars)
+                    if all(c.isascii() and (c.isalpha() or c in ' ,.()-=:\"') for c in t): continue
+                    # Skip full definitions (too long, contains numbering)
+                    if '1.' in t[:10] or 'n. 1.' in t[:10]: continue
+                    # Deduplicate
+                    if tl in seen: continue
+                    seen.add(tl)
+                    good.append(t[:100])
+                trans_str = ' | '.join(good) if good else '(no Zolai translation)'
             else:
-                trans_str = str(trans)[:80]
-            raw_pos = d.get('pos','')
-            if isinstance(raw_pos, str):
-                pos = raw_pos
-            elif isinstance(raw_pos, list):
-                pos = ' | '.join(str(p) for p in raw_pos[:3])
-            else:
-                pos = str(raw_pos)
-            found.append((hw, trans_str, pos))
-            if len(found) >= 20:
-                break
+                trans_str = str(trans)[:100]
+            # Score: exact=3, starts_with=2, contains=1
+            if q == hw: score = 3
+            elif hw.startswith(q): score = 2
+            else: score = 1
+            found.append((score, hw, trans_str))
+# Sort by score desc
+found.sort(key=lambda x: (-x[0], x[1]))
 if found:
-    print(f'  Found {len(found)} matches:\n')
-    for hw, trans, pos in found:
-        print(f'  {hw:25s} [{pos:20s}] → {trans}')
+    print(f'  Found {len(found)} matches:
+')
+    for score, hw, trans in found[:25]:
+        marker = ' ← exact' if score == 3 else ''
+        print(f'  {hw:30s} → {trans}{marker}')
 else:
-    print(f'  No matches for "{query}"')
-"
+    print(f'  No matches for "{q}"')
+" "$query" "$DATA/dictionary/processed/dict_canonical_clean.jsonl"
   echo ""
   read -p "  Press Enter..."
 }
@@ -267,7 +292,7 @@ cmd_dict_both() {
   $PYTHON -c "
 import json
 q = '$query'.strip().lower()
-path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
+path = '$DATA/dictionary/processed/dict_zo_en_clean.jsonl'
 found = []
 with open(path) as f:
     for line in f:
@@ -293,7 +318,7 @@ else:
   $PYTHON -c "
 import json
 q = '$query'.strip().lower()
-path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+path = '$DATA/dictionary/processed/dict_canonical_clean.jsonl'
 found = []
 with open(path) as f:
     for line in f:
@@ -324,7 +349,7 @@ cmd_dict_browse_zo() {
   echo ""
   $PYTHON -c "
 import json
-path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
+path = '$DATA/dictionary/processed/dict_zo_en_clean.jsonl'
 entries = []
 with open(path) as f:
     for line in f:
@@ -350,7 +375,7 @@ cmd_dict_browse_en() {
   echo ""
   $PYTHON -c "
 import json
-path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+path = '$DATA/dictionary/processed/dict_canonical_clean.jsonl'
 entries = []
 with open(path) as f:
     for line in f:
@@ -439,7 +464,7 @@ cmd_fix_paths() {
   fi
   # Check dictionary files
   echo -e "  ${Y}Dictionary files:${NC}"
-  for f in dict_zo_en_master_v1.jsonl dict_canonical_v1.jsonl; do
+  for f in dict_zo_en_clean.jsonl dict_canonical_clean.jsonl; do
     if [ -f "$DATA/dictionary/processed/$f" ]; then
       local cnt=$(wc -l < "$DATA/dictionary/processed/$f")
       echo -e "    ${G}✅ $f: $cnt entries${NC}"
@@ -657,23 +682,64 @@ cmd_knowledge_vectors() {
   echo -e "${Y}🧠 Knowledge Vectors (RAG Index)${NC}"
   echo ""
   KNOWLEDGE_FILE="$DATA/knowledge/knowledge_vectors.jsonl"
-  if [ -f "$KNOWLEDGE_FILE" ]; then
-    echo -e "  ${G}✅ Knowledge vectors file present${NC}"
-    echo -e "  Size: $(wc -c < "$KNOWLEDGE_FILE") bytes"
-    echo -e "  Rows: $(wc -l < "$KNOWLEDGE_FILE")"
-    echo ""
-    echo -e "  ${C}Use:${NC}"
-    echo -e "  ${G}from zolai.knowledge.retrieve import load_index, retrieve, format_context${NC}"
-    echo -e "  ${G}idx = load_index()${NC}"
-    echo -e "  ${G}results = retrieve('God', top_k=3)${NC}"
-  else
+  if [ ! -f "$KNOWLEDGE_FILE" ]; then
     echo -e "  ${R}❌ Knowledge vectors file not found${NC}"
     echo -e "  Expected: $KNOWLEDGE_FILE"
     echo -e "  ${C}To download:${NC}"
     echo -e "    ${G}huggingface-cli download peterpausianlian/zolai-knowledge-vectors${NC}"
     echo -e "    ${G}  knowledge_vectors.jsonl --repo-type dataset${NC}"
     echo -e "    ${G}  Into: $DATA/knowledge/${NC}"
+    echo ""
+    read -p "Press Enter to return to menu..."
+    return
   fi
+
+  echo -e "  ${G}✅ Knowledge vectors file present${NC}"
+  echo -e "  Size: $(wc -c < "$KNOWLEDGE_FILE") bytes"
+  echo -e "  Rows: $(wc -l < "$KNOWLEDGE_FILE")"
+  echo ""
+  echo -e "  ${G}1${NC}) 🔎 Run a retrieval query"
+  echo -e "  ${G}0${NC}) Back to main menu"
+  echo ""
+  read -p "  Select [1]: " kv_choice
+  case "$kv_choice" in
+    0|q|Q) return ;;
+    *) ;;
+  esac
+
+  read -p "  Query: " kv_query
+  if [ -z "$kv_query" ]; then
+    echo -e "  ${R}No query entered.${NC}"
+    echo ""
+    read -p "Press Enter to return to menu..."
+    return
+  fi
+  read -p "  Top-k results [3]: " kv_topk
+  kv_topk="${kv_topk:-3}"
+  echo ""
+  echo -e "  ${C}Loading index + embedding query...${NC}"
+  echo -e "  ${Y}   (first run downloads the all-MiniLM model, may take a minute)${NC}"
+  echo ""
+  log_event "kv_query" "query=$kv_query topk=$kv_topk"
+  PYTHONPATH="$WORKSPACE/zolai-core${PYTHONPATH:+:$PYTHONPATH}" $PYTHON -c "
+import sys
+from zolai.knowledge.retrieve import load_index, retrieve
+idx = load_index()
+if idx.vectors is None or len(idx.vectors) == 0:
+    print('  No vectors in index. Run build_knowledge_index first.')
+    sys.exit(0)
+q = sys.argv[1]
+hits = retrieve(q, index=idx, top_k=int(sys.argv[2]))
+if not hits:
+    print('  (no results above similarity threshold 0.85)')
+    print('  Tip: try a more general query, or lower the threshold in retrieve().')
+else:
+    for i, h in enumerate(hits, 1):
+        src = h.get('metadata', {}).get('source', '?')
+        print(f'  [{i}] (score {h.get("score", "?")}) src={src}')
+        print('      ' + h.get('text', '').replace(chr(10), ' ')[:300])
+        print()
+" "$kv_query" "$kv_topk"
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -798,14 +864,14 @@ cmd_para_paraphrase() {
   
   local style_flag=""
   case "$style_choice" in
-    1) style_flag="--style simple" ;;
-    2) style_flag="--style natural" ;;
-    3) style_flag="--style formal" ;;
-    4) style_flag="--style professional" ;;
-    5) style_flag="--style literary" ;;
-    6) style_flag="--style conversational" ;;
+    1) style_flag="--style SIMPLE" ;;
+    2) style_flag="--style SIMPLE" ;;
+    3) style_flag="--style FORMAL" ;;
+    4) style_flag="--style FORMAL" ;;
+    5) style_flag="--style LITERARY" ;;
+    6) style_flag="--style CONVERSATIONAL" ;;
     7) style_flag="--multi-style" ;;
-    *) style_flag="--style natural" ;;
+    *) style_flag="--style SIMPLE" ;;
   esac
   
   python3 "$SCRIPT_DIR/paragraph_engine.py" --paraphrase --level "$level_choice" $style_flag --text "$text"
