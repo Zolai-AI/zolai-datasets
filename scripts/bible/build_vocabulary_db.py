@@ -11,7 +11,7 @@ Usage:
 
 Input:
     ../data/dictionary/processed/dict_zo_en_master_v1.jsonl
-    ../data/dictionary/processed/dict_bible_supplement_v1.jsonl
+    ../data/dictionary/processed/dict_canonical_v1.jsonl
     ../data/bible/word_alignments_v1.jsonl
     ../data/bible/parallel_corpus_v1.jsonl
 
@@ -27,7 +27,7 @@ from pathlib import Path
 # ── Paths ────────────────────────────────────────────────────────────────────
 WORKSPACE = Path(__file__).resolve().parent.parent.parent.parent
 DICT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
-SUPPLEMENT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_bible_supplement_v1.jsonl"
+SUPPLEMENT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_canonical_v1.jsonl"
 ALIGNMENTS_PATH = WORKSPACE / "data" / "bible" / "word_alignments_v1.jsonl"
 CORPUS_PATH = WORKSPACE / "data" / "bible" / "parallel_corpus_v1.jsonl"
 OUTPUT_PATH = WORKSPACE / "data" / "bible" / "vocabulary_db_v1.jsonl"

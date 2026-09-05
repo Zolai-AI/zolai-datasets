@@ -11,7 +11,7 @@ Usage:
 Input:
     ../data/bible/parallel_corpus_v1.jsonl
     ../data/dictionary/processed/dict_zo_en_master_v1.jsonl
-    ../data/dictionary/processed/dict_bible_supplement_v1.jsonl
+    ../data/dictionary/processed/dict_canonical_v1.jsonl
 
 Output:
     ../data/bible/word_alignments_v1.jsonl
@@ -27,7 +27,7 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parent.parent.parent.parent
 CORPUS_PATH = WORKSPACE / "data" / "bible" / "parallel_corpus_v1.jsonl"
 DICT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
-SUPPLEMENT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_bible_supplement_v1.jsonl"
+SUPPLEMENT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_canonical_v1.jsonl"
 OUTPUT_PATH = WORKSPACE / "data" / "bible" / "word_alignments_v1.jsonl"
 
 # Function words that commonly map to English stopwords — skip these

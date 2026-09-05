@@ -131,7 +131,7 @@ cmd_check_dict() {
   $PYTHON -c "
 import json
 words = ['ci','tapa','kiangah','ahi','lei','leitung','topa','pasian','hong','kei','om','lo']
-path = '$DATA/dictionary/processed/dict_unified_v1.jsonl'
+path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
 found = {}
 with open(path) as f:
     for line in f:

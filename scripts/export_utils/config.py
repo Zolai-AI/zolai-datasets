@@ -35,7 +35,7 @@ def get_kaggle_token() -> str:
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # zolai-datasets/
 
 PARALLEL_PATH = REPO_ROOT / "../data/parallel/zo_en_pairs_combined_v1.jsonl"
-DICTIONARY_PATH = REPO_ROOT / "../data/dictionary/processed/dict_unified_v1.jsonl"
+DICTIONARY_PATH = REPO_ROOT / "../data/dictionary/processed/dict_canonical_v1.jsonl"
 TRAINING_PATH = REPO_ROOT / "../data/clean/master.jsonl"
 BIBLE_DIR = REPO_ROOT / "../data/corpus/bible/"
 
