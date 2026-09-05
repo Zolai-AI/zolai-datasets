@@ -159,57 +159,209 @@ cmd_stats() {
 }
 
 cmd_check_dict() {
-  banner
-  echo -e "${Y}Checking Zolai→English dictionary:${NC}"
+  while true; do
+    banner
+    echo -e "${Y}📖 Dictionary Search (ZO↔EN)${NC}"
+    echo ""
+    echo -e "  ${G}1${NC}) Search Zolai → English"
+    echo -e "  ${G}2${NC}) Search English → Zolai"
+    echo -e "  ${G}3${NC}) Browse common Zolai words (top 50)"
+    echo -e "  ${G}4${NC}) Browse common English words (top 50)"
+    echo -e "  ${G}5${NC}) Word info (both directions)"
+    echo -e "  ${G}0${NC}) Back to main menu"
+    echo ""
+    read -p "  Select [1]: " choice
+    case "$choice" in
+      2) cmd_dict_en_zo ;;
+      3) cmd_dict_browse_zo ;;
+      4) cmd_dict_browse_en ;;
+      5) cmd_dict_both ;;
+      0|q) return ;;
+      *) cmd_dict_zo_en ;;
+    esac
+  done
+}
+
+cmd_dict_zo_en() {
+  echo ""
+  read -p "  Enter Zolai word (or part): " query
+  if [ -z "$query" ]; then return; fi
   echo ""
   $PYTHON -c "
 import json
-words = ['ci','tapa','kiangah','ahi','lei','leitung','topa','pasian','hong','kei','om','lo']
-# Use ZO→EN master dictionary (correct direction!)
+q = '$query'.strip().lower()
 path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
-found = {}
+found = []
 with open(path) as f:
     for line in f:
         d = json.loads(line)
         hw = d.get('zolai','').strip().lower()
-        if hw in words and hw not in found:
+        if q in hw:
             eng = d.get('english','')
             if isinstance(eng, list):
-                found[hw] = [e[:30] for e in eng[:3]]
+                eng_str = ' | '.join(e[:40] for e in eng[:3])
             else:
-                found[hw] = [str(eng)[:30]]
-for w in words:
-    if w in found:
-        ts = ' | '.join(found[w])
-        print(f'  {w:12s} → {ts}')
-    else:
-        print(f'  {w:12s} → NOT FOUND')
+                eng_str = str(eng)[:80]
+            freq = d.get('frequency', 0)
+            found.append((hw, eng_str, freq))
+            if len(found) >= 20:
+                break
+if found:
+    print(f'  Found {len(found)} matches:\n')
+    for hw, eng, freq in sorted(found, key=lambda x: -x[2]):
+        print(f'  {hw:30s} → {eng}')
+else:
+    print(f'  No matches for "{query}"')
 "
   echo ""
-  echo -e "${Y}Checking English→Zolai dictionary:${NC}"
+  read -p "  Press Enter..."
+}
+
+cmd_dict_en_zo() {
+  echo ""
+  read -p "  Enter English word (or part): " query
+  if [ -z "$query" ]; then return; fi
   echo ""
   $PYTHON -c "
 import json
-words = ['God','Lord','say','go','come','see','know','give','take','eat']
+q = '$query'.strip().lower()
 path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
-found = {}
+found = []
 with open(path) as f:
     for line in f:
         d = json.loads(line)
         hw = d.get('headword','').strip().lower()
-        if hw in words and hw not in found:
-            trans = d.get('translations',[])[:3]
-            found[hw] = [t[:30] for t in trans if isinstance(t,str)]
-for w in words:
-    if w in found:
-        ts = ' | '.join(found[w])
-        print(f'  {w:12s} → {ts}')
-    else:
-        print(f'  {w:12s} → NOT FOUND')
+        if q in hw:
+            trans = d.get('translations',[])
+            if isinstance(trans, list):
+                trans_str = ' | '.join(str(t)[:40] for t in trans[:3] if isinstance(t,str))
+            else:
+                trans_str = str(trans)[:80]
+            pos = d.get('pos','')
+            found.append((hw, trans_str, pos))
+            if len(found) >= 20:
+                break
+if found:
+    print(f'  Found {len(found)} matches:\n')
+    for hw, trans, pos in found:
+        print(f'  {hw:25s} [{pos:5s}] → {trans}')
+else:
+    print(f'  No matches for "{query}"')
 "
-  log_event "dict_check" ""
   echo ""
-  read -p "Press Enter to return to menu..."
+  read -p "  Press Enter..."
+}
+
+cmd_dict_both() {
+  echo ""
+  read -p "  Enter any word: " query
+  if [ -z "$query" ]; then return; fi
+  echo ""
+  echo -e "  ${Y}Zolai → English:${NC}"
+  $PYTHON -c "
+import json
+q = '$query'.strip().lower()
+path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
+found = []
+with open(path) as f:
+    for line in f:
+        d = json.loads(line)
+        hw = d.get('zolai','').strip().lower()
+        if q == hw or q in hw:
+            eng = d.get('english','')
+            if isinstance(eng, list):
+                eng_str = ' | '.join(e[:40] for e in eng[:3])
+            else:
+                eng_str = str(eng)[:80]
+            found.append((hw, eng_str))
+            if len(found) >= 5:
+                break
+if found:
+    for hw, eng in found:
+        print(f'    {hw:25s} → {eng}')
+else:
+    print(f'    (none found)')
+"
+  echo ""
+  echo -e "  ${Y}English → Zolai:${NC}"
+  $PYTHON -c "
+import json
+q = '$query'.strip().lower()
+path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+found = []
+with open(path) as f:
+    for line in f:
+        d = json.loads(line)
+        hw = d.get('headword','').strip().lower()
+        if q == hw or q in hw:
+            trans = d.get('translations',[])
+            if isinstance(trans, list):
+                trans_str = ' | '.join(str(t)[:40] for t in trans[:3] if isinstance(t,str))
+            else:
+                trans_str = str(trans)[:80]
+            found.append((hw, trans_str))
+            if len(found) >= 5:
+                break
+if found:
+    for hw, trans in found:
+        print(f'    {hw:25s} → {trans}')
+else:
+    print(f'    (none found)')
+"
+  echo ""
+  read -p "  Press Enter..."
+}
+
+cmd_dict_browse_zo() {
+  echo ""
+  echo -e "  ${Y}Top 50 Zolai words by frequency:${NC}"
+  echo ""
+  $PYTHON -c "
+import json
+path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
+entries = []
+with open(path) as f:
+    for line in f:
+        d = json.loads(line)
+        hw = d.get('zolai','').strip().lower()
+        eng = d.get('english','')
+        if isinstance(eng, list):
+            eng_str = eng[0][:30] if eng else '?'
+        else:
+            eng_str = str(eng)[:30]
+        entries.append((hw, eng_str))
+# Show first 50 (already sorted by frequency in master dict)
+for hw, eng in entries[:50]:
+    print(f'  {hw:25s} → {eng}')
+"
+  echo ""
+  read -p "  Press Enter..."
+}
+
+cmd_dict_browse_en() {
+  echo ""
+  echo -e "  ${Y}Top 50 English words:${NC}"
+  echo ""
+  $PYTHON -c "
+import json
+path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+entries = []
+with open(path) as f:
+    for line in f:
+        d = json.loads(line)
+        hw = d.get('headword','').strip()
+        trans = d.get('translations',[])
+        if isinstance(trans, list):
+            trans_str = str(trans[0])[:30] if trans else '?'
+        else:
+            trans_str = str(trans)[:30]
+        entries.append((hw, trans_str))
+# Show first 50
+for hw, trans in entries[:50]:
+    print(f'  {hw:25s} → {trans}')
+"
+  echo ""
+  read -p "  Press Enter..."
 }
 
 cmd_build_kb() {
