@@ -2,15 +2,18 @@
 """
 ZOLAI BIBLE STUDY — AI-Assisted Context-Aware Glossing v2.0
 All 66 books • Full knowledge base • Version comparison
-OpenCode Free Models • Dictionary-First • AI Disambiguation
+P-Core Brain API • Dictionary-First • AI Disambiguation
 """
 
 import json
+import os
 import re
 import sys
-from collections import Counter, defaultdict
+import time
 from datetime import datetime
 from pathlib import Path
+
+import requests
 
 # ══════════════════════════════════════════════════════════════════════
 # PATHS
@@ -102,15 +105,82 @@ def load_ai_cache() -> dict:
                 d[rec.get("word", "")] = rec.get("meaning", "")
     return d
 
+
+
+# ══════════════════════════════════════════════════════════════════════
+# P-CORE BRAIN API INTEGRATION
+# ══════════════════════════════════════════════════════════════════════
+PCORE_BRAIN_URL = os.environ.get("PCORE_BRAIN_URL", "https://pcore-brain.peterlianpi.site")
+PCORE_BRAIN_API_KEY = os.environ.get("PCORE_BRAIN_API_KEY", "2d4cfe2ef74a2798e5370911b08d3fec81dd3a934509dd9b")
+
+
+def call_pcore_brain_ai(words: list[str], context: str = "",
+                        known_words: dict | None = None) -> dict[str, str]:
+    """Call pcore-brain API to translate Zolai words. Returns {word: meaning}."""
+    if not words:
+        return {}
+
+    word_list = ", ".join(words[:20])
+    known_ctx = ""
+    if known_words:
+        pairs = [f"{k}={v}" for k, v in list(known_words.items())[:15]]
+        known_ctx = f"\nKnown words in verse: {', '.join(pairs)}"
+
+    prompt = f"""Translate these Zolai/Tedim words to English (Bible context).
+{known_ctx}
+ZVS 2018 rules: SOV order, ergative 'in', 'hiam' = question marker.
+Forbidden: pathian→pasian, ram→gam, fapa→tapa, bawipa→topa
+Words to translate: {word_list}
+Reply ONLY as JSON: {{"word": "meaning", "word2": "meaning2"}}
+No explanations, just the JSON object."""
+
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                f"{PCORE_BRAIN_URL}/v1/chat/completions",
+                headers={
+                    "x-api-key": PCORE_BRAIN_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "auto",
+                    "task": "zolai",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 300,
+                },
+                timeout=60,
+            )
+            if r.status_code == 200:
+                content = r.json()["choices"][0]["message"]["content"]
+                json_match = re.search(r"\{[^{}]+\}", content)
+                if json_match:
+                    return json.loads(json_match.group())
+            elif r.status_code == 429:
+                time.sleep(5 * (attempt + 1))
+                continue
+        except (requests.Timeout, requests.ConnectionError):
+            time.sleep(3 * (attempt + 1))
+        except Exception:
+            break
+    return {}
+
+def save_ai_cache(word: str, meaning: str):
+    """Append a word to the AI gloss cache."""
+    AI_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    with open(AI_CACHE, "a") as f:
+        f.write(json.dumps({"word": word, "meaning": meaning}, ensure_ascii=False) + "\n")
+
 # ══════════════════════════════════════════════════════════════════════
 # GLOSSING ENGINE
 # ══════════════════════════════════════════════════════════════════════
 class GlossingEngine:
-    def __init__(self, zo_en: dict, en_zo: dict, ai_cache: dict):
+    def __init__(self, zo_en: dict, en_zo: dict, ai_cache: dict, use_ai: bool = False):
         self.zo_en = zo_en
         self.en_zo = en_zo
         self.ai_cache = ai_cache
+        self.use_ai = use_ai
         self.stats = {"dict_hit": 0, "ai_hit": 0, "miss": 0}
+        self._pending_words = []
     
     def gloss_word(self, word: str, context: str = "") -> dict:
         """Gloss a single Zolai word."""
@@ -138,7 +208,21 @@ class GlossingEngine:
                 "confidence": "medium"
             }
         
-        # 3. Miss
+        # 3. Try AI (batch pending)
+        if self.use_ai and w:
+            self._pending_words.append((w, context, word))
+            if len(self._pending_words) >= 10:
+                self._flush_ai_batch()
+            self.stats["miss"] += 1
+            return {
+                "word": word,
+                "gloss": "...",
+                "alternatives": [],
+                "source": "ai_pending",
+                "confidence": "pending"
+            }
+        
+        # 4. Miss
         self.stats["miss"] += 1
         return {
             "word": word,
@@ -151,7 +235,34 @@ class GlossingEngine:
     def gloss_verse(self, zo_text: str) -> list:
         """Gloss all words in a verse."""
         words = re.findall(r"[a-zA-Z']+", zo_text)
-        return [self.gloss_word(w, zo_text) for w in words]
+        result = [self.gloss_word(w, zo_text) for w in words]
+        # Flush AI batch at end of verse
+        if self._pending_words:
+            self._flush_ai_batch()
+        return result
+    
+    def _flush_ai_batch(self):
+        """Send pending words to AI and update cache."""
+        if not self._pending_words:
+            return
+        words_to_lookup = list({w[0] for w in self._pending_words})[:20]
+        context = self._pending_words[0][1] if self._pending_words else ""
+
+        # RAG: collect known dict words from this verse for context
+        known_words: dict[str, str] = {}
+        for w, _, _ in self._pending_words:
+            if w in self.zo_en:
+                known_words[w] = self.zo_en[w][0] if self.zo_en[w] else "?"
+
+        results = call_pcore_brain_ai(words_to_lookup, context, known_words)
+        for w, _, orig_word in self._pending_words:
+            if w in results:
+                meaning = results[w]
+                self.ai_cache[w] = meaning
+                save_ai_cache(w, meaning)
+                self.stats["ai_hit"] += 1
+                self.stats["miss"] = max(0, self.stats["miss"] - 1)
+        self._pending_words.clear()
 
 # ══════════════════════════════════════════════════════════════════════
 # STUDY ENGINE
@@ -196,8 +307,7 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
     
     # Write study file
     with open(output_file, "w") as f:
-        for r in results:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in results)
     
     # Calculate stats
     total_words = sum(len(r["glosses"]) for r in results)
@@ -286,13 +396,14 @@ def main():
     print(f"{G}Loaded: {len(zo_en)} ZO→EN, {len(en_zo)} EN→ZO, {len(verses)} verses{NC}\n")
     
     # Initialize engine
-    engine = GlossingEngine(zo_en, en_zo, ai_cache)
+    use_ai = "--no-ai" not in sys.argv
+    engine = GlossingEngine(zo_en, en_zo, ai_cache, use_ai=use_ai)
     
     # Determine books
     if args.book:
         books = [b.strip().upper() for b in args.book.split(",")]
     else:
-        books = sorted(set(v.get("book", "") for v in verses if v.get("book")))
+        books = sorted({v.get("book", "") for v in verses if v.get("book")})
     
     # Resume: skip completed
     if args.resume:
