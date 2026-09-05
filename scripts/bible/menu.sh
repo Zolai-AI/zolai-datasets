@@ -253,10 +253,16 @@ cmd_fix_paths() {
   echo -e "${Y}Checking/fixing script paths...${NC}"
   echo ""
   # Check study_bible_books.py has correct WORKSPACE
-  if grep -q 'Path(__file__).resolve().parent.parent.parent' "$SCRIPT_DIR/study_bible_books.py" 2>/dev/null; then
+  if grep -q 'WORKSPACE = SCRIPT_DIR.parent.parent.parent' "$SCRIPT_DIR/study_bible_books.py" 2>/dev/null; then
     echo -e "  ${G}✅ study_bible_books.py — paths OK${NC}"
   else
     echo -e "  ${R}❌ study_bible_books.py — needs path fix${NC}"
+  fi
+  # Check bible_engine.py has correct WORKSPACE
+  if grep -q 'WORKSPACE = SCRIPT_DIR.parent.parent.parent' "$SCRIPT_DIR/bible_engine.py" 2>/dev/null; then
+    echo -e "  ${G}✅ bible_engine.py — paths OK${NC}"
+  else
+    echo -e "  ${R}❌ bible_engine.py — needs path fix${NC}"
   fi
   # Check for FCL/HCL06 references in data
   local fcl_count=$(find "$DATA/corpus/bible/usx" -name "FCL" -o -name "HCL06" 2>/dev/null | wc -l)

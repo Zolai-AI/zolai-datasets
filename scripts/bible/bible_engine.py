@@ -144,6 +144,42 @@ def load_phrase_database() -> list[dict]:
     return load_jsonl(PHRASES_DB)
 
 
+def load_phrase_dict() -> dict[str, str]:
+    """Build phrase dictionary from supplement dict (multi-word headwords).
+
+    Maps multi-word Zolai phrases to their English meanings.
+    Example: "a kipat cilin" → "in the beginning"
+    """
+    phrase_dict: dict[str, str] = {}
+    # Load from supplement dictionary (curated phrases)
+    supp_path = DATA / "dictionary" / "processed" / "dict_bible_supplement_v1.jsonl"
+    if supp_path.exists():
+        with open(supp_path) as f:
+            for line in f:
+                rec = json.loads(line)
+                hw = rec.get("headword", "").strip().lower()
+                trans = rec.get("translations", [])
+                if isinstance(trans, list):
+                    eng = trans[0] if trans else ""
+                else:
+                    eng = str(trans)
+                if hw and " " in hw and eng:
+                    phrase_dict[hw] = eng
+    # Also load from ZO→EN master (multi-word entries)
+    master_path = DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
+    if master_path.exists():
+        with open(master_path) as f:
+            for line in f:
+                rec = json.loads(line)
+                hw = rec.get("zolai", "").strip().lower()
+                eng = rec.get("english", [])
+                if isinstance(eng, list):
+                    eng = eng[0] if eng else ""
+                if hw and " " in hw and eng and hw not in phrase_dict:
+                    phrase_dict[hw] = eng
+    return phrase_dict
+
+
 def load_collocations() -> dict[str, int]:
     """Load word collocations as {phrase: frequency}."""
     coll = {}
@@ -209,14 +245,17 @@ class EvidenceScorer:
 # GLOSSING ENGINE
 # ══════════════════════════════════════════════════════════════════════
 class GlossingEngine:
-    """Enhanced word alignment using dictionary + corpus evidence."""
+    """Enhanced word alignment using dictionary + corpus + phrase lookup."""
 
     def __init__(self, zo_en: dict[str, list[str]], vocab: dict[str, dict],
-                 phrases: list[dict], collocations: dict[str, int]):
+                 phrases: list[dict], collocations: dict[str, int],
+                 phrase_dict: dict[str, str] | None = None):
         self.zo_en = zo_en
         self.vocab = vocab
         self.phrases = phrases
         self.collocations = collocations
+        # Build phrase dictionary: multi-word headword → English meaning
+        self.phrase_dict: dict[str, str] = phrase_dict or {}
         self.stats = {"dict_hit": 0, "vocab_hit": 0, "phrase_hit": 0, "miss": 0}
 
     def gloss_word(self, word: str) -> dict:
@@ -260,9 +299,40 @@ class GlossingEngine:
         }
 
     def gloss_verse(self, zo_text: str) -> list[dict]:
-        """Gloss all words in a verse."""
+        """Gloss a verse with phrase-first, then word-by-word fallback.
+
+        Strategy:
+        1. Try to match multi-word phrases (longest first)
+        2. For unmatched segments, fall back to single-word lookup
+        """
         words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
-        return [self.gloss_word(w) for w in words]
+        if not words:
+            return []
+
+        result: list[dict] = []
+        i = 0
+        while i < len(words):
+            matched = False
+            # Try multi-word phrases (longest first, up to 8 words)
+            for length in range(min(8, len(words) - i), 1, -1):
+                candidate = " ".join(w.lower() for w in words[i:i + length])
+                if candidate in self.phrase_dict:
+                    self.stats["phrase_hit"] += 1
+                    result.append({
+                        "word": " ".join(words[i:i + length]),
+                        "gloss": self.phrase_dict[candidate],
+                        "alternatives": [],
+                        "source": "phrase_dict",
+                        "confidence": HIGH,
+                        "phrase": True,
+                    })
+                    i += length
+                    matched = True
+                    break
+            if not matched:
+                result.append(self.gloss_word(words[i]))
+                i += 1
+        return result
 
     def get_stats(self) -> dict:
         return dict(self.stats)
@@ -1370,13 +1440,19 @@ class BibleEngine:
         self.phrases_db = load_phrase_database()
         self.collocations = load_collocations()
 
+        self.phrase_dict = load_phrase_dict()
+
         print(f"  {len(self.zo_en)} ZO→EN entries")
         print(f"  {len(self.vocab)} vocab entries")
         print(f"  {len(self.grammar_patterns)} grammar patterns")
         print(f"  {len(self.collocations)} collocations")
+        print(f"  {len(self.phrase_dict)} phrase entries")
 
         # Initialize all modules
-        self.glossing = GlossingEngine(self.zo_en, self.vocab, self.phrases_db, self.collocations)
+        self.glossing = GlossingEngine(
+            self.zo_en, self.vocab, self.phrases_db, self.collocations,
+            self.phrase_dict,
+        )
         self.phrases = PhraseExtractor(self.phrases_db, self.collocations, self.zo_en)
         self.morphology = MorphologyAnalyzer()
         self.grammar = GrammarMatcher(self.grammar_patterns)
