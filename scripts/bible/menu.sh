@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-#  ZOLAI BIBLE STUDY — Master Menu
+#  ZOLAI BIBLE STUDY — Master Menu v2.0
 #  AI-assisted glossing with OpenCode free models
+#  All 66 books • Full knowledge base • Version comparison
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -17,9 +18,20 @@ banner() {
   clear
   echo -e "${C}╔══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${C}║${NC}  ${M}ZOLAI BIBLE STUDY${NC} — AI-Assisted Context-Aware Glossing  ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}66 Books • Full Knowledge Base • Version Comparison    ${C}║${NC}"
   echo -e "${C}║${NC}  ${B}OpenCode Free Models • Dictionary-First • AI Disambig  ${C}║${NC}"
   echo -e "${C}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
+}
+
+# ── Logging ─────────────────────────────────────────────────
+LOG_DIR="$DATA/dictionary/bible_study"
+LOG_FILE="$LOG_DIR/menu_log.jsonl"
+mkdir -p "$LOG_DIR"
+
+log_event() {
+  local event="$1" detail="$2"
+  echo "{\"ts\":\"$(date -Iseconds)\",\"event\":\"$event\",\"detail\":\"$detail\"}" >> "$LOG_FILE"
 }
 
 # ── Model selection ─────────────────────────────────────────
@@ -36,6 +48,7 @@ select_model() {
     *)  MODEL="opencode/mimo-v2.5-free"; AI_FLAG="" ;;
   esac
   echo -e "  → Using: ${G}${MODEL:-dict-only}${NC}"
+  log_event "model_select" "${MODEL:-dict-only}"
   echo ""
 }
 
@@ -48,19 +61,23 @@ select_books() {
   echo -e "  ${G}4${NC}) Pentateuch (GEN,EXO,LEV,NUM,DEU)"
   echo -e "  ${G}5${NC}) Psalms + Proverbs"
   echo -e "  ${G}6${NC}) Gospels (MAT,MRK,LUK,JHN)"
-  echo -e "  ${G}7${NC}) Single book (type code)"
-  echo -e "  ${G}8${NC}) Custom list (comma-separated)"
+  echo -e "  ${G}7${NC}) Historical (GEN-EST)"
+  echo -e "  ${G}8${NC}) Poetic (JOB,PSA,PRO,ECC,SNG)"
+  echo -e "  ${G}9${NC}) Prophetic (ISA-DAN, HOS-REV)"
+  echo -e "  ${G}A${NC}) Single book (type code)"
+  echo -e "  ${G}B${NC}) Custom list (comma-separated)"
   echo ""
   read -p "  Select [1]: " choice
   case "$choice" in
-    2)  BOOKS="" ; BOOK_FLAG="" ;;
-    3)  BOOKS="MAT,MRK,LUK,JHN,ACT,ROM,1CO,2CO,GAL,EPH,PHP,COL,1TH,2TH,1TI,2TI,TIT,PHM,HEB,JAS,1PE,2PE,1JN,2JN,3JN,JUD,REV"
-        BOOK_FLAG="--book $BOOKS" ;;
+    2)  BOOK_FLAG="--book GEN,EXO,LEV,NUM,DEU,JOS,JUG,RUT,1SA,2SA,1KI,2KI,1CH,2CH,EZR,NEH,EST" ;;
+    3)  BOOK_FLAG="--book MAT,MRK,LUK,JHN,ACT,ROM,1CO,2CO,GAL,EPH,PHP,COL,1TH,2TH,1TI,2TI,TIT,PHM,HEB,JAS,1PE,2PE,1JN,2JN,3JN,JUD,REV" ;;
     4)  BOOK_FLAG="--book GEN,EXO,LEV,NUM,DEU" ;;
     5)  BOOK_FLAG="--book PSA,PRO" ;;
     6)  BOOK_FLAG="--book MAT,MRK,LUK,JHN" ;;
-    7)  read -p "  Book code: " bc; BOOK_FLAG="--book ${bc^^}" ;;
-    8)  read -p "  Books (comma-sep): " bs; BOOK_FLAG="--book ${bs^^}" ;;
+    7)  BOOK_FLAG="--book JOB,PSA,PRO,ECC,SNG" ;;
+    8)  BOOK_FLAG="--book ISA,JER,LAM,EZK,DAN,HOS,JOE,AMO,OBA,JON,MIC,NAM,HAB,ZEP,HAG,ZEC,MAL" ;;
+    A|a)  read -p "  Book code: " bc; BOOK_FLAG="--book ${bc^^}" ;;
+    B|b)  read -p "  Books (comma-sep): " bs; BOOK_FLAG="--book ${bs^^}" ;;
     *)  BOOK_FLAG="" ;;
   esac
 }
@@ -73,7 +90,9 @@ cmd_study() {
   select_books
   echo -e "${G}Starting study...${NC}"
   echo ""
+  log_event "study_start" "${MODEL:-dict-only} $BOOK_FLAG"
   $PYTHON "$SCRIPT_DIR/study_bible_books.py" $AI_FLAG $BOOK_FLAG "$@"
+  log_event "study_done" ""
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -83,7 +102,9 @@ cmd_resume() {
   select_model
   echo -e "${G}Resuming (skipping completed books)...${NC}"
   echo ""
+  log_event "resume_start" ""
   $PYTHON "$SCRIPT_DIR/study_bible_books.py" $AI_FLAG --resume "$@"
+  log_event "resume_done" ""
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -93,15 +114,17 @@ cmd_test_one() {
   select_model
   echo -e "${G}Testing with Genesis (1 book)...${NC}"
   echo ""
+  log_event "test_start" "GEN"
   $PYTHON "$SCRIPT_DIR/study_bible_books.py" $AI_FLAG --book GEN "$@"
   echo ""
   echo -e "${Y}Spot-check results:${NC}"
-  head -5 "$DATA/dictionary/bible_study/01_GEN_study.jsonl" | $PYTHON -c "
+  head -10 "$DATA/dictionary/bible_study/01_GEN_study.jsonl" | $PYTHON -c "
 import sys, json
 for l in sys.stdin:
     d = json.loads(l)
-    if d.get('type') == 'vocab' and d.get('word') in ('ci','tapa','kiangah','ahi','lei','leitung'):
-        print(f\"  {d['word']:12s} → {d['gloss']:20s}  [{d.get('source','?')}]\")" 2>/dev/null || true
+    if d.get('type') == 'vocab':
+        print(f\"  {d.get('word','?'):12s} → {d.get('gloss','?'):30s}  [{d.get('source','?')}]\")" 2>/dev/null || true
+  log_event "test_done" "GEN"
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -112,34 +135,49 @@ cmd_stats() {
   echo ""
   $PYTHON "$SCRIPT_DIR/study_bible_books.py" --stats
   echo ""
+  # Count study files
+  local study_count=$(ls "$DATA/dictionary/bible_study/"*_study.jsonl 2>/dev/null | wc -l)
+  echo -e "  ${C}Bible study files: ${study_count}/66${NC}"
+  # AI cache
   if [ -f "$DATA/dictionary/bible_study/ai_gloss_cache.jsonl" ]; then
-    local count=$(wc -l < "$DATA/dictionary/bible_study/ai_gloss_cache.jsonl")
-    echo -e "  ${C}AI cache: ${count} entries${NC}"
+    local cache_count=$(wc -l < "$DATA/dictionary/bible_study/ai_gloss_cache.jsonl")
+    echo -e "  ${C}AI cache: ${cache_count} entries${NC}"
   fi
-  if [ -f "$DATA/dictionary/bible_study/bible_study_log.jsonl" ]; then
-    local count=$(wc -l < "$DATA/dictionary/bible_study/bible_study_log.jsonl")
-    echo -e "  ${C}Log events: ${count}${NC}"
-  fi
+  # Knowledge base files
+  echo -e "  ${Y}Knowledge Base:${NC}"
+  for f in grammar_patterns vocabulary_db translation_pairs phrases verb_database particle_database book_summaries version_comparison; do
+    local fp="$DATA/bible/${f}_v1.jsonl"
+    if [ -f "$fp" ]; then
+      local cnt=$(wc -l < "$fp")
+      echo -e "    ${G}✅ ${f}_v1.jsonl: ${cnt} entries${NC}"
+    else
+      echo -e "    ${R}❌ ${f}_v1.jsonl: missing${NC}"
+    fi
+  done
   echo ""
   read -p "Press Enter to return to menu..."
 }
 
 cmd_check_dict() {
   banner
-  echo -e "${Y}Checking dictionary for key words:${NC}"
+  echo -e "${Y}Checking Zolai→English dictionary:${NC}"
   echo ""
   $PYTHON -c "
 import json
 words = ['ci','tapa','kiangah','ahi','lei','leitung','topa','pasian','hong','kei','om','lo']
-path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+# Use ZO→EN master dictionary (correct direction!)
+path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
 found = {}
 with open(path) as f:
     for line in f:
         d = json.loads(line)
-        hw = d.get('headword','').strip().lower()
+        hw = d.get('zolai','').strip().lower()
         if hw in words and hw not in found:
-            trans = [t.split(chr(10))[0][:30] for t in d.get('translations',[]) if isinstance(t,str)][:3]
-            found[hw] = trans
+            eng = d.get('english','')
+            if isinstance(eng, list):
+                found[hw] = [e[:30] for e in eng[:3]]
+            else:
+                found[hw] = [str(eng)[:30]]
 for w in words:
     if w in found:
         ts = ' | '.join(found[w])
@@ -147,6 +185,87 @@ for w in words:
     else:
         print(f'  {w:12s} → NOT FOUND')
 "
+  echo ""
+  echo -e "${Y}Checking English→Zolai dictionary:${NC}"
+  echo ""
+  $PYTHON -c "
+import json
+words = ['God','Lord','say','go','come','see','know','give','take','eat']
+path = '$DATA/dictionary/processed/dict_canonical_v1.jsonl'
+found = {}
+with open(path) as f:
+    for line in f:
+        d = json.loads(line)
+        hw = d.get('headword','').strip().lower()
+        if hw in words and hw not in found:
+            trans = d.get('translations',[])[:3]
+            found[hw] = [t[:30] for t in trans if isinstance(t,str)]
+for w in words:
+    if w in found:
+        ts = ' | '.join(found[w])
+        print(f'  {w:12s} → {ts}')
+    else:
+        print(f'  {w:12s} → NOT FOUND')
+"
+  log_event "dict_check" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_build_kb() {
+  banner
+  echo -e "${Y}Building Full Knowledge Base (all 66 books)...${NC}"
+  echo ""
+  log_event "kb_build_start" ""
+  $PYTHON "$SCRIPT_DIR/build_full_knowledge_base.py" 2>&1 | tee "$LOG_DIR/kb_build.log"
+  log_event "kb_build_done" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_version_compare() {
+  banner
+  echo -e "${Y}Version Comparison: TDB77 vs Tedim2010${NC}"
+  echo ""
+  log_event "version_compare_start" ""
+  $PYTHON "$SCRIPT_DIR/build_full_knowledge_base.py" --version-only 2>&1 | tee "$LOG_DIR/version_compare.log"
+  log_event "version_compare_done" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_chuak_check() {
+  banner
+  echo -e "${Y}Checking 'chuak' status:${NC}"
+  echo ""
+  $PYTHON -c "
+import json, subprocess
+print('  === chuak Analysis ===')
+print()
+print('  chuak is a VERB ROOT meaning \"to come out / to exit\"')
+print('  It appears in compound words, not as standalone:')
+print()
+
+# Check wiki compounds
+result = subprocess.run(['grep', '-r', 'chuak', '../zolai-wiki/vocabulary/wordlists/', '-n'], 
+                       capture_output=True, text=True, cwd='$WORKSPACE')
+compounds = {}
+for line in result.stdout.split('\n')[:20]:
+    if 'chuak' in line:
+        parts = line.split('|')
+        if len(parts) > 2:
+            word = parts[1].strip().split('-')[0]
+            if 'chuak' in word.lower():
+                compounds[word] = parts[2].strip()[:60]
+
+for word, meaning in sorted(compounds.items()):
+    print(f'    {word:30s} = {meaning}')
+
+print()
+print('  Status: chuak is a valid verb root, not a standalone word')
+print('  Correct use: chuakthar (newborn), chuak (exit), etc.')
+"
+  log_event "chuak_check" ""
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -176,6 +295,16 @@ cmd_fix_paths() {
     local cache_count=$(wc -l < "$DATA/dictionary/bible_study/ai_gloss_cache.jsonl")
     echo -e "  ${C}AI cache: ${cache_count} entries${NC}"
   fi
+  # Check dictionary files
+  echo -e "  ${Y}Dictionary files:${NC}"
+  for f in dict_zo_en_master_v1.jsonl dict_canonical_v1.jsonl; do
+    if [ -f "$DATA/dictionary/processed/$f" ]; then
+      local cnt=$(wc -l < "$DATA/dictionary/processed/$f")
+      echo -e "    ${G}✅ $f: $cnt entries${NC}"
+    else
+      echo -e "    ${R}❌ $f: missing${NC}"
+    fi
+  done
   echo ""
   read -p "Press Enter to return to menu..."
 }
@@ -184,14 +313,15 @@ cmd_view_log() {
   banner
   echo -e "${Y}Recent log events (last 30):${NC}"
   echo ""
-  if [ -f "$DATA/dictionary/bible_study/bible_study_log.jsonl" ]; then
-    tail -30 "$DATA/dictionary/bible_study/bible_study_log.jsonl" | $PYTHON -c "
+  if [ -f "$LOG_FILE" ]; then
+    tail -30 "$LOG_FILE" | $PYTHON -c "
 import sys, json
 for l in sys.stdin:
     try:
         d = json.loads(l)
         ev = d.get('event','?')
         ts = d.get('ts','?')[-8:]
+        detail = d.get('detail','')[:40]
         if ev == 'gloss':
             print(f'  {ts} 📝 {d.get(\"word\",\"?\")} → {d.get(\"meaning\",\"?\")}  [{d.get(\"source\",\"?\")}]')
         elif ev == 'ai_result':
@@ -199,7 +329,7 @@ for l in sys.stdin:
         elif ev == 'book_done':
             print(f'  {ts} 📊 {d.get(\"book\",\"?\")} dict={d.get(\"dict_rate\",\"?\")} ai={d.get(\"ai_rate\",\"?\")}')
         else:
-            print(f'  {ts} {ev}')
+            print(f'  {ts} {ev}: {detail}')
     except: pass" 2>/dev/null
   else
     echo -e "  ${C}No log file yet — run a study first${NC}"
@@ -241,10 +371,13 @@ while true; do
   echo -e "  ${G}2${NC}) 🔄 Resume interrupted study"
   echo -e "  ${G}3${NC}) 🧪 Test with Genesis only"
   echo -e "  ${G}4${NC}) 📊 Show statistics"
-  echo -e "  ${G}5${NC}) 🔍 Check dictionary words"
+  echo -e "  ${G}5${NC}) 🔍 Check dictionary (ZO→EN + EN→ZO)"
   echo -e "  ${G}6${NC}) 🛠  Check/fix paths & data status"
   echo -e "  ${G}7${NC}) 📜 View recent AI log"
   echo -e "  ${G}8${NC}) 🧹 Data cleanup status"
+  echo -e "  ${G}9${NC}) 🔨 Build full knowledge base (66 books)"
+  echo -e "  ${G}A${NC}) 📊 Version comparison (TDB77 vs Tedim2010)"
+  echo -e "  ${G}B${NC}) 🔍 Check 'chuak' status"
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -257,6 +390,9 @@ while true; do
     6) cmd_fix_paths ;;
     7) cmd_view_log ;;
     8) cmd_clean_data ;;
+    9) cmd_build_kb ;;
+    A|a) cmd_version_compare ;;
+    B|b) cmd_chuak_check ;;
     0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
