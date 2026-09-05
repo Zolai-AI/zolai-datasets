@@ -340,6 +340,154 @@ cmd_clean_data() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Bible Engine commands ──────────────────────────────────
+cmd_engine_study() {
+  banner
+  echo -e "${Y}📖 Bible Engine — Full Verse Analysis (Study Mode)${NC}"
+  echo ""
+  echo -e "  ${G}1${NC}) Single book (type code)"
+  echo -e "  ${G}2${NC}) All 66 books (full Bible)"
+  echo -e "  ${G}3${NC}) Pentateuch (GEN,EXO,LEV,NUM,DEU)"
+  echo -e "  ${G}4${NC}) Gospels (MAT,MRK,LUK,JHN)"
+  echo ""
+  read -p "  Select [1]: " choice
+  case "$choice" in
+    2)  BOOK_FLAG="--all" ;;
+    3)  BOOK_FLAG="--book GEN,EXO,LEV,NUM,DEU" ;;
+    4)  BOOK_FLAG="--book MAT,MRK,LUK,JHN" ;;
+    A|a)  read -p "  Book code: " bc; BOOK_FLAG="--book ${bc^^}" ;;
+    *)  read -p "  Book code [GEN]: " bc; BOOK_FLAG="--book ${bc:-GEN^^}" ;;
+  esac
+  echo ""
+  echo -e "${G}Starting Bible Engine analysis...${NC}"
+  echo ""
+  log_event "engine_study_start" "$BOOK_FLAG"
+  $PYTHON "$SCRIPT_DIR/bible_engine.py" --study $BOOK_FLAG
+  log_event "engine_study_done" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_engine_learn() {
+  banner
+  echo -e "${Y}🎓 Progressive Learning (8 Levels)${NC}"
+  echo ""
+  echo -e "  ${G}1${NC}) Beginner — Common words (top 100)"
+  echo -e "  ${G}2${NC}) Elementary — Basic phrases (200 words)"
+  echo -e "  ${G}3${NC}) Intermediate — Sentence patterns (500 words)"
+  echo -e "  ${G}4${NC}) Upper-Intermediate — Grammar structures (1000 words)"
+  echo -e "  ${G}5${NC}) Advanced — Complex sentences (2000 words)"
+  echo -e "  ${G}6${NC}) Proficient — Idiomatic usage (3500 words)"
+  echo -e "  ${G}7${NC}) Fluent — Literary analysis (5000 words)"
+  echo -e "  ${G}8${NC}) Mastery — Full Bible vocabulary"
+  echo ""
+  read -p "  Select level [1]: " level_choice
+  LEVEL="${level_choice:-1}"
+  echo ""
+  echo -e "${G}Generating exercise for Level ${LEVEL}...${NC}"
+  echo ""
+  log_event "engine_learn" "level=$LEVEL"
+  $PYTHON "$SCRIPT_DIR/bible_engine.py" --learn --level "$LEVEL"
+  log_event "engine_learn_done" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_engine_review() {
+  banner
+  echo -e "${Y}📝 Review Due Items (Spaced Repetition)${NC}"
+  echo ""
+  echo -e "  ${G}1${NC}) Show due items"
+  echo -e "  ${G}2${NC}) Review a specific word"
+  echo ""
+  read -p "  Select [1]: " review_choice
+  case "$review_choice" in
+    2)
+      read -p "  Word to review: " review_word
+      if [ -n "$review_word" ]; then
+        log_event "engine_review_word" "$review_word"
+        $PYTHON "$SCRIPT_DIR/bible_engine.py" --review --word "$review_word"
+      else
+        echo -e "${R}No word entered${NC}"
+      fi
+      ;;
+    *)
+      log_event "engine_review_due" ""
+      $PYTHON "$SCRIPT_DIR/bible_engine.py" --review --due
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_engine_search() {
+  banner
+  echo -e "${Y}🔍 Corpus Search (Patterns + Words)${NC}"
+  echo ""
+  echo -e "  ${G}1${NC}) Full-text search (ZO or EN)"
+  echo -e "  ${G}2${NC}) Pattern search (SOV, negation, etc.)"
+  echo -e "  ${G}3${NC}) Word search"
+  echo ""
+  read -p "  Select [1]: " search_choice
+  case "$search_choice" in
+    2)
+      echo -e "  ${C}Available patterns: SOV, negation, question_hiam, conjunction_leh, ergative_in, declarative_hi, future_ding${NC}"
+      read -p "  Pattern: " search_pattern
+      if [ -n "$search_pattern" ]; then
+        log_event "engine_search_pattern" "$search_pattern"
+        $PYTHON "$SCRIPT_DIR/bible_engine.py" --search-pattern "$search_pattern"
+      fi
+      ;;
+    3)
+      read -p "  Word: " search_word
+      if [ -n "$search_word" ]; then
+        log_event "engine_search_word" "$search_word"
+        $PYTHON "$SCRIPT_DIR/bible_engine.py" --search "$search_word"
+      fi
+      ;;
+    *)
+      read -p "  Search query: " search_query
+      if [ -n "$search_query" ]; then
+        log_event "engine_search_text" "$search_query"
+        $PYTHON "$SCRIPT_DIR/bible_engine.py" --search "$search_query"
+      fi
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_engine_export() {
+  banner
+  echo -e "${Y}📦 Export Training Datasets${NC}"
+  echo ""
+  echo -e "  ${G}1${NC}) Translation pairs (ZO↔EN)"
+  echo -e "  ${G}2${NC}) Grammar exercises"
+  echo -e "  ${G}3${NC}) Vocabulary list"
+  echo -e "  ${G}4${NC}) QA pairs"
+  echo ""
+  read -p "  Select type [1]: " export_choice
+  case "$export_choice" in
+    2)  EXPORT_TYPE="grammar" ;;
+    3)  EXPORT_TYPE="vocab" ;;
+    4)  EXPORT_TYPE="qa" ;;
+    *)  EXPORT_TYPE="translation" ;;
+  esac
+  echo ""
+  read -p "  Book (or leave empty for all): " export_book
+  BOOK_FLAG=""
+  if [ -n "$export_book" ]; then
+    BOOK_FLAG="--book ${export_book^^}"
+  fi
+  echo ""
+  echo -e "${G}Exporting ${EXPORT_TYPE}...${NC}"
+  log_event "engine_export" "type=$EXPORT_TYPE book=${export_book:-all}"
+  $PYTHON "$SCRIPT_DIR/bible_engine.py" --export --type "$EXPORT_TYPE" $BOOK_FLAG
+  log_event "engine_export_done" ""
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -356,6 +504,14 @@ while true; do
   echo -e "  ${G}9${NC}) 🔨 Build full knowledge base (66 books)"
   echo -e "  ${G}A${NC}) 📊 Version comparison (TDB77 vs Tedim2010)"
   echo -e "  ${G}B${NC}) 🔍 Check for non-Zolai words"
+  echo ""
+  echo -e "  ${M}── Bible Engine ──────────────────────${NC}"
+  echo -e "  ${G}C${NC}) 📖 Bible Engine — Full verse analysis (study mode)"
+  echo -e "  ${G}D${NC}) 🎓 Progressive learning (8 levels)"
+  echo -e "  ${G}E${NC}) 📝 Review due items (spaced repetition)"
+  echo -e "  ${G}F${NC}) 🔍 Corpus search (patterns + words)"
+  echo -e "  ${G}G${NC}) 📦 Export training datasets"
+  echo ""
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -371,6 +527,11 @@ while true; do
     9) cmd_build_kb ;;
     A|a) cmd_version_compare ;;
     B|b) cmd_check_non_zolai ;;
+    C|c) cmd_engine_study ;;
+    D|d) cmd_engine_learn ;;
+    E|e) cmd_engine_review ;;
+    F|f) cmd_engine_search ;;
+    G|g) cmd_engine_export ;;
     0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
