@@ -795,6 +795,56 @@ cmd_build_comprehensive_vocab() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Training Tools commands ────────────────────────────────────
+cmd_create_seed() {
+  banner
+  echo -e "${C}═══ Create Seed Data ═══${NC}"
+  echo ""
+  echo -e "  Extracts 500 high-quality ZO↔EN pairs from Bible + dictionary."
+  echo -e "  Output: $DATA/training/seed_data_500.jsonl"
+  echo ""
+  $PYTHON "$SCRIPT_DIR/create_seed_data.py"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_generate_synthetic() {
+  banner
+  echo -e "${C}═══ Generate Synthetic Training Data ═══${NC}"
+  echo ""
+  read -p "  Count [1000]: " count
+  count=${count:-1000}
+  echo -e "  Generating $count pairs..."
+  echo ""
+  $PYTHON "$SCRIPT_DIR/generate_synthetic_data.py" \
+    --seed "$DATA/training/seed_data_500_fixed.jsonl" \
+    --output "$DATA/training/synthetic_${count}.jsonl" \
+    --count "$count" \
+    --task translation 2>&1 || echo -e "${R}Generation failed — check seed data${NC}"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_kaggle_guide() {
+  banner
+  echo -e "${C}═══ Kaggle Setup Guide ═══${NC}"
+  echo ""
+  echo -e "  ${Y}Full guide:${NC} context/KAGGLE_SETUP.md"
+  echo ""
+  echo -e "  ${Y}Quick Steps:${NC}"
+  echo -e "    1. Create account at kaggle.com"
+  echo -e "    2. New Notebook → Settings → GPU T4 ×2"
+  echo -e "    3. Add Data → Search 'zolai'"
+  echo -e "    4. Copy cells from KAGGLE_SETUP.md"
+  echo ""
+  echo -e "  ${Y}Key commands:${NC}"
+  echo -e "    pip install unsloth"
+  echo -e "    pip install 'transformers[torch]'"
+  echo -e "    from unsloth import FastLanguageModel"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -833,6 +883,12 @@ while true; do
   echo -e "  ${G}P${NC}) 💬 Integrate conversational data"
   echo -e "  ${G}Q${NC}) 🌐 Build cross-language comparison"
   echo -e "  ${G}R${NC}) 📦 Build master vocabulary (all sources)"
+  echo ""
+  echo -e "  ${M}── Training Tools ──────────────────────${NC}"
+  echo -e "  ${G}S${NC}) 🌱 Create seed data for training (500 pairs)"
+  echo -e "  ${G}T${NC}) 🤖 Generate synthetic training data"
+  echo -e "  ${G}U${NC}) 📊 Kaggle setup guide"
+  echo ""
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -864,6 +920,9 @@ while true; do
     P|p) cmd_integrate_conversational ;;
     Q|q) cmd_build_cross_language ;;
     R|r) cmd_build_master_vocab ;;
+    S|s) cmd_create_seed ;;
+    T|t) cmd_generate_synthetic ;;
+    U|u) cmd_kaggle_guide ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
