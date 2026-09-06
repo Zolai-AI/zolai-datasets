@@ -637,7 +637,7 @@ class GrammarMatcher:
 
     def check_negation(self, zo_text: str) -> dict:
         """Check negation patterns with person-specific rules."""
-        words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
+        words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]
         
         # Check for person markers
         has_ka = "ka" in words
