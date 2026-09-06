@@ -636,7 +636,13 @@ class GrammarMatcher:
         return matches
 
     def check_negation(self, zo_text: str) -> dict:
-        """Check negation patterns with person-specific rules."""
+        """Check negation patterns.
+        
+        Rules:
+        - "kei" is the STANDARD negation particle for ALL persons
+        - "lo" is also valid but in different contexts (literary/formal)
+        - Future negation: "V + kei + ding" or "V + lo + ding"
+        """
         words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]
         
         # Check for person markers
@@ -648,6 +654,9 @@ class GrammarMatcher:
         has_kei = "kei" in words
         has_lo = "lo" in words
         
+        # Check for future marker
+        has_ding = "ding" in words
+        
         # Determine person
         person = None
         if has_ka or has_na:
@@ -655,34 +664,22 @@ class GrammarMatcher:
         elif has_a:
             person = "3rd"
         
-        # Check negation pattern
-        if has_kei and person == "1st/2nd":
+        # "kei" is the standard negation for ALL persons
+        if has_kei:
             return {
                 "correct": True,
                 "person": person,
                 "negation": "kei",
-                "reason": "1st/2nd person uses kei",
+                "reason": "kei is the standard negation for all persons",
             }
-        elif has_lo and person == "3rd":
+        
+        # "lo" is also valid in different contexts
+        if has_lo:
             return {
                 "correct": True,
                 "person": person,
                 "negation": "lo",
-                "reason": "3rd person uses lo",
-            }
-        elif has_kei and person == "3rd":
-            return {
-                "correct": False,
-                "person": person,
-                "negation": "kei",
-                "reason": "3rd person should use lo, not kei",
-            }
-        elif has_lo and person == "1st/2nd":
-            return {
-                "correct": False,
-                "person": person,
-                "negation": "lo",
-                "reason": "1st/2nd person should use kei, not lo",
+                "reason": "lo is valid (literary/formal context)",
             }
         
         return {
@@ -693,15 +690,24 @@ class GrammarMatcher:
         }
 
     def check_question(self, zo_text: str) -> dict:
-        """Check question patterns."""
-        words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
+        """Check question patterns.
+        
+        Word order rules:
+        - Yes/no: Subject + verb + hiam?
+        - Future: Subject + verb + diam?
+        - Content: bang hang + verb + subject + hiam?
+        """
+        words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]
         
         if "hiam" in words:
-            return {"type": "yes/no", "marker": "hiam", "correct": True}
+            # Check if it's a content question with "bang hang"
+            if "bang" in words and "hang" in words:
+                # Correct word order: bang hang + verb + subject + hiam
+                return {"type": "content", "marker": "bang hang", "correct": True}
+            else:
+                return {"type": "yes/no", "marker": "hiam", "correct": True}
         elif "diam" in words:
             return {"type": "future", "marker": "diam", "correct": True}
-        elif "bang" in words and "hang" in words:
-            return {"type": "content", "marker": "bang hang", "correct": True}
         elif "bang" in words and "ci" in words:
             return {"type": "content", "marker": "bang ci", "correct": True}
         
@@ -995,8 +1001,8 @@ class ParticleDatabase:
                  "meaning": "future tense marker", "frequency": 19773},
         "uh": {"position": "pre-verbal", "function": "perfective",
                "meaning": "perfective aspect", "frequency": 22550},
-        "a": {"position": "pre-verbal", "function": "3rd person",
-              "meaning": "3rd person agreement", "frequency": 26743},
+        "a": {"position": "pre-verbal", "function": "3rd person agreement",
+              "meaning": "3rd person subject agreement marker (goes before verb)", "frequency": 26743},
         "ki": {"position": "pre-verbal", "function": "reflexive",
                "meaning": "reflexive marker", "frequency": 0},
         
@@ -1039,10 +1045,10 @@ class ParticleDatabase:
               "meaning": "1st person plural", "frequency": 1045},
         
         # Pronouns
-        "amah": {"position": "pre-verbal", "function": "pronoun",
-                 "meaning": "he/she/it", "frequency": 6423},
+        "amah": {"position": "pre-verbal", "function": "pronoun (emphatic)",
+                 "meaning": "he/she/it (standalone pronoun, used for emphasis)", "frequency": 6423},
         "uh": {"position": "pre-verbal", "function": "pronoun",
-               "meaning": "they/them", "frequency": 22550},
+               "meaning": "they/them (3rd person plural marker)", "frequency": 22550},
         "amaute": {"position": "pre-verbal", "function": "pronoun",
                    "meaning": "they (emphatic)", "frequency": 5775},
         
