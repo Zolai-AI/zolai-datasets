@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-#  ZOLAI BIBLE STUDY — Master Menu v2.0
-#  AI-assisted glossing with P-Core Brain API
-#  All 66 books • Full knowledge base • Version comparison
+#  ZOLAI LANGUAGE LEARNING — Master Menu v3.0
+#  Learn Zolai (ZVS 2018) from Bible data — Basic to Advanced
+#  23,383 words • 8 learning levels • 31,102 example sentences
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -17,9 +17,9 @@ R='\033[0;31m' G='\033[0;32m' Y='\033[1;33m' B='\033[0;34m' C='\033[0;36m' M='\0
 banner() {
   clear
   echo -e "${C}╔══════════════════════════════════════════════════════════╗${NC}"
-  echo -e "${C}║${NC}  ${M}ZOLAI BIBLE STUDY${NC} — AI-Assisted Context-Aware Glossing  ${C}║${NC}"
-  echo -e "${C}║${NC}  ${B}66 Books • Full Knowledge Base • Version Comparison    ${C}║${NC}"
-  echo -e "${C}║${NC}  ${B}P-Core Brain API • Dictionary-First • AI Disambig  ${C}║${NC}"
+  echo -e "${C}║${NC}  ${M}ZOLAI LANGUAGE LEARNING${NC} — Learn from Bible Data       ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}23,383 Words • 8 Levels • 31,102 Sentences • AI Help  ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}ZVS 2018 • SOV • Ergative 'in' • 'hiam' = question  ${C}║${NC}"
   echo -e "${C}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
 }
@@ -790,6 +790,7 @@ while true; do
     9) cmd_build_kb ;;
     A|a) cmd_version_compare ;;
     B|b) cmd_check_non_zolai ;;
+    L|l) python3 "$SCRIPT_DIR/zolai_learn.py" --interactive ;;
     C|c) cmd_engine_study ;;
     D|d) cmd_engine_learn ;;
     E|e) cmd_engine_review ;;
