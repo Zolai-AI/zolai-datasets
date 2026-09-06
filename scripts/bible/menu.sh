@@ -868,6 +868,8 @@ while true; do
   echo -e "  ${G}E${NC}) 📝 Review due items (spaced repetition)"
   echo -e "  ${G}F${NC}) 🔍 Corpus search (patterns + words)"
   echo -e "  ${G}G${NC}) 📦 Export training datasets"
+  echo -e "  ${G}V${NC}) ✅ Grammar check (verify sentence correctness)"
+  echo -e "  ${G}W${NC}) 📝 Vocabulary quiz (test word knowledge)"
   echo ""
   echo ""
   echo -e "  ${M}── Paragraph Engine ───────────────────${NC}"
@@ -910,6 +912,8 @@ while true; do
     E|e) cmd_engine_review ;;
     F|f) cmd_engine_search ;;
     G|g) cmd_engine_export ;;
+    V|v) cmd_grammar_check ;;
+    W|w) cmd_vocab_quiz ;;
     H|h) cmd_knowledge_vectors ;;
     I|i) cmd_para_analyze ;;
     J|j) cmd_para_paraphrase ;;
@@ -927,6 +931,61 @@ while true; do
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
 done
+
+# ── Grammar Check ────────────────────────────────────────────
+cmd_grammar_check() {
+  echo -e "${C}═══ Grammar Check ═══${NC}"
+  echo ""
+  echo -e "  Enter a Zolai sentence to check for grammar errors:"
+  echo -e "  ${Y}Tip: The checker will verify negation patterns, question forms, and verb usage${NC}"
+  echo ""
+  echo -e "  ${G}Examples:${NC}"
+  echo -e "    Ka pai kei hi.    (I don't go — correct)"
+  echo -e "    Ka pai lo hi.     (I don't go — incorrect for 1st person)"
+  echo -e "    Na pai hiam?      (Did you go? — yes/no question)"
+  echo -e "    Na pai diam?      (Will you go? — future question)"
+  echo -e "    Bang hang na pai hiam?  (Why do you go? — content question)"
+  echo ""
+  echo -e "  ${Y}Type your sentence, then press Enter:${NC}"
+  echo ""
+  
+  read -r -p "  > " sentence
+  
+  if [ -z "$sentence" ]; then
+    echo -e "${R}No sentence provided.${NC}"
+    return
+  fi
+  
+  echo ""
+  echo -e "${C}Checking grammar...${NC}"
+  echo ""
+  
+  # Run grammar check
+  python3 "$SCRIPT_DIR/grammar_check.py" --sentence "$sentence"
+}
+
+# ── Vocabulary Quiz ──────────────────────────────────────────
+cmd_vocab_quiz() {
+  echo -e "${C}═══ Vocabulary Quiz ═══${NC}"
+  echo ""
+  echo -e "  Test your Zolai vocabulary knowledge!"
+  echo ""
+  echo -e "  ${G}Select quiz type:${NC}"
+  echo -e "  ${G}1${NC}) 📖 Bible word quiz (from Bible corpus)"
+  echo -e "  ${G}2${NC}) 📝 Phrase quiz (multi-word expressions)"
+  echo -e "  ${G}3${NC}) 🔄 Reverse quiz (EN→ZO)"
+  echo -e "  ${G}4${NC}) 🎯 Frequency-based quiz (top 100/200/500 words)"
+  echo ""
+  
+  read -p "  Select [1]: " quiz_choice
+  
+  case "$quiz_choice" in
+    2) python3 "$SCRIPT_DIR/vocab_quiz.py" --type phrases ;;
+    3) python3 "$SCRIPT_DIR/vocab_quiz.py" --type reverse ;;
+    4) python3 "$SCRIPT_DIR/vocab_quiz.py" --type frequency ;;
+    *) python3 "$SCRIPT_DIR/vocab_quiz.py" --type bible ;;
+  esac
+}
 
 # ── Paragraph Engine ─────────────────────────────────────────
 cmd_para_analyze() {
