@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 ZOLAI LANGUAGE LEARNING SYSTEM
-From Kindergarten to Graduate School — Learn Zolai like a human
+Learn Zolai (ZVS 2018) from Zero → Fluent
+Like Duolingo, but for Zolai language
 
-Bible = data source (sentences, vocabulary, grammar)
-Goal = Learn Zolai language systematically
-Use = Later apply to other Zolai domains
+Bible = data source
+Goal = ANY human can learn Zolai from scratch
 """
 
 import json
@@ -21,7 +21,15 @@ DICT = DATA / "dictionary" / "processed"
 R = "\033[0;31m"; G = "\033[0;32m"; Y = "\033[1;33m"
 B = "\033[0;34m"; C = "\033[0;36m"; M = "\033[0;35m"; NC = "\033[0m"
 
-def load_jsonl(path):
+def load_course():
+    path = LEARNING / "duolingo_course.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+def load_vocab():
+    path = LEARNING / "vocab_by_frequency.jsonl"
     data = []
     if path.exists():
         with open(path) as f:
@@ -29,244 +37,244 @@ def load_jsonl(path):
                 data.append(json.loads(line))
     return data
 
-def load_json(path):
+def load_exercises():
+    path = LEARNING / "exercises.jsonl"
+    data = []
     if path.exists():
         with open(path) as f:
-            return json.load(f)
-    return {}
+            for line in f:
+                data.append(json.loads(line))
+    return data
 
 def show_banner():
     print(f"""
 {C}╔══════════════════════════════════════════════════════════════╗
 ║{NC}  {M}ZOLAI LANGUAGE LEARNING SYSTEM{NC}                           {C}║
-║{NC}  {B}From Kindergarten to Graduate School{NC}                    {C}║
-║{NC}  {B}23,383 words • 17 levels • 31,102 example sentences{NC}      {C}║
-║{NC}  {G}Bible = data source. Goal = Learn Zolai language.{NC}        {C}║
+║{NC}  {B}From Zero to Fluent — Like Duolingo for Zolai{NC}            {C}║
+║{NC}  {G}30 weeks • 15 min/day • Real conversations{NC}               {C}║
+║{NC}  {B}Bible = data source. YOU = the learner.{NC}                   {C}║
 {C}╚══════════════════════════════════════════════════════════════╝{NC}
 """)
 
-def show_curriculum(curriculum):
-    print(f"\n{Y}═══ ZOLAI LEARNING CURRICULUM ═══{NC}\n")
+def show_course_overview(course):
+    print(f"\n{Y}═══ COURSE: {course.get('title', 'Zolai')} ═══{NC}")
+    print(f"{course.get('subtitle', '')}")
+    print(f"Duration: {course.get('total_weeks', 30)} weeks, {course.get('daily_minutes', 15)} min/day")
+    print(f"Goal: {course.get('goal', 'Hold a basic conversation')}\n")
     
-    stages = [
-        ("🏫 KINDERGARTEN", ["K1_Primer", "K2_Words"]),
-        ("📚 PRIMARY SCHOOL", ["P1_Basic", "P2_Family", "P3_Questions", "P4_Tenses"]),
-        ("📖 MIDDLE SCHOOL", ["M1_Connect", "M2_Describe", "M3_Voice"]),
-        ("🎓 HIGH SCHOOL", ["H1_Read", "H2_Write", "H3_Lit"]),
-        ("🏛️ UNIVERSITY", ["U1_Academic", "U2_Translate"]),
-        ("🔬 GRADUATE SCHOOL", ["G1_CompLing", "G2_Corpus", "G3_Creative"]),
-    ]
-    
-    for stage_name, levels in stages:
-        print(f"  {M}{stage_name}{NC}")
-        for lvl in levels:
-            info = curriculum.get(lvl, {})
-            name = info.get("name", lvl)
-            age = info.get("age", "?")
-            vocab = info.get("vocab", "?")
-            print(f"    {G}{lvl:15s}{NC} — {name} (age {age}, ~{vocab} words)")
+    for unit in course.get("units", []):
+        print(f"  {M}Unit {unit['unit']}: {unit['name']} (Weeks {unit['weeks']}){NC}")
+        print(f"    {unit['description']}")
+        for lesson in unit.get("lessons", []):
+            w = len(lesson.get("new_words", []))
+            p = len(lesson.get("practice", []))
+            print(f"      {G}W{lesson['week']}D{lesson['day']}{NC}: {lesson['title']} ({w} words, {p} exercises)")
         print()
 
-def show_level_exercises(exercises, level):
-    level_exs = [e for e in exercises if e.get("level") == level]
-    if not level_exs:
-        print(f"\n  {R}No exercises at level {level}{NC}\n")
+def run_lesson(lesson):
+    """Run a single lesson interactively."""
+    print(f"\n{'='*60}")
+    print(f"{Y}LESSON: {lesson.get('title', 'Unknown')}{NC}")
+    print(f"{'='*60}\n")
+    
+    # 1. NEW WORDS
+    new_words = lesson.get("new_words", [])
+    if new_words:
+        print(f"{G}── NEW WORDS ──{NC}\n")
+        for i, (word, zolai, note) in enumerate(new_words, 1):
+            print(f"  {i}. {C}{zolai}{NC} = {word} ({note})")
+        print()
+        
+        # Practice pronunciation
+        input(f"{B}Press Enter to practice pronunciation...{NC}")
+        for word, zolai, note in new_words:
+            print(f"  Say: {G}{zolai}{NC}")
+            input(f"  (Press Enter after saying it)")
+        print()
+    
+    # 2. GRAMMAR NOTE
+    grammar = lesson.get("grammar", "")
+    if grammar:
+        print(f"{G}── GRAMMAR ──{NC}\n")
+        print(f"  {grammar}\n")
+    
+    # 3. PRACTICE EXERCISES
+    practices = lesson.get("practice", [])
+    if practices:
+        print(f"{G}── PRACTICE ──{NC}\n")
+        score = 0
+        total = len(practices)
+        
+        for i, ex in enumerate(practices, 1):
+            ex_type = ex.get("type", "unknown")
+            prompt = ex.get("prompt", "")
+            answer = ex.get("answer", "")
+            
+            print(f"  {i}/{total}. {B}{ex_type.upper()}{NC}")
+            print(f"  {prompt}")
+            
+            if ex_type in ("listen_repeat", "roleplay", "narrate", "writing", "reading", "describe", "comprehensive", "exam"):
+                input(f"  {C}(Do the exercise, then press Enter){NC}")
+                print(f"  {G}✓ Completed{NC}\n")
+                score += 1
+            else:
+                user_input = input(f"  Your answer: ").strip()
+                if user_input.lower() in answer.lower() or answer.lower() in user_input.lower():
+                    print(f"  {G}✅ Correct!{NC}\n")
+                    score += 1
+                else:
+                    print(f"  {R}❌ Wrong.{NC} Answer: {answer}\n")
+        
+        # Lesson complete
+        pct = score / total * 100 if total else 0
+        print(f"\n{Y}── LESSON COMPLETE ──{NC}")
+        print(f"Score: {score}/{total} ({pct:.0f}%)")
+        if pct == 100:
+            print(f"{G}🌟 Perfect! You're amazing!{NC}")
+        elif pct >= 80:
+            print(f"{G}👏 Great job! Keep going!{NC}")
+        elif pct >= 60:
+            print(f"{B}💪 Good effort! Practice more!{NC}")
+        else:
+            print(f"{Y}📚 Keep practicing! You'll get it!{NC}")
+        print()
+
+def quiz_vocab(vocab, level=1, count=10):
+    """Vocabulary quiz."""
+    words = [v for v in vocab if v.get("level") == level and v.get("translation")]
+    if not words:
+        print(f"{R}No vocabulary at level {level}{NC}")
         return
     
-    print(f"\n{Y}═══ LEVEL {level} — {len(level_exs)} exercises ═══{NC}\n")
+    quiz_words = random.sample(words, min(count, len(words)))
     
-    for i, ex in enumerate(level_exs[:10], 1):
-        ex_type = ex.get("type", "unknown")
-        
-        if ex_type == "word_match":
-            print(f"  {i}. {G}What does '{ex['instruction']}' mean?{NC}")
-            user = input(f"    Answer: ").strip()
-            answer = ex.get("answer", "")
-            if user.lower() in answer.lower() or answer.lower() in user.lower():
-                print(f"    {G}✅ Correct!{NC} → {answer}\n")
-            else:
-                print(f"    {R}❌ Wrong.{NC} Answer: {answer}\n")
-        
-        elif ex_type == "sentence_translate":
-            print(f"  {i}. {G}Translate this:{NC}")
-            print(f"    ZO: {ex.get('zo', '')[:80]}")
-            user = input(f"    Your translation: ").strip()
-            en = ex.get("en", "")[:80]
-            print(f"    {B}KJV:{NC} {en}")
-            print(f"    {C}(Check: does your answer match the meaning?){NC}\n")
-        
-        elif ex_type == "question_form":
-            print(f"  {i}. {G}This is a question — what is being asked?{NC}")
-            print(f"    ZO: {ex.get('zo', '')[:80]}")
-            user = input(f"    What is the question? ").strip()
-            en = ex.get("en", "")[:80]
-            print(f"    {B}English:{NC} {en}\n")
-        
-        elif ex_type == "tense_identify":
-            print(f"  {i}. {G}What tense is this sentence?{NC}")
-            print(f"    ZO: {ex.get('zo', '')[:80]}")
-            user = input(f"    Tense (past/present/future): ").strip()
-            en = ex.get("en", "")[:80]
-            print(f"    {B}English:{NC} {en}")
-            print(f"    {C}(Look for: -sak=past, -uh=present, -hen=future){NC}\n")
-        
-        elif ex_type == "conjunction_use":
-            print(f"  {i}. {G}How does 'leh' connect ideas here?{NC}")
-            print(f"    ZO: {ex.get('zo', '')[:80]}")
-            print(f"    EN: {ex.get('en', '')[:80]}")
-            user = input(f"    Explain: ").strip()
-            print(f"    {C}Leh = and/but (connects two ideas){NC}\n")
-        
-        elif ex_type == "reading_comprehension":
-            print(f"  {i}. {G}READ & UNDERSTAND — {ex.get('book', '')}{NC}")
-            print(f"    {C}Passage (Zolai):{NC}")
-            print(f"    {ex.get('passage_zo', '')[:200]}")
-            print(f"\n    {C}Passage (English):{NC}")
-            print(f"    {ex.get('passage_en', '')[:200]}")
-            for q in ex.get("questions", []):
-                user = input(f"\n    Q: {q}\n    A: ").strip()
-                print(f"    {C}(Think about this as you read){NC}")
-            print()
-        
-        elif ex_type == "writing_prompt":
-            print(f"  {i}. {G}WRITING EXERCISE: {ex.get('topic', '')}{NC}")
-            print(f"    {ex.get('instruction', '')}")
-            hints = ex.get("hints", [])
-            if hints:
-                print(f"    {C}Hints:{NC}")
-                for h in hints:
-                    print(f"      • {h}")
-            print(f"\n    Write your answer on paper or in a file.")
-            input(f"    Press Enter when done...")
-            print()
-        
-        elif ex_type == "translation_exercise":
-            print(f"  {i}. {G}TRANSLATE into Zolai:{NC}")
-            print(f"    {ex.get('source', '')[:200]}")
-            hints = ex.get("hints", [])
-            if hints:
-                print(f"    {C}Vocabulary:{NC} {', '.join(hints)}")
-            print(f"\n    Write your Zolai translation on paper.")
-            input(f"    Press Enter when done...")
-            print()
-        
-        elif ex_type == "grammar_analysis":
-            print(f"  {i}. {G}GRAMMAR ANALYSIS{NC}")
-            print(f"    {ex.get('instruction', '')}")
-            passage = ex.get("passage", "")
-            if passage:
-                print(f"    ZO: {passage[:150]}")
-            print(f"    {C}Task: {ex.get('task', '')}{NC}")
-            input(f"    Press Enter when done...")
-            print()
-        
-        elif ex_type == "essay":
-            print(f"  {i}. {G}ESSAY{NC}")
-            print(f"    {ex.get('instruction', '')}")
-            print(f"    {C}Word count: {ex.get('word_count', '300-500 words')}{NC}")
-            print(f"    {C}Requirements: {', '.join(ex.get('requirements', []))}{NC}")
-            print(f"\n    Write your essay on paper or in a file.")
-            input(f"    Press Enter when done...")
-            print()
+    print(f"\n{Y}═══ VOCABULARY QUIZ — Level {level} ═══{NC}\n")
+    print(f"Translate Zolai → English\n")
     
-    if len(level_exs) > 10:
-        print(f"  {C}... and {len(level_exs) - 10} more exercises at this level{NC}\n")
-
-def show_vocab_level(vocab, level, limit=20):
-    words = [v for v in vocab if v.get("level") == level]
-    print(f"\n{Y}═══ LEVEL {level} VOCABULARY (showing {min(limit, len(words))}/{len(words)}) ═══{NC}\n")
-    for v in words[:limit]:
-        trans = v.get("translation", "")
-        freq = v.get("frequency", 0)
-        print(f"  {G}{v['word']:20s}{NC} → {trans:40s} ({freq}x)")
-
-def show_grammar_summary(grammar):
-    print(f"\n{Y}═══ ZOLAI GRAMMAR PATTERNS ═══{NC}\n")
-    for p in grammar:
-        print(f"  {G}{p['pattern']}{NC}")
-        print(f"    {p['description']}")
-        print(f"    Found in {p['frequency']} verses\n")
-
-def show_progress():
-    print(f"\n{Y}═══ YOUR LEARNING PROGRESS ═══{NC}\n")
-    print(f"  {C}Track your progress as you complete exercises{NC}")
-    print(f"  Levels completed: __ / 17")
-    print(f"  Exercises done: __ / 201")
-    print(f"  Vocabulary learned: __ / 23,383")
-    print()
+    score = 0
+    for i, v in enumerate(quiz_words, 1):
+        word = v["word"]
+        answer = v.get("translation", "")
+        
+        print(f"  {i}/{len(quiz_words)}. {G}{word}{NC}")
+        user_input = input("    Your answer: ").strip()
+        
+        if user_input.lower() in answer.lower() or answer.lower() in user_input.lower():
+            print(f"    {G}✅ Correct!{NC}\n")
+            score += 1
+        else:
+            print(f"    {R}❌ Wrong.{NC} Answer: {answer}\n")
+    
+    print(f"\n{Y}Score: {score}/{len(quiz_words)}{NC}")
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Zolai Language Learning System")
-    parser.add_argument("--curriculum", action="store_true", help="Show full curriculum")
-    parser.add_argument("--level", type=int, help="Practice exercises at level (1-8)")
-    parser.add_argument("--vocab", type=int, help="Show vocabulary at level (1-8)")
-    parser.add_argument("--grammar", action="store_true", help="Show grammar patterns")
-    parser.add_argument("--progress", action="store_true", help="Show learning progress")
+    parser.add_argument("--overview", action="store_true", help="Show full course overview")
+    parser.add_argument("--lesson", type=str, help="Run lesson (format: W1D1)")
+    parser.add_argument("--quiz", type=int, nargs="?", const=1, help="Quiz vocabulary at level")
     parser.add_argument("--interactive", action="store_true", help="Interactive mode")
     args = parser.parse_args()
     
     show_banner()
     
-    # Load data
     print(f"{G}Loading Zolai language data...{NC}")
-    curriculum = load_json(LEARNING / "curriculum.json")
-    exercises = load_jsonl(LEARNING / "exercises.jsonl")
-    vocab = load_jsonl(LEARNING / "vocab_by_frequency.jsonl")
-    grammar = load_jsonl(LEARNING / "grammar_patterns.jsonl")
-    print(f"{G}Loaded: {len(vocab)} words, {len(exercises)} exercises, {len(grammar)} grammar patterns{NC}\n")
+    course = load_course()
+    vocab = load_vocab()
+    exercises = load_exercises()
+    print(f"{G}Loaded: {len(vocab)} words, {len(exercises)} exercises{NC}\n")
     
-    if args.curriculum:
-        show_curriculum(curriculum)
-    elif args.level:
-        show_level_exercises(exercises, args.level)
-    elif args.vocab:
-        show_vocab_level(vocab, args.vocab)
-    elif args.grammar:
-        show_grammar_summary(grammar)
-    elif args.progress:
-        show_progress()
+    if args.overview:
+        show_course_overview(course)
+    
+    elif args.lesson:
+        # Parse W1D1 format
+        try:
+            w = int(args.lesson[1:3])
+            d = int(args.lesson[4:5])
+            found = False
+            for unit in course.get("units", []):
+                for lesson in unit.get("lessons", []):
+                    if lesson.get("week") == w and lesson.get("day") == d:
+                        run_lesson(lesson)
+                        found = True
+                        break
+                if found:
+                    break
+            if not found:
+                print(f"{R}Lesson not found: {args.lesson}{NC}")
+        except (ValueError, IndexError):
+            print(f"{R}Invalid lesson format. Use: W1D1, W5D3, etc.{NC}")
+    
+    elif args.quiz:
+        quiz_vocab(vocab, level=args.quiz)
+    
     elif args.interactive:
         while True:
-            print(f"\n{M}── Main Menu ──{NC}")
-            print(f"  {G}1{NC}) Show Curriculum")
-            print(f"  {G}2{NC}) Practice Level 1 (Words)")
-            print(f"  {G}3{NC}) Practice Level 2 (Simple Sentences)")
-            print(f"  {G}4{NC}) Practice Level 3 (Questions)")
-            print(f"  {G}5{NC}) Practice Level 4 (Tenses)")
-            print(f"  {G}6{NC}) Practice Level 5 (Conjunctions)")
-            print(f"  {G}7{NC}) Practice Level 6 (Reading)")
-            print(f"  {G}8{NC}) Practice Level 7 (Writing)")
-            print(f"  {G}9{NC}) Practice Level 8 (Academic)")
-            print(f"  {G}V{NC}) View Vocabulary")
-            print(f"  {G}G{NC}) Grammar Patterns")
-            print(f"  {G}P{NC}) My Progress")
+            print(f"\n{M}── Zolai Learning Menu ──{NC}")
+            print(f"  {G}1{NC}) Course Overview")
+            print(f"  {G}2{NC}) Start Lesson W1D1")
+            print(f"  {G}3{NC}) Continue from where I left off")
+            print(f"  {G}4{NC}) Vocabulary Quiz")
+            print(f"  {G}5{NC}) Grammar Reference")
             print(f"  {G}0{NC}) Exit")
             
             choice = input(f"\n  Select: ").strip()
             if choice == "0":
+                print(f"\n{G}Keep learning Zolai! See you next time!{NC}\n")
                 break
             elif choice == "1":
-                show_curriculum(curriculum)
-            elif choice in ("2","3","4","5","6","7","8","9"):
-                show_level_exercises(exercises, int(choice))
-            elif choice.lower() == "v":
+                show_course_overview(course)
+            elif choice == "2":
+                # Start from W1D1
+                for unit in course.get("units", []):
+                    for lesson in unit.get("lessons", []):
+                        if lesson.get("week") == 1 and lesson.get("day") == 1:
+                            run_lesson(lesson)
+                            break
+            elif choice == "3":
+                print(f"\n  {C}Available lessons:{NC}")
+                for unit in course.get("units", []):
+                    for lesson in unit.get("lessons", []):
+                        w = lesson.get("week", 0)
+                        d = lesson.get("day", 0)
+                        title = lesson.get("title", "")
+                        print(f"    W{w}D{d}: {title}")
+                lesson_id = input(f"\n  Enter lesson (e.g., W5D3): ").strip()
+                # Parse and run
+                try:
+                    w = int(lesson_id[1:3])
+                    d = int(lesson_id[4:5])
+                    for unit in course.get("units", []):
+                        for lesson in unit.get("lessons", []):
+                            if lesson.get("week") == w and lesson.get("day") == d:
+                                run_lesson(lesson)
+                                break
+                except:
+                    print(f"{R}Invalid format{NC}")
+            elif choice == "4":
                 lvl = input("  Level (1-8): ").strip()
                 if lvl.isdigit():
-                    show_vocab_level(vocab, int(lvl))
-            elif choice.lower() == "g":
-                show_grammar_summary(grammar)
-            elif choice.lower() == "p":
-                show_progress()
+                    quiz_vocab(vocab, level=int(lvl))
+            elif choice == "5":
+                # Show grammar
+                grammar_path = LEARNING / "grammar_patterns.jsonl"
+                if grammar_path.exists():
+                    print(f"\n{Y}═══ ZOLAI GRAMMAR REFERENCE ═══{NC}\n")
+                    with open(grammar_path) as f:
+                        for line in f:
+                            p = json.loads(line)
+                            print(f"  {G}{p['pattern']}{NC}")
+                            print(f"    {p['description']}")
+                            print(f"    Frequency: {p['frequency']} verses\n")
     else:
-        # Default: show curriculum and instructions
-        show_curriculum(curriculum)
+        # Default: show overview and instructions
+        show_course_overview(course)
         print(f"\n{C}Usage:{NC}")
-        print(f"  python3 zolai_learn.py --curriculum        # Show learning path")
-        print(f"  python3 zolai_learn.py --level 1           # Practice Level 1")
-        print(f"  python3 zolai_learn.py --vocab 1           # View Level 1 vocabulary")
-        print(f"  python3 zolai_learn.py --grammar           # Show grammar patterns")
-        print(f"  python3 zolai_learn.py --interactive       # Interactive mode")
+        print(f"  python3 zolai_learn.py --overview              # See full course")
+        print(f"  python3 zolai_learn.py --lesson W1D1           # Start a lesson")
+        print(f"  python3 zolai_learn.py --quiz 1                # Quiz vocabulary")
+        print(f"  python3 zolai_learn.py --interactive           # Interactive mode")
 
 if __name__ == "__main__":
     main()
