@@ -232,7 +232,7 @@ def process_file(input_path: str, output_path: str, threshold: float = 0.5, stat
     with open(input_path, 'r', encoding='utf-8') as f:
         for line in f:
             entry = json.loads(line)
-            text = entry.get('text', '') or entry.get('zo', '') or entry.get('zo_tdb77', '') or entry.get('zo_tedim2010', '') or entry.get('en', '') or entry.get('en_kJV', '')
+            text = entry.get('text', '') or entry.get('zo', '') or entry.get('zo_tdb77', '') or entry.get('zo_tedim2010', '') or entry.get('zolai', '') or entry.get('en', '') or entry.get('en_kJV', '') or entry.get('english_clean', '') or str(entry.get('english', ''))
             
             if not text:
                 continue
