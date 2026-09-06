@@ -976,76 +976,169 @@ class ParticleDatabase:
     """Expanded particle database."""
 
     BUILTIN_PARTICLES: ClassVar[dict[str, dict]] = {
+        # Sentence-final particles
         "hi": {"position": "sentence-final", "function": "declarative",
-               "meaning": "marks statement"},
+               "meaning": "marks statement", "frequency": 47398},
         "in": {"position": "post-verbal", "function": "ergative/imperative",
-               "meaning": "ergative case marker or imperative"},
-        "leh": {"position": "inter-clausal", "function": "conjunction",
-                "meaning": "and"},
-        "hang": {"position": "inter-clausal", "function": "conjunction",
-                 "meaning": "but/however"},
-        "ta": {"position": "post-nominal", "function": "possessive",
-               "meaning": "possessive marker"},
-        "pen": {"position": "post-nominal", "function": "focus",
-                "meaning": "focus/emphasis"},
-        "kei": {"position": "sentence-medial", "function": "jussive",
-                "meaning": "let/hortative"},
-        "lo": {"position": "post-verbal", "function": "negation",
-               "meaning": "not/negation"},
-        "si": {"position": "post-verbal", "function": "negation",
-               "meaning": "not (negative)"},
-        "tu": {"position": "post-verbal", "function": "negation",
-               "meaning": "not (negative)"},
-        "ding": {"position": "pre-verbal", "function": "future",
-                 "meaning": "future tense marker"},
-        "uh": {"position": "pre-verbal", "function": "perfective",
-               "meaning": "perfective aspect"},
+               "meaning": "ergative case marker or imperative", "frequency": 40120},
         "hiam": {"position": "sentence-final", "function": "question",
-                 "meaning": "question marker (yes/no)"},
-        "a": {"position": "pre-nominal", "function": "article",
-              "meaning": "the/possessive"},
+                 "meaning": "question marker (yes/no)", "frequency": 5255},
+        "diam": {"position": "sentence-final", "function": "question",
+                 "meaning": "question marker (future)", "frequency": 0},
+        "maw": {"position": "sentence-final", "function": "question",
+                "meaning": "tag question", "frequency": 0},
+        "hia": {"position": "sentence-final", "function": "question",
+                "meaning": "casual question", "frequency": 0},
+        
+        # Pre-verbal particles
+        "ding": {"position": "pre-verbal", "function": "future",
+                 "meaning": "future tense marker", "frequency": 19773},
+        "uh": {"position": "pre-verbal", "function": "perfective",
+               "meaning": "perfective aspect", "frequency": 22550},
+        "a": {"position": "pre-verbal", "function": "3rd person",
+              "meaning": "3rd person agreement", "frequency": 26743},
         "ki": {"position": "pre-verbal", "function": "reflexive",
-               "meaning": "reflexive marker"},
-        "sung": {"position": "post-nominal", "function": "quotative",
-                 "meaning": "inside/quotative"},
-        "cih": {"position": "inter-clausal", "function": "conjunction",
-                "meaning": "then/and then"},
-        "kua": {"position": "sentence-final", "function": "question",
-                "meaning": "question marker (content)"},
-        "bang": {"position": "pre-verbal", "function": "question",
-                 "meaning": "what/how (question word)"},
-        "thei": {"position": "pre-verbal", "function": "auxiliary",
-                 "meaning": "know/understand"},
-        "gal": {"position": "pre-verbal", "function": "auxiliary",
-                "meaning": "can/able"},
-        "mai": {"position": "sentence-final", "function": "focus",
-                "meaning": "focus/emphasis"},
-        "te": {"position": "post-nominal", "function": "locative",
-               "meaning": "place/location"},
-        "na": {"position": "post-nominal", "function": "nominalizer",
-               "meaning": "nominalizer"},
-        "pi": {"position": "post-nominal", "function": "plural",
-               "meaning": "plural marker"},
-        "hih": {"position": "sentence-medial", "function": "relative",
-                "meaning": "which/that (relative clause marker)"},
-        "zat": {"position": "sentence-medial", "function": "temporal",
-                "meaning": "when/at the time of"},
-        "kia": {"position": "pre-verbal", "function": "adversative",
-                "meaning": "only/but"},
-        "ang": {"position": "pre-verbal", "function": "imperative",
-                "meaning": "do (imperative)"},
-        "khi": {"position": "post-verbal", "function": "exclamative",
-                "meaning": "exclamative particle"},
-        "le": {"position": "post-nominal", "function": "locative",
-               "meaning": "at/on/in"},
+               "meaning": "reflexive marker", "frequency": 0},
+        
+        # Post-verbal particles
+        "leh": {"position": "post-verbal", "function": "conjunction",
+                "meaning": "and/with", "frequency": 15254},
+        "lo": {"position": "post-verbal", "function": "negation",
+               "meaning": "not (3rd person)", "frequency": 0},
+        "kei": {"position": "post-verbal", "function": "negation",
+                "meaning": "not (1st/2nd person)", "frequency": 7059},
+        
+        # Post-nominal particles
+        "ta": {"position": "post-nominal", "function": "possessive",
+               "meaning": "possessive marker", "frequency": 0},
+        "pen": {"position": "post-nominal", "function": "focus",
+                "meaning": "focus/emphasis", "frequency": 4716},
         "ah": {"position": "post-nominal", "function": "locative",
-               "meaning": "at (locative)"},
+               "meaning": "at (locative)", "frequency": 5769},
+        "tungah": {"position": "post-nominal", "function": "locative",
+                   "meaning": "above/on", "frequency": 6090},
+        "sungah": {"position": "post-nominal", "function": "locative",
+                   "meaning": "inside/in", "frequency": 2474},
+        "kiangah": {"position": "post-nominal", "function": "locative",
+                    "meaning": "outside", "frequency": 4209},
+        "panin": {"position": "post-nominal", "function": "locative",
+                  "meaning": "before", "frequency": 4355},
+        
+        # Demonstrative particles
+        "tua": {"position": "pre-nominal", "function": "demonstrative",
+                "meaning": "that/those", "frequency": 12576},
+        "hih": {"position": "pre-nominal", "function": "demonstrative",
+                "meaning": "this/these", "frequency": 5353},
+        
+        # Person agreement markers
+        "ka": {"position": "pre-verbal", "function": "agreement",
+               "meaning": "1st person singular", "frequency": 13818},
+        "na": {"position": "pre-verbal", "function": "agreement",
+               "meaning": "2nd person singular", "frequency": 9334},
+        "i": {"position": "pre-verbal", "function": "agreement",
+              "meaning": "1st person plural", "frequency": 1045},
+        
+        # Pronouns
+        "amah": {"position": "pre-verbal", "function": "pronoun",
+                 "meaning": "he/she/it", "frequency": 6423},
+        "uh": {"position": "pre-verbal", "function": "pronoun",
+               "meaning": "they/them", "frequency": 22550},
+        "amaute": {"position": "pre-verbal", "function": "pronoun",
+                   "meaning": "they (emphatic)", "frequency": 5775},
+        
+        # Nouns
+        "mite": {"position": "pre-verbal", "function": "noun",
+                 "meaning": "people", "frequency": 6188},
+        "mi": {"position": "pre-verbal", "function": "noun",
+               "meaning": "person/man", "frequency": 5099},
+        "topa": {"position": "pre-verbal", "function": "title",
+                 "meaning": "Lord", "frequency": 5881},
+        "pasian": {"position": "pre-verbal", "function": "title",
+                   "meaning": "God", "frequency": 4264},
+        
+        # Copula
+        "ahih": {"position": "sentence-final", "function": "copula",
+                 "meaning": "is/am/are", "frequency": 6229},
+        "ahi": {"position": "sentence-final", "function": "copula",
+                "meaning": "is/am/are", "frequency": 8617},
+        
+        # Quotative
+        "ci": {"position": "pre-verbal", "function": "quotative",
+               "meaning": "say/speak", "frequency": 7932},
+        
+        # Temporal
+        "ciangin": {"position": "pre-verbal", "function": "temporal",
+                    "meaning": "then/at that time", "frequency": 10026},
+        
+        # Directional
+        "hong": {"position": "pre-verbal", "function": "directional",
+                 "meaning": "toward speaker", "frequency": 15600},
+        
+        # Conjunctions
+        "hang": {"position": "inter-clausal", "function": "conjunction",
+                 "meaning": "but/however", "frequency": 0},
+        "cih": {"position": "inter-clausal", "function": "conjunction",
+                "meaning": "then/and then", "frequency": 0},
+        
+        # Question words
+        "bang": {"position": "pre-verbal", "function": "question",
+                 "meaning": "what/how", "frequency": 0},
+        "kua": {"position": "sentence-final", "function": "question",
+                "meaning": "who (question)", "frequency": 0},
+        
+        # Auxiliaries
+        "thei": {"position": "pre-verbal", "function": "auxiliary",
+                 "meaning": "know/understand", "frequency": 0},
+        "gal": {"position": "pre-verbal", "function": "auxiliary",
+                "meaning": "can/able", "frequency": 0},
+        
+        # Focus
+        "mai": {"position": "sentence-final", "function": "focus",
+                "meaning": "focus/emphasis", "frequency": 0},
+        
+        # Plural
+        "te": {"position": "post-nominal", "function": "plural",
+               "meaning": "plural marker", "frequency": 0},
+        
+        # Nominalizer
+        "na": {"position": "post-nominal", "function": "nominalizer",
+               "meaning": "nominalizer", "frequency": 0},
+        
+        # Relative
+        "hih": {"position": "sentence-medial", "function": "relative",
+                "meaning": "which/that", "frequency": 5353},
+        
+        # Temporal
+        "zat": {"position": "sentence-medial", "function": "temporal",
+                "meaning": "when/at the time of", "frequency": 0},
+        
+        # Adversative
+        "kia": {"position": "pre-verbal", "function": "adversative",
+                "meaning": "only/but", "frequency": 0},
+        
+        # Imperative
+        "ang": {"position": "pre-verbal", "function": "imperative",
+                "meaning": "do (imperative)", "frequency": 0},
+        
+        # Exclamative
+        "khi": {"position": "post-verbal", "function": "exclamative",
+                "meaning": "exclamative particle", "frequency": 0},
+        
+        # Locative
+        "le": {"position": "post-nominal", "function": "locative",
+               "meaning": "at/on/in", "frequency": 0},
+        
+        # Subordinator
         "ci": {"position": "pre-verbal", "function": "subordinator",
-               "meaning": "that (complementizer)"},
+               "meaning": "that (complementizer)", "frequency": 7932},
+        
+        # Comparative
         "than": {"position": "pre-verbal", "function": "comparative",
-                 "meaning": "more than (comparative)"},
+                 "meaning": "more than", "frequency": 0},
+        
+        # Emphatic
         "lah": {"position": "sentence-final", "function": "emphatic",
-                "meaning": "emphatic particle"},
+                "meaning": "emphatic particle", "frequency": 0},
     }
 
     def __init__(self, particles_db: list[dict]):
