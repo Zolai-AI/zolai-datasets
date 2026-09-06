@@ -745,6 +745,56 @@ else:
   read -p "Press Enter to return to menu..."
 }
 
+
+# ── Online Data Integration commands ─────────────────────────
+cmd_integrate_dalsuum() {
+  banner
+  echo -e "${G}Integrating Dalsuum dictionary (7,861 words)...${NC}"
+  python3 "$SCRIPT_DIR/integrate_dalsuum.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_extract_corpus_vocab() {
+  banner
+  echo -e "${G}Extracting vocabulary from paumkim corpus (208MB)...${NC}"
+  python3 "$SCRIPT_DIR/extract_corpus_vocab.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_extract_proverbs() {
+  banner
+  echo -e "${G}Extracting proverbs from Bible...${NC}"
+  python3 "$SCRIPT_DIR/extract_proverbs.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_integrate_conversational() {
+  banner
+  echo -e "${G}Integrating conversational data...${NC}"
+  python3 "$SCRIPT_DIR/integrate_conversational.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_build_cross_language() {
+  banner
+  echo -e "${G}Building cross-language comparison (Tedim/Hakha/Falam/Paite)...${NC}"
+  python3 "$SCRIPT_DIR/build_cross_language.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_build_comprehensive_vocab() {
+  banner
+  echo -e "${G}Building comprehensive vocabulary master list...${NC}"
+  python3 "$SCRIPT_DIR/build_comprehensive_vocab.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -775,6 +825,14 @@ while true; do
   echo -e "  ${G}J${NC}) ✍️  Paraphrase & Style Transfer"
   echo -e "  ${G}K${NC}) 📚 Paragraph Knowledge Base"
   echo -e "  ${G}H${NC}) 🧠 Knowledge Vectors (RAG index status)"
+  echo ""
+  echo -e "  ${M}── Online Data Tools ──────────────────${NC}"
+  echo -e "  ${G}M${NC}) 🔗 Integrate Dalsuum dictionary (7,861 words)"
+  echo -e "  ${G}N${NC}) 📊 Extract corpus vocabulary (3M+ lines)"
+  echo -e "  ${G}O${NC}) 📜 Extract proverbs & wise sayings"
+  echo -e "  ${G}P${NC}) 💬 Integrate conversational data"
+  echo -e "  ${G}Q${NC}) 🌐 Build cross-language comparison"
+  echo -e "  ${G}R${NC}) 📦 Build master vocabulary (all sources)"
   echo -e "  ${G}0${NC}) 🚪 Exit"
   echo ""
   read -p "  Select [1]: " main_choice
@@ -800,7 +858,13 @@ while true; do
     I|i) cmd_para_analyze ;;
     J|j) cmd_para_paraphrase ;;
     K|k) cmd_para_knowledge ;;
-    0|q|Q) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
+    M|m) cmd_integrate_dalsuum ;;
+    N|n) cmd_extract_corpus_vocab ;;
+    O|o) cmd_extract_proverbs ;;
+    P|p) cmd_integrate_conversational ;;
+    Q|q) cmd_build_cross_language ;;
+    R|r) cmd_build_master_vocab ;;
+    0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
 done
