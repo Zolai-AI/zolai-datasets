@@ -492,7 +492,72 @@ class GrammarMatcher:
             "pattern": r"\b(\w+)\s+(?:(?:ki|si|tu|a|in)\s+)?(\w+)\s+([a-zA-Z']+)\b",
             "description": "Subject + Object + Verb (SOV order)",
             "confidence": HIGH,
+    
+        "negation_kei": {
+            "pattern": r"\b(\w+)\s+kei\s+(?:hi|ding|un|leh)\b",
+            "description": "1st/2nd person negation (kei)",
+            "confidence": HIGH,
         },
+        "negation_lo": {
+            "pattern": r"\b(\w+)\s+lo\s+(?:hi|ding|un|leh)\b",
+            "description": "3rd person negation (lo)",
+            "confidence": HIGH,
+        },
+        "question_diam": {
+            "pattern": r"\bdiam\b",
+            "description": "Future question marker",
+            "confidence": HIGH,
+        },
+        "question_bang_hang": {
+            "pattern": r"\bbang\s+hang\b",
+            "description": "Content question (why/how)",
+            "confidence": HIGH,
+        },
+        "future_ding": {
+            "pattern": r"\bding\s+(?:hi|uh|a)\b",
+            "description": "Future tense marker (ding)",
+            "confidence": HIGH,
+        },
+        "past_ciangin": {
+            "pattern": r"\bciangin\s+",
+            "description": "Past tense marker (ciangin)",
+            "confidence": HIGH,
+        },
+        "completive_ta": {
+            "pattern": r"\b(\w+)\s+ta\s+",
+            "description": "Completive aspect (ta)",
+            "confidence": HIGH,
+        },
+        "progressive_lai": {
+            "pattern": r"\b(?:tua|hih)\s+lai\b",
+            "description": "Progressive aspect (lai)",
+            "confidence": HIGH,
+        },
+        "person_ka": {
+            "pattern": r"\bka\s+\w+",
+            "description": "1st person singular agreement",
+            "confidence": HIGH,
+        },
+        "person_na": {
+            "pattern": r"\bna\s+\w+",
+            "description": "2nd person singular agreement",
+            "confidence": HIGH,
+        },
+        "person_a": {
+            "pattern": r"\ba\s+\w+",
+            "description": "3rd person singular agreement",
+            "confidence": HIGH,
+        },
+        "person_i": {
+            "pattern": r"\bi\s+\w+",
+            "description": "1st person plural agreement",
+            "confidence": HIGH,
+        },
+        "person_ki": {
+            "pattern": r"\bki\s+\w+",
+            "description": "Reflexive/middle voice",
+            "confidence": HIGH,
+        },    },
         "negation": {
             "pattern": r"\b(\w+)\s+(?:lo|si|tu)\b",
             "description": "Negation particle (lo/si/tu)",
@@ -569,6 +634,107 @@ class GrammarMatcher:
                     "corpus_freq": self.pattern_counts.get(name, 0),
                 })
         return matches
+
+    def check_negation(self, zo_text: str) -> dict:
+        """Check negation patterns with person-specific rules."""
+        words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
+        
+        # Check for person markers
+        has_ka = "ka" in words
+        has_na = "na" in words
+        has_a = "a" in words
+        
+        # Check for negation particles
+        has_kei = "kei" in words
+        has_lo = "lo" in words
+        
+        # Determine person
+        person = None
+        if has_ka or has_na:
+            person = "1st/2nd"
+        elif has_a:
+            person = "3rd"
+        
+        # Check negation pattern
+        if has_kei and person == "1st/2nd":
+            return {
+                "correct": True,
+                "person": person,
+                "negation": "kei",
+                "reason": "1st/2nd person uses kei",
+            }
+        elif has_lo and person == "3rd":
+            return {
+                "correct": True,
+                "person": person,
+                "negation": "lo",
+                "reason": "3rd person uses lo",
+            }
+        elif has_kei and person == "3rd":
+            return {
+                "correct": False,
+                "person": person,
+                "negation": "kei",
+                "reason": "3rd person should use lo, not kei",
+            }
+        elif has_lo and person == "1st/2nd":
+            return {
+                "correct": False,
+                "person": person,
+                "negation": "lo",
+                "reason": "1st/2nd person should use kei, not lo",
+            }
+        
+        return {
+            "correct": None,
+            "person": person,
+            "negation": None,
+            "reason": "no negation pattern found",
+        }
+
+    def check_question(self, zo_text: str) -> dict:
+        """Check question patterns."""
+        words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
+        
+        if "hiam" in words:
+            return {"type": "yes/no", "marker": "hiam", "correct": True}
+        elif "diam" in words:
+            return {"type": "future", "marker": "diam", "correct": True}
+        elif "bang" in words and "hang" in words:
+            return {"type": "content", "marker": "bang hang", "correct": True}
+        elif "bang" in words and "ci" in words:
+            return {"type": "content", "marker": "bang ci", "correct": True}
+        
+        return {"type": None, "marker": None, "correct": None}
+
+    def check_verb_conjugation(self, zo_text: str) -> dict:
+        """Check verb conjugation patterns."""
+        words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
+        
+        # Check for incorrect "an ne" pattern
+        if "an" in words and "ne" in words:
+            return {
+                "correct": False,
+                "issue": "an ne",
+                "reason": "Use 'ne' directly, not 'an ne'",
+                "suggestion": "ka ne hi",
+            }
+        
+        # Check for incorrect "nek" usage
+        if "nek" in words:
+            # Check if it's in correct construction
+            for i, word in enumerate(words):
+                if word == "nek" and i > 0:
+                    prev = words[i-1]
+                    if prev in ["ka", "na", "a", "i"]:
+                        return {
+                            "correct": False,
+                            "issue": "nek after pronoun",
+                            "reason": "Use 'ne' directly after pronoun",
+                            "suggestion": f"{prev} ne hi",
+                        }
+        
+        return {"correct": None, "issue": None, "reason": None}
 
     def match_sov(self, zo_text: str) -> dict:
         """Check for SOV word order in a sentence."""
