@@ -852,6 +852,122 @@ cmd_build_comprehensive_vocab() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Training Pipeline commands ──────────────────────────────
+
+TRAINER_DIR="$SCRIPT_DIR/../training"
+
+cmd_train_generate() {
+  banner
+  echo -e "${C}═══ Generate Sentences from Grammar Patterns ═══${NC}"
+  echo ""
+  echo -e "  Generates Zolai sentences by filling grammar pattern slots"
+  echo -e "  with real vocabulary from the Bible corpus."
+  echo ""
+  read -p "  Max sentences [5000]: " max_sent
+  max_sent="${max_sent:-5000}"
+  read -p "  Random seed [42]: " seed
+  seed="${seed:-42}"
+  echo ""
+  echo -e "${G}Generating $max_sent sentences (seed=$seed)...${NC}"
+  log_event "train_generate" "max=$max_sent seed=$seed"
+  $PYTHON "$TRAINER_DIR/generate_sentences.py" --max-sentences "$max_sent" --seed "$seed"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_train_validate() {
+  banner
+  echo -e "${C}═══ Validate Generated Sentences ═══${NC}"
+  echo ""
+  echo -e "  Checks grammar structure + ZVS 2018 compliance."
+  echo -e "  Scores each sentence 0-100, splits valid/invalid."
+  echo ""
+  read -p "  Min score [70]: " min_score
+  min_score="${min_score:-70}"
+  echo ""
+  echo -e "${G}Validating sentences (min_score=$min_score)...${NC}"
+  log_event "train_validate" "min_score=$min_score"
+  $PYTHON "$TRAINER_DIR/validate_sentences.py" --min-score "$min_score"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_train_correct() {
+  banner
+  echo -e "${C}═══ Correct Invalid Sentences ═══${NC}"
+  echo ""
+  echo -e "  Auto-fixes ZVS forbidden forms, proper nouns,"
+  echo -e "  duplicate particles, and missing verb endings."
+  echo ""
+  echo -e "${G}Correcting invalid sentences...${NC}"
+  log_event "train_correct" ""
+  $PYTHON "$TRAINER_DIR/correct_sentences.py"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_train_full_pipeline() {
+  banner
+  echo -e "${C}═══ Full Training Corpus Pipeline ═══${NC}"
+  echo ""
+  echo -e "  Runs the complete pipeline:"
+  echo -e "    1) Generate sentences from grammar patterns"
+  echo -e "    2) Validate (grammar + ZVS 2018)"
+  echo -e "    3) Auto-correct invalid sentences"
+  echo -e "    4) Re-validate after correction"
+  echo -e "    5) Export to Qwen3 chat template format"
+  echo ""
+  read -p "  Max sentences [5000]: " max_sent
+  max_sent="${max_sent:-5000}"
+  read -p "  Random seed [42]: " seed
+  seed="${seed:-42}"
+  read -p "  Min score [70]: " min_score
+  min_score="${min_score:-70}"
+  echo ""
+  echo -e "${G}Running full pipeline...${NC}"
+  log_event "train_pipeline" "max=$max_sent seed=$seed min_score=$min_score"
+  $PYTHON "$TRAINER_DIR/build_training_corpus.py" \
+    --max-sentences "$max_sent" \
+    --seed "$seed" \
+    --min-score "$min_score"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_train_guide() {
+  banner
+  echo -e "${C}═══ Quick Training Guide (Kaggle) ═══${NC}"
+  echo ""
+  echo -e "  ${Y}Step 1: Generate training data${NC}"
+  echo -e "    Run option O (Full Pipeline) to generate Qwen3 format data"
+  echo -e "    Output: data/training/pipeline_output/training_corpus_qwen3.jsonl"
+  echo ""
+  echo -e "  ${Y}Step 2: Upload to Kaggle${NC}"
+  echo -e "    1. Go to kaggle.com → New Notebook"
+  echo -e "    2. Settings → Accelerator → GPU T4 ×2"
+  echo -e "    3. Add Data → Upload training_corpus_qwen3.jsonl"
+  echo -e "    4. Also upload Bible parallel corpus for eval"
+  echo ""
+  echo -e "  ${Y}Step 3: Fine-tune with QLoRA${NC}"
+  echo -e "    Model: Qwen3-4B or Qwen2.5-3B"
+  echo -e "    Method: LoRA (r=16, alpha=32)"
+  echo -e "    Epochs: 2-3"
+  echo -e "    Batch: 4 (gradient accum 4)"
+  echo -e "    LR: 2e-4 with cosine schedule"
+  echo ""
+  echo -e "  ${Y}Step 4: Export & test${NC}"
+  echo -e "    1. Merge LoRA adapter"
+  echo -e "    2. Convert to GGUF (llama.cpp)"
+  echo -e "    3. Test on zolai-tauri (offline)"
+  echo ""
+  echo -e "  ${Y}Files:${NC}"
+  echo -e "    context/NLP_TOOLS_GUIDE.md — full tools guide"
+  echo -e "    context/KAGGLE_SETUP.md — Kaggle notebook setup"
+  echo -e "    scripts/training/kaggle_qlora_notebook.ipynb — notebook template"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Training Tools commands ────────────────────────────────
 
 cmd_create_seed() {
@@ -899,6 +1015,31 @@ cmd_kaggle_guide() {
 }
 
 # ── Path check ─────────────────────────────────────────────
+
+cmd_training_pipeline() {
+  while true; do
+    banner
+    echo -e "${Y}🔧 Training Pipeline — Grammar Pattern → Qwen3${NC}"
+    echo ""
+    echo -e "  ${G}1${NC}) 🔨 Generate sentences from grammar patterns"
+    echo -e "  ${G}2${NC}) ✅ Validate generated sentences (grammar + ZVS)"
+    echo -e "  ${G}3${NC}) 🔧 Correct invalid sentences (auto-fix)"
+    echo -e "  ${G}4${NC}) 🚀 Full pipeline (generate→validate→correct→export)"
+    echo -e "  ${G}5${NC}) 📖 Quick training guide (Kaggle)"
+    echo ""
+    echo -e "  ${G}0${NC}) ↩  Back to main menu"
+    echo ""
+    read -p "  Select [4]: " choice
+    case "$choice" in
+      1) cmd_train_generate ;;
+      2) cmd_train_validate ;;
+      3) cmd_train_correct ;;
+      5) cmd_train_guide ;;
+      0|q|Q) return ;;
+      *) cmd_train_full_pipeline ;;
+    esac
+  done
+}
 
 cmd_fix_paths() {
   banner
@@ -989,6 +1130,9 @@ while true; do
   echo -e "  ${G}U${NC}) 🌐 Build cross-language comparison"
   echo -e "  ${G}V${NC}) 📦 Build master vocabulary"
   echo ""
+  echo -e "  ${M}── Training Pipeline ──────────────────${NC}"
+  echo -e "  ${G}Z${NC}) 🔧 Training Pipeline submenu"
+  echo ""
   echo -e "  ${M}── Training ──────────────────────────${NC}"
   echo -e "  ${G}W${NC}) 🌱 Create seed data (500 pairs)"
   echo -e "  ${G}X${NC}) 🤖 Generate synthetic training data"
@@ -1031,6 +1175,7 @@ while true; do
     W|w) cmd_create_seed ;;
     X|x) cmd_generate_synthetic ;;
     Y|y) cmd_kaggle_guide ;;
+    Z|z) cmd_training_pipeline ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
