@@ -1,7 +1,7 @@
 # Zolai-AI Master Plan — Everything Tracker
 
 **Created:** 2026-09-07
-**Last Updated:** 2026-09-07
+**Last Updated:** 2026-09-07 (Session: Master Plan Update)
 **Status:** ACTIVE
 
 ---
@@ -18,6 +18,12 @@
 8. [Task Tracker](#8-task-tracker)
 9. [Daily/Weekly/Monthly Plan](#9-dailyweeklymonthly-plan)
 10. [Git Workflow](#10-git-workflow)
+11. [Data Sources & Attribution](#11-data-sources--attribution)
+12. [Usage Guide](#12-usage-guide)
+13. [Coverage Gaps & Roadmap](#13-coverage-gaps--roadmap)
+14. [Documentation Updates](#14-documentation-updates)
+15. [Sustainable Maintenance System](#15-sustainable-maintenance-system)
+16. [Training Pipeline](#16-training-pipeline)
 
 ---
 
@@ -107,38 +113,44 @@
 
 ### 🔴 HIGH PRIORITY (Do First)
 
-| # | Task | Why | Est. Time |
-|---|------|-----|-----------|
-| H1 | **Git commit 8 NEW scripts** | They exist but are uncommitted | 10 min |
-| H2 | **Fix vocab_comprehensive_v2.py** | Only 167 entries (target 25K+) | 30 min |
-| H3 | **Update menu.sh** | Add new script options, fix model list | 30 min |
-| H4 | **Update pcore-brain context** | Add polysemy rules + comprehensive grammar | 1 hr |
-| H5 | **Combine duplicate vocab scripts** | 5 scripts do similar things → 1 script | 2 hr |
-| H6 | **Combine duplicate Bible scripts** | 8 scripts do similar things → 2 scripts | 2 hr |
+| # | Task | Why | Est. Time | Status |
+|---|------|-----|-----------|--------|
+| H1 | **Git commit 8 NEW scripts** | They exist but are uncommitted | 10 min | ✅ DONE — commit `42e3f2b` (2026-09-07) |
+| H2 | **Fix vocab_comprehensive_v2.py** | Only 167 entries (target 25K+) | 30 min | ✅ SUPERSEDED — `vocab_master.jsonl` (98K words) |
+| H3 | **Update menu.sh** | Add new script options, fix model list | 30 min | ✅ DONE — commit `30a7c61` (2026-09-07) |
+| H4 | **Update pcore-brain context** | Add polysemy rules + comprehensive grammar | 1 hr | ✅ DONE (2026-09-06) |
+| H5 | **Combine duplicate vocab scripts** | 5 scripts do similar things → 1 script | 2 hr | ⏳ QUEUED |
+| H6 | **Combine duplicate Bible scripts** | 8 scripts do similar things → 2 scripts | 2 hr | ⏳ QUEUED |
+| H7 | **Generate 10K synthetic training pairs** | Seed data ready (`seed_data_500_fixed.jsonl`) | 4 hr | ⏳ QUEUED |
+| H8 | **Set up Kaggle notebook** | Guide written (`KAGGLE_SETUP.md`) | 1 hr | ⏳ QUEUED |
+| H9 | **Fine-tune Qwen2.5-3B on Kaggle T4** | 30 hrs/week free GPU | 1 day | ⏳ QUEUED |
+| H10 | **Build custom Zolai tokenizer** | Improve F1 by 5-15 points | 2 hr | ⏳ QUEUED |
+| H11 | **Deploy Argilla annotation server** | Community validation platform | 2 hr | ⏳ QUEUED |
+| H12 | **Create evaluation benchmark suite** | BLEU + F1 + native speaker review | 3 hr | ⏳ QUEUED |
 
 ### 🟡 MEDIUM PRIORITY (Do Next)
 
-| # | Task | Why | Est. Time |
-|---|------|-----|-----------|
-| M1 | **Download paumkim/zomi-dataset** | 3M+ sentences, 36K+ words, 130K+ dict | 1 hr |
-| M2 | **Integrate dalsuum/zolai-dictionary** | 7,861 headwords, trilingual | 2 hr |
-| M3 | **Download zomi-tedim-ai Bible corpus** | Tedim-Burmese parallel verses | 1 hr |
-| M4 | **Build comprehensive polysemy DB** | Currently 77, target 200+ | 3 hr |
-| M5 | **Fix Sinna lesson parsing** | 69 "lessons" found, should be 34 | 1 hr |
-| M6 | **Update wiki grammar section** | Use Grammar Vol 1 as source | 2 hr |
-| M7 | **Update wiki vocabulary section** | Use comprehensive vocab | 2 hr |
+| # | Task | Why | Est. Time | Status |
+|---|------|-----|-----------|--------|
+| M1 | **Download paumkim/zomi-dataset** | 3M+ sentences, 36K+ words, 130K+ dict | 1 hr | ✅ DONE — 207MB in `data/online/` |
+| M2 | **Integrate dalsuum/zolai-dictionary** | 7,861 headwords, trilingual | 2 hr | ✅ DONE — 7,841 entries in `dict_dalsuum_merged.jsonl` |
+| M3 | **Download zomi-tedim-ai Bible corpus** | Tedim-Burmese parallel verses | 1 hr | ✅ DONE (in `data/online/`) |
+| M4 | **Build comprehensive polysemy DB** | Currently 77, target 200+ | 3 hr | ⏳ QUEUED |
+| M5 | **Fix Sinna lesson parsing** | 69 "lessons" found, should be 34 | 1 hr | ⏳ QUEUED |
+| M6 | **Update wiki grammar section** | Use Grammar Vol 1 as source | 2 hr | ⏳ QUEUED |
+| M7 | **Update wiki vocabulary section** | Use comprehensive vocab | 2 hr | ⏳ QUEUED |
 
 ### 🟢 LOW PRIORITY (Do When Ready)
 
-| # | Task | Why | Est. Time |
-|---|------|-----|-----------|
-| L1 | **Download TongDot dictionary** | 27,755 English words | 30 min |
-| L2 | **Download Glosbe examples** | Tedim-English sentence pairs | 1 hr |
-| L3 | **Download Zolai Grammar (Zomi Nam)** | Lia Cingsen's 30 lessons | 30 min |
-| L4 | **Download Zolai Sim Bu Tan Khat** | Cope's original reader | 30 min |
-| L5 | **Build audio pronunciation DB** | No audio data yet | 1 day |
-| L6 | **Build tone/sandhi system** | Zolai is tonal | 1 week |
-| L7 | **Create interactive web app** | zolai-web integration | 1 week |
+| # | Task | Why | Est. Time | Status |
+|---|------|-----|-----------|--------|
+| L1 | **Download TongDot dictionary** | 27,755 English words | 30 min | ✅ DONE — 5,004 entries in `data/online/` |
+| L2 | **Download Glosbe examples** | Tedim-English sentence pairs | 1 hr | ✅ DONE — 21 JSONs in `data/online/` |
+| L3 | **Download Zolai Grammar (Zomi Nam)** | Lia Cingsen's 30 lessons | 30 min | ✅ DONE — converted to markdown |
+| L4 | **Download Zolai Sim Bu Tan Khat** | Cope's original reader | 30 min | ✅ DONE — converted to markdown |
+| L5 | **Build audio pronunciation DB** | No audio data yet | 1 day | ⏳ QUEUED |
+| L6 | **Build tone/sandhi system** | Zolai is tonal | 1 week | ⏳ QUEUED |
+| L7 | **Create interactive web app** | zolai-web integration | 1 week | ⏳ QUEUED |
 
 ---
 
@@ -424,22 +436,21 @@ Step 10: Update menu with all new scripts
 
 | Task | Owner | Status | Started | Est. Done |
 |------|-------|--------|---------|-----------|
-| Git commit 8 NEW scripts | conductor | BLOCKED | — | — |
-| Fix vocab_comprehensive_v2.py | — | NOT STARTED | — | — |
-| Update menu.sh | — | NOT STARTED | — | — |
+| Combine duplicate vocab scripts | conductor | BLOCKED | — | — |
+| Combine duplicate Bible scripts | conductor | BLOCKED | — | — |
 
 ### ⏳ QUEUED (High Priority)
 
 | Task | Owner | Status | Depends On |
 |------|-------|--------|------------|
-| Download paumkim/zomi-dataset | — | QUEUED | — |
-| Download dalsuum/zolai-dictionary | — | QUEUED | — |
-| Combine vocab scripts (5→1) | — | QUEUED | H1 (git commit) |
-| Combine Bible scripts (8→2) | — | QUEUED | H1 |
-| Combine grammar scripts (3→1) | — | QUEUED | H1 |
-| Delete fix/debug scripts | — | QUEUED | H1 |
-| Update pcore-brain context | — | QUEUED | H2 (vocab fix) |
-| Build polysemy DB (77→200+) | — | QUEUED | M1 (paumkim) |
+| Generate 10K synthetic training pairs | — | QUEUED | Seed data (ready) |
+| Set up Kaggle notebook | — | QUEUED | KAGGLE_SETUP.md (ready) |
+| Fine-tune Qwen2.5-3B on Kaggle T4 | — | QUEUED | Kaggle setup |
+| Build custom Zolai tokenizer | — | QUEUED | — |
+| Deploy Argilla annotation server | — | QUEUED | — |
+| Create evaluation benchmark suite | — | QUEUED | — |
+| Build polysemy DB (77→200+) | — | QUEUED | — |
+| Fix Sinna lesson parsing | — | QUEUED | — |
 
 ### ✅ COMPLETED
 
@@ -447,17 +458,18 @@ Step 10: Update menu with all new scripts
 |------|------|--------|
 | Convert all PDFs to markdown | 2026-09-07 | — |
 | Copy reference materials to workspace | 2026-09-07 | — |
-| Build 8 integration scripts | 2026-09-07 | UNCOMMITTED |
+| Build 8 integration scripts | 2026-09-07 | `42e3f2b` |
 | Run all 8 scripts | 2026-09-07 | — |
 | Fix exercise script regex | 2026-09-07 | — |
 | Pass ruff + py_compile on all scripts | 2026-09-07 | — |
-
-### ❌ BLOCKED
-
-| Task | Blocker | Resolution |
-|------|---------|------------|
-| Git commit scripts | Uncommitted files need staging | Run `git add` + `git commit` |
-| Update wiki | Wiki repo not in workspace | Clone or reference |
+| Git commit 8 NEW scripts | 2026-09-07 | `42e3f2b` |
+| Update menu.sh (model list + options) | 2026-09-07 | `30a7c61` |
+| Download paumkim/zomi-dataset | 2026-09-07 | — |
+| Integrate dalsuum dictionary | 2026-09-07 | `42e3f2b` |
+| Download TongDot + Glosbe + zomi-tedim-ai | 2026-09-07 | — |
+| Update pcore-brain context | 2026-09-06 | — |
+| Create seed data (500 pairs) | 2026-09-07 | `42e3f2b` |
+| Update menu.sh with training options | 2026-09-07 | `30a7c61` |
 
 ---
 
@@ -620,17 +632,23 @@ The Bible provides the most comprehensive, well-structured text in Tedim Zolai.
 | Dictionary (ZO→EN) | ZomiLanguage/dictionary | 11MB | 93,931 entries | ✅ Integrated |
 | Dictionary (EN→ZO) | ZomiLanguage/dictionary | 56MB | 112,220 entries | ✅ Integrated |
 | Dictionary (trilingual) | dalsuum/zolai-dictionary | 6.1MB | 7,861 headwords | ✅ Downloaded |
+| Dictionary (merged) | dalsuum + local | 6.1MB | 7,841 entries | ✅ Built |
 | Dictionary (TongDot) | paumkim/zomi-dataset | 681KB | 5,004 entries | ✅ Downloaded |
 | Corpus (clean) | paumkim/zomi-dataset | 208MB | 3M+ sentences | ✅ Downloaded |
 | Reference (grammar) | Local PDFs | 6.5MB | 23 files | ✅ Converted |
 | Language learning | Generated | 25MB | 13 files | ✅ Built |
 | Vocabulary | Generated | 1.2MB | 23,383 words | ✅ Built |
+| Vocabulary (master) | Generated | 12MB | 98,976 words | ✅ Built |
+| Vocabulary (online) | Generated | 12MB | 533,444 words | ✅ Built |
 | Grammar patterns | Generated | 1.2MB | 1,188 patterns | ✅ Built |
 | Phrases | Generated | 2.3MB | 5,000 pairs | ✅ Built |
 | Polysemy | Generated | 20KB | 77 words | ✅ Built |
-| Proverbs | Generated | TBD | TBD | 🔲 Pending |
-| Conversational | paumkim | 1.6MB | TBD | 🔲 Pending |
-| Cross-language | Bible JSONs | TBD | TBD | 🔲 Pending |
+| Proverbs | Bible + worship songs | 1.5MB | 7,736 entries | ✅ Built |
+| Conversational | paumkim | 1.6MB | 8,913 entries | ✅ Built |
+| Cross-language | Bible JSONs | 2.1MB | 90,255 entries | ✅ Built |
+| Training seed | Generated | 50KB | 500 pairs | ✅ Built |
+| Training seed (fixed) | Generated | 50KB | 500 pairs | ✅ Built |
+| Training test | Generated | 2KB | 10 pairs | ✅ Built |
 
 ### Data Flow Diagram
 
@@ -661,7 +679,7 @@ The Bible provides the most comprehensive, well-structured text in Tedim Zolai.
                     ├─────────────────────────────────────┤
                     │ dict_zo_en_clean.jsonl (93K)        │
                     │ dict_canonical_clean.jsonl (112K)   │
-                    │ vocab_master.jsonl (25K+)           │
+                    │ vocab_master.jsonl (98K)           │
                     │ proverbs.jsonl                      │
                     │ conversational.jsonl                │
                     │ cross_language.jsonl                 │
@@ -738,9 +756,9 @@ The Bible provides the most comprehensive, well-structured text in Tedim Zolai.
 | Gap | Priority | Source | Status |
 |-----|----------|--------|--------|
 | Audio/pronunciation | HIGH | Joshua Project audio Bible | 🔲 Need to download |
-| Proverbs/idioms | HIGH | Bible + worship songs | 🔲 Can extract now |
-| Conversational data | HIGH | paumkim (1.6MB) | 🔲 Can extract now |
-| Cross-language comparison | HIGH | 4 Bible versions | 🔲 Can build now |
+| Proverbs/idioms | HIGH | Bible + worship songs | ✅ DONE — 7,736 proverbs |
+| Conversational data | HIGH | paumkim (1.6MB) | ✅ DONE — 8,913 entries |
+| Cross-language comparison | HIGH | 4 Bible versions | ✅ DONE — 90,255 entries |
 | Technical vocabulary | MEDIUM | zomipedia + TongDot | 🔲 Can extract now |
 | Dialect variations | MEDIUM | paumkim articles | 🔲 Can extract now |
 | Proficiency tests | MEDIUM | Need to create | 🔲 Framework needed |
@@ -752,19 +770,19 @@ The Bible provides the most comprehensive, well-structured text in Tedim Zolai.
 
 **Phase 1: Data Integration (Current)**
 - [x] Download all online data sources
-- [ ] Create integration scripts
-- [ ] Merge dictionaries
-- [ ] Extract vocabulary from corpus
-- [ ] Build cross-language comparison
+- [x] Create integration scripts
+- [x] Merge dictionaries
+- [x] Extract vocabulary from corpus
+- [x] Build cross-language comparison
 
 **Phase 2: Content Enrichment**
-- [ ] Extract proverbs from Bible
-- [ ] Build conversational database
+- [x] Extract proverbs from Bible
+- [x] Build conversational database
 - [ ] Create proficiency test framework
 - [ ] Add technical vocabulary
 
 **Phase 3: AI Enhancement**
-- [ ] Update pcore-brain context with new data
+- [x] Update pcore-brain context with new data
 - [ ] Improve RAG context injection
 - [ ] Add polysemy rules to AI prompts
 - [ ] Test AI glossing accuracy
@@ -806,3 +824,67 @@ The Bible provides the most comprehensive, well-structured text in Tedim Zolai.
 - **project-overview.md** — Org scope, repos, mission
 - **progress-tracker.md** — Session-by-session work log
 - **AGENTS.md** (per repo) — Agent guidance for each repo
+
+---
+
+## 15. Sustainable Maintenance System
+
+### Weekly 30-min Review (Sunday)
+- Check git status all repos
+- Run ruff on changed Python files
+- Update progress-tracker.md
+- Search for new Zolai resources
+
+### Monthly 2-hour Audit (1st of Month)
+- Full ecosystem check (all 10 repos)
+- Refresh context/*.md files
+- Download new datasets
+- Review MASTER_PLAN.md
+
+### Quarterly 1-day Rebuild (Every 3 Months)
+- Rebuild all data from scratch
+- Review scripts for consolidation
+- Update wiki content
+- Test AI integration
+
+### File Tracking System
+| Tool | Purpose | Location |
+|------|---------|----------|
+| progress-tracker.md | Session work log | context/ |
+| MASTER_PLAN.md | Everything tracker | zolai-datasets/docs/ |
+| Git commits | Version control | All repos |
+| git log --oneline | Change history | All repos |
+
+---
+
+## 16. Training Pipeline
+
+### Seed Data
+- `data/training/seed_data_500_fixed.jsonl` — 500 Zolai-EN pairs
+- 389 from Bible, 111 from dictionary
+- Ready for synthetic generation
+
+### Synthetic Data Generation
+- Script: `scripts/bible/generate_synthetic_data.py`
+- Target: 10,000 pairs
+- Method: LLM-based (pcore-brain API)
+- Quality scoring: 8-feature pipeline
+
+### Kaggle Setup
+- Guide: `context/KAGGLE_SETUP.md` (238 lines)
+- GPU: T4 (30 hrs/week free)
+- Model: Qwen2.5-3B
+
+### Training Config
+- Model: Qwen2.5-3B (3B params)
+- Method: LoRA SFT (r=16, alpha=32)
+- Optimizer: AdamW 8-bit, lr 1e-4
+- Schedule: cosine
+- Batch: 16×2 effective 32
+- Epochs: 1-3
+- Context: 2048 tokens
+
+### Evaluation
+- BLEU for translation
+- F1 for classification
+- Native speaker review for quality
