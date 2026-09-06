@@ -25,7 +25,7 @@ from typing import Any
 # Paths
 # ---------------------------------------------------------------------------
 
-WORKSPACE = Path(__file__).resolve().parents[4]
+WORKSPACE = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------------------
 # ZVS 2018 forbidden forms → correct forms
