@@ -28,7 +28,7 @@ from typing import Any
 # Constants
 # ---------------------------------------------------------------------------
 
-WORKSPACE = Path(__file__).resolve().parents[4]
+WORKSPACE = Path(__file__).resolve().parents[3]
 
 DATA_PATHS = {
     "bible": WORKSPACE / "data/bible/parallel_corpus_v1.jsonl",

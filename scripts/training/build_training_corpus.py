@@ -27,7 +27,7 @@ from typing import Any
 # Paths
 # ---------------------------------------------------------------------------
 
-WORKSPACE = Path(__file__).resolve().parents[4]
+WORKSPACE = Path(__file__).resolve().parents[3]
 GRAMMAR_PATH = WORKSPACE / "data/bible/grammar_patterns_text.jsonl"
 VOCAB_PATH = WORKSPACE / "data/bible/vocab_index_full.jsonl"
 DICT_PATH = WORKSPACE / "data/dictionary/processed/dict_zo_en_clean.jsonl"
