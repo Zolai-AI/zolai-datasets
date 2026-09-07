@@ -640,7 +640,9 @@ class GrammarMatcher:
         
         Rules:
         - "kei" is the STANDARD negation particle for ALL persons
-        - "lo" is also valid but in different contexts (literary/formal)
+          (takes person markers: ka pai kei, na pai kei, a pai kei)
+        - "lo" does NOT take agreement marker "a" (standalone: pai lo)
+        - "lo" is more literary/formal
         - Future negation: "V + kei + ding" or "V + lo + ding"
         """
         words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]

@@ -244,6 +244,244 @@ def generate_vocabulary_quiz(corpus: list[dict], vocab: dict[str, dict]) -> int:
     return count
 
 
+
+
+
+# ── Grammar-Aware Synthesis ────────────────────────────────
+
+OUT_DIR = EXERCISES_PATH.parent
+
+
+def generate_negation_exercises(corpus: list[dict]) -> int:
+    """Generate negation exercises using correct grammar rules.
+
+    Rules:
+    - "kei" is the standard negation particle for ALL persons
+    - "lo" is also valid (literary/formal)
+    - Future negation: "kei + ding" or "lo + ding"
+    """
+    count = 0
+    negation_patterns = [
+        (r"\bhi\b", "kei", "present negation with kei"),
+        (r"\bding\b", "kei", "future negation with kei"),
+        (r"\bhi\b", "lo", "present negation with lo"),
+        (r"\bding\b", "lo", "future negation with lo"),
+    ]
+
+    out_path = OUT_DIR / "negation_exercises.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for v in corpus:
+            zo = v.get("zo_tedim2010") or v.get("zo_tdb77") or ""
+            en = v.get("en_kJV") or ""
+            ref = v.get("ref", "")
+            if not zo or not en:
+                continue
+
+            words = re.findall(r"[a-zA-Z'’]+", zo)
+            has_verb = any(w in words for w in ["hi", "ding", "a", "in"])
+
+            if has_verb:
+                for pattern, neg_part, desc in negation_patterns:
+                    if re.search(pattern, zo):
+                        instr = (
+                            f"Make this sentence negative "
+                            f"using '{neg_part}':"
+                        )
+                        f.write(json.dumps({
+                            "instruction": instr,
+                            "input": en,
+                            "output": zo,
+                            "negation_type": desc,
+                            "reference": ref,
+                            "confidence": 0.8,
+                        }, ensure_ascii=False) + "\n")
+                        count += 1
+                        break
+    return count
+
+
+def generate_question_exercises(corpus: list[dict]) -> int:
+    """Generate question exercises using correct grammar rules.
+
+    Rules:
+    - Yes/no: Subject + verb + hiam?
+    - Future: Subject + verb + diam?
+    - Content: bang hang + verb + subject + hiam?
+    """
+    count = 0
+    out_path = OUT_DIR / "question_exercises.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for v in corpus:
+            zo = v.get("zo_tedim2010") or v.get("zo_tdb77") or ""
+            en = v.get("en_kJV") or ""
+            ref = v.get("ref", "")
+            if not zo or not en:
+                continue
+
+            words = re.findall(r"[a-zA-Z'’]+", zo)
+
+            has_verb = any(w in words for w in ["hi", "a", "in"])
+            if "hiam" not in words and has_verb:
+                f.write(json.dumps({
+                    "instruction": (
+                        "Turn this statement into a yes/no "
+                        "question (add 'hiam' at the end):"
+                    ),
+                    "input": en,
+                    "output": zo,
+                    "question_type": "yes/no",
+                    "reference": ref,
+                    "confidence": 0.85,
+                }, ensure_ascii=False) + "\n")
+                count += 1
+
+            if "why" in en.lower() and "bang hang" not in words:
+                instr = (
+                    "Rewrite this as a content question using "
+                    "'bang hang' + verb + subject + 'hiam':"
+                )
+                f.write(json.dumps({
+                    "instruction": instr,
+                    "input": en,
+                    "output": zo,
+                    "question_type": "content",
+                    "word_order": "bang hang + V + S + hiam",
+                    "reference": ref,
+                    "confidence": 0.8,
+                }, ensure_ascii=False) + "\n")
+                count += 1
+    return count
+
+
+def generate_error_correction_exercises(corpus: list[dict]) -> int:
+    """Generate error correction exercises from known patterns.
+
+    Based on native speaker corrections:
+    1. "Ka an nek hi" -> "Ka ne hi"
+    2. "Mi in ne hi" -> "Mipa in ne hi"
+    3. "Bang hang na pai hiam?" -> "Bang hang pai na hiam?"
+    """
+    count = 0
+    # (find_correct_pattern, introduce_error, description)
+    # pattern finds the CORRECT form; replacement introduces the ERROR
+    error_patterns = [
+        (r"(\b)ka (\w+) hi", r"\1ka an \2 hi",
+         "Remove 'an' before verb (1st person)"),
+        (r"(\b)na (\w+) hi", r"\1na an \2 hi",
+         "Remove 'an' before verb (2nd person)"),
+        (r"(\b)a (\w+) hi", r"\1a an \2 hi",
+         "Remove 'an' before verb (3rd person)"),
+        (r"(\b)mi in (\w+)", r"\1mipa in \2",
+         "Use 'mipa' (man) not 'mi' (person)"),
+        (r"bang hang (\w+) na hiam",
+         r"bang hang na \1 hiam",
+         "Verb before subject in content questions"),
+    ]
+
+    out_path = OUT_DIR / "error_correction_exercises.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for v in corpus:
+            zo = v.get("zo_tedim2010") or v.get("zo_tdb77") or ""
+            en = v.get("en_kJV") or ""
+            ref = v.get("ref", "")
+            if not zo or not en:
+                continue
+
+            for cor_pattern, err_repl, expl in error_patterns:
+                sim_err = re.sub(
+                    cor_pattern, err_repl, zo
+                )
+                if sim_err != zo:
+                    f.write(json.dumps({
+                        "instruction": (
+                            f"Fix the grammar error: {expl}"
+                        ),
+                        "input": sim_err,
+                        "output": zo,
+                        "error_type": expl,
+                        "reference": ref,
+                        "confidence": 0.9,
+                    }, ensure_ascii=False) + "\n")
+                    count += 1
+                    break
+    return count
+
+
+def generate_conditional_exercises(corpus: list[dict]) -> int:
+    """Generate conditional exercises using correct grammar.
+
+    Rule: "na pai kei a leh" is CORRECT (not forbidden)
+    """
+    count = 0
+    out_path = OUT_DIR / "conditional_exercises.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for v in corpus:
+            zo = v.get("zo_tedim2010") or v.get("zo_tdb77") or ""
+            en = v.get("en_kJV") or ""
+            ref = v.get("ref", "")
+            if not zo or not en:
+                continue
+
+            if "if " in en.lower():
+                words = re.findall(
+                    r"[a-zA-Z'’]+", zo
+                )
+                if "leh" not in words:
+                    f.write(json.dumps({
+                        "instruction": (
+                            "Rewrite this as a conditional "
+                            "using 'a leh' at the end:"
+                        ),
+                        "input": en,
+                        "output": zo,
+                        "grammar_point": "conditional (a leh)",
+                        "reference": ref,
+                        "confidence": 0.8,
+                    }, ensure_ascii=False) + "\n")
+                    count += 1
+    return count
+
+
+def generate_pronoun_exercises(corpus: list[dict]) -> int:
+    """Generate pronoun exercises using correct grammar.
+
+    Rules:
+    - "a" = 3rd person agreement marker (goes before verb)
+    - "amah" = 3rd person standalone pronoun (emphasis)
+    """
+    count = 0
+    out_path = OUT_DIR / "pronoun_exercises.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for v in corpus:
+            zo = v.get("zo_tedim2010") or v.get("zo_tdb77") or ""
+            en = v.get("en_kJV") or ""
+            ref = v.get("ref", "")
+            if not zo or not en:
+                continue
+
+            if any(w in zo for w in ["a ", "a'"]):
+                words = re.findall(
+                    r"[a-zA-Z'’]+", zo
+                )
+                if "a" in words and "amah" not in words:
+                    f.write(json.dumps({
+                        "instruction": (
+                            "Rewrite this sentence with "
+                            "emphasis on the subject "
+                            "(use 'amah'):"
+                        ),
+                        "input": en,
+                        "output": zo,
+                        "grammar_point": (
+                            "pronoun emphasis (amah)"
+                        ),
+                        "reference": ref,
+                        "confidence": 0.75,
+                    }, ensure_ascii=False) + "\n")
+                    count += 1
+    return count
+
+
 def generate_training_data():
     """Generate all training datasets."""
     OUTPUT_PATH = TRANSLATIONS_PATH.parent
@@ -276,10 +514,39 @@ def generate_training_data():
     n_quizzes = generate_vocabulary_quiz(corpus, vocab)
     print(f"  → {n_quizzes:,} vocabulary quiz questions")
 
-    print("\n✅ Training data generated:")
+
+    print("\nGenerating negation exercises (grammar-aware)...")
+    n_negation = generate_negation_exercises(corpus)
+    print(f"  \u2192 {n_negation:,} negation exercises")
+
+    print("\nGenerating question exercises (grammar-aware)...")
+    n_questions = generate_question_exercises(corpus)
+    print(f"  \u2192 {n_questions:,} question exercises")
+
+    print("\nGenerating error correction exercises...")
+    n_errors = generate_error_correction_exercises(corpus)
+    print(f"  \u2192 {n_errors:,} error correction exercises")
+
+    print("\nGenerating conditional exercises...")
+    n_conditional = generate_conditional_exercises(corpus)
+    print(f"  \u2192 {n_conditional:,} conditional exercises")
+
+    print("\nGenerating pronoun exercises...")
+    n_pronoun = generate_pronoun_exercises(corpus)
+    print(f"  \u2192 {n_pronoun:,} pronoun exercises")
+
+    total = (n_translations + n_exercises + n_quizzes
+             + n_negation + n_questions + n_errors
+             + n_conditional + n_pronoun)
+    print(f"\n\u2705 Training data generated: {total:,} total")
     print(f"   {TRANSLATIONS_PATH.name}: {n_translations:,} pairs")
     print(f"   {EXERCISES_PATH.name}: {n_exercises:,} exercises")
     print(f"   {QUIZ_PATH.name}: {n_quizzes:,} questions")
+    print(f"   negation_exercises.jsonl: {n_negation:,}")
+    print(f"   question_exercises.jsonl: {n_questions:,}")
+    print(f"   error_correction_exercises.jsonl: {n_errors:,}")
+    print(f"   conditional_exercises.jsonl: {n_conditional:,}")
+    print(f"   pronoun_exercises.jsonl: {n_pronoun:,}")
 
 
 if __name__ == "__main__":
