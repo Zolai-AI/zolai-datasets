@@ -658,6 +658,39 @@ def validate_one(
 
 
 # ---------------------------------------------------------------------------
+# High-level validator (used by build_training_corpus.py)
+# ---------------------------------------------------------------------------
+
+
+class DeepValidator:
+    """High-level validator wrapping DataLoader + validate_one."""
+
+    def __init__(self, verbose: bool = True) -> None:
+        self.loader = DataLoader(verbose=verbose)
+
+    def validate_batch(
+        self, sentences: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
+        """Validate a batch of sentence dicts.
+
+        Each dict must have at least 'zolai' and 'english' keys.
+        Returns list with 'deep_score' and 'checks' added to each entry.
+        """
+        results: list[dict[str, Any]] = []
+        for sent in sentences:
+            zolai = sent.get("zolai", "")
+            english = sent.get("english", "")
+            result = validate_one(zolai, english, self.loader)
+            entry: dict[str, Any] = {
+                **sent,
+                "deep_score": result["score"],
+                "checks": result["checks"],
+            }
+            results.append(entry)
+        return results
+
+
+# ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
 
