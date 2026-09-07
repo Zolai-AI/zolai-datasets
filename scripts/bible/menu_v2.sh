@@ -1016,6 +1016,28 @@ cmd_kaggle_guide() {
 
 # ── Path check ─────────────────────────────────────────────
 
+cmd_train_deep_validate() {
+  banner
+  echo -e "${C}═══ Deep Validate Sentences ═══${NC}"
+  echo ""
+  echo -e "  Validates against real data sources:"
+  echo -e "  - Dictionary (93K words) — every word must exist"
+  echo -e "  - Bible vocabulary (20K words) — word attestation"
+  echo -e "  - Grammar patterns (1.2K) — sentence structure match"
+  echo -e "  - Bible corpus (31K verses) — parallel/collocation check"
+  echo -e "  - ZVS 2018 — forbidden forms"
+  echo -e "  - SOV order — subject before object before verb"
+  echo ""
+  read -p "  Min score [70]: " min_score
+  min_score="${min_score:-70}"
+  echo ""
+  echo -e "${G}Running deep validation (min_score=$min_score)...${NC}"
+  log_event "train_deep_validate" "min_score=$min_score"
+  $PYTHON "$TRAINER_DIR/deep_validate.py" --min-score "$min_score"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 cmd_training_pipeline() {
   while true; do
     banner
@@ -1026,6 +1048,7 @@ cmd_training_pipeline() {
     echo -e "  ${G}3${NC}) 🔧 Correct invalid sentences (auto-fix)"
     echo -e "  ${G}4${NC}) 🚀 Full pipeline (generate→validate→correct→export)"
     echo -e "  ${G}5${NC}) 📖 Quick training guide (Kaggle)"
+    echo -e "  ${G}6${NC}) 🔬 Deep validate (words + patterns + Bible)"
     echo ""
     echo -e "  ${G}0${NC}) ↩  Back to main menu"
     echo ""
@@ -1035,6 +1058,7 @@ cmd_training_pipeline() {
       2) cmd_train_validate ;;
       3) cmd_train_correct ;;
       5) cmd_train_guide ;;
+      6) cmd_train_deep_validate ;;
       0|q|Q) return ;;
       *) cmd_train_full_pipeline ;;
     esac
@@ -1180,3 +1204,4 @@ while true; do
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
 done
+
