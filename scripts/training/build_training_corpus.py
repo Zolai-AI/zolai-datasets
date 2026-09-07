@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Full training corpus pipeline: generate → validate → correct → export.
+"""Full training corpus pipeline: generate -> validate -> correct -> export.
+
+Uses the Bible-template generator (generate_sentences.py) and deep
+validator (deep_validate.py) for high-quality sentence generation.
 
 Orchestrates the entire training data generation pipeline:
-  Step 1: Generate sentences from grammar patterns + dictionary
-  Step 2: Validate (grammar + ZVS 2018)
-  Step 3: Auto-correct invalid sentences
+  Step 1: Generate sentences from Bible templates + semantic variation
+  Step 2: Deep-validate (6 checks against real data sources)
+  Step 3: Auto-correct invalid sentences (ZVS + proper nouns)
   Step 4: Re-validate after correction
   Step 5: Export final valid sentences to Qwen3 chat template format
 
@@ -18,7 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -28,9 +31,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-GRAMMAR_PATH = WORKSPACE / "data/bible/grammar_patterns_text.jsonl"
-VOCAB_PATH = WORKSPACE / "data/bible/vocab_index_full.jsonl"
-DICT_PATH = WORKSPACE / "data/dictionary/processed/dict_zo_en_clean.jsonl"
+SCRIPTS_DIR = Path(__file__).resolve().parent
+
+# Add scripts dir to path for sibling imports
+sys.path.insert(0, str(SCRIPTS_DIR))
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -47,21 +51,21 @@ SYSTEM_PROMPT = (
     "- Ergative marker: 'in' for transitive subjects.\n"
     "- Tense: -sak (past), -ah (progressive), -hen (completive), ding (future).\n\n"
     "Forbidden forms (use ZVS 2018 equivalents):\n"
-    "- pathian → pasian (God)\n"
-    "- ram → gam (earth)\n"
-    "- fapa → tapa (fire)\n"
-    "- bawipa → topa (lord)\n"
-    "- siangpahrang → kumpipa (angel)\n"
-    "- cu/cun → tua\n"
-    "- suah → chuak\n"
-    "- zalenna → suahtakna\n"
-    "- nunnak → nuntakna\n\n"
+    "- pathian -> pasian (God)\n"
+    "- ram -> gam (earth)\n"
+    "- fapa -> tapa (fire)\n"
+    "- bawipa -> topa (lord)\n"
+    "- siangpahrang -> kumpipa (angel)\n"
+    "- cu/cun -> tua\n"
+    "- suah -> chuak\n"
+    "- zalenna -> suahtakna\n"
+    "- nunnak -> nuntakna\n\n"
     "Respond only in the requested language. "
     "For translations, give the single best translation on the first line, "
     "then optionally a brief grammar note on the second line."
 )
 
-# ZVS corrections
+# ZVS corrections (used by fix_zvs_forms)
 ZVS_CORRECTIONS: dict[str, str] = {
     "pathian": "pasian", "ram": "gam", "fapa": "tapa",
     "bawipa": "topa", "siangpahrang": "kumpipa",
@@ -69,44 +73,7 @@ ZVS_CORRECTIONS: dict[str, str] = {
     "zalenna": "suahtakna", "nunnak": "nuntakna",
 }
 
-# Subject markers
-SUBJECT_MARKERS: dict[str, str] = {
-    "ka": "I", "na": "you", "a": "he/she/it", "i": "she", "ki": "we/they",
-}
-
-# Common nouns
-COMMON_NOUNS: list[dict[str, str]] = [
-    {"zo": "pasian", "en": "God"}, {"zo": "topa", "en": "Lord"},
-    {"zo": "mi", "en": "person"}, {"zo": "numei", "en": "woman"},
-    {"zo": "nupi", "en": "man"}, {"zo": "pi", "en": "child"},
-    {"zo": "sing", "en": "tree"}, {"zo": "tui", "en": "water"},
-    {"zo": "lebung", "en": "earth"}, {"zo": "vantung", "en": "heaven"},
-    {"zo": "khuavak", "en": "light"}, {"zo": "khuamial", "en": "darkness"},
-    {"zo": "tapa", "en": "fire"}, {"zo": "gam", "en": "go/walk"},
-    {"zo": "ci", "en": "say"}, {"zo": "nek", "en": "eat"},
-    {"zo": "kumpipa", "en": "angel"}, {"zo": "thu", "en": "word"},
-    {"zo": "pia", "en": "bless"}, {"zo": "lei", "en": "come"},
-    {"zo": "kia", "en": "see"}, {"zo": "thei", "en": "know"},
-    {"zo": "chang", "en": "hear"}, {"zo": "lam", "en": "road"},
-    {"zo": "sung", "en": "inside"}, {"zo": "tengah", "en": "there"},
-]
-
-# Verb roots
-VERB_ROOTS: dict[str, str] = {
-    "uh": "do/make", "ci": "say", "a": "do", "ahi": "do (emphatic)",
-    "pia": "bless", "nei": "give", "bawl": "create", "thei": "know",
-    "thu": "speak", "gam": "go", "lei": "come", "kia": "see",
-    "nek": "eat", "chang": "hear", "piang": "name",
-}
-
-# Valid verb endings
-VALID_VERB_ENDINGS = frozenset({
-    "hi", "hiam", "kei", "lo", "ding", "sak", "nak", "ah", "hen",
-    "leh", "pia", "nei", "ci", "thei", "bawl", "thu",
-    "ciangin", "amah", "amaute",
-})
-
-# Proper nouns
+# Proper nouns for English capitalisation (used by fix_proper_nouns_en)
 PROPER_NOUNS_EN: dict[str, str] = {
     "pasian": "Pasian", "topa": "Topa", "vantung": "Vantung",
     "kumpipa": "Kumpipa", "jesuh": "Jesuh", "david": "David",
@@ -116,256 +83,56 @@ PROPER_NOUNS_EN: dict[str, str] = {
     "john": "John", "matthew": "Matthew", "luke": "Luke",
 }
 
-# ---------------------------------------------------------------------------
-# Data loading (inline to avoid import issues)
-# ---------------------------------------------------------------------------
-
-
-def _load_jsonl(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    if not path.exists():
-        return rows
-    with open(path, encoding="utf-8") as fh:
-        for i, line in enumerate(fh):
-            if limit is not None and i >= limit:
-                break
-            line = line.strip()
-            if not line:
-                continue
-            rows.append(json.loads(line))
-    return rows
+# Valid verb endings (used by correct_sentence for missing-verb detection)
+VALID_VERB_ENDINGS = frozenset({
+    "hi", "hiam", "kei", "lo", "ding", "sak", "nak", "ah", "hen",
+    "leh", "pia", "nei", "ci", "thei", "bawl", "thu",
+    "ciangin", "amah", "amaute",
+})
 
 
 # ---------------------------------------------------------------------------
-# Step 1: Generate sentences (inline)
+# Import Bible-template generator and deep validator
+# ---------------------------------------------------------------------------
+
+from generate_sentences import generate_sentences
+from deep_validate import DeepValidator
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Generate sentences (Bible templates)
 # ---------------------------------------------------------------------------
 
 
-def classify_pattern(pattern: str) -> dict[str, Any]:
-    parts = pattern.split("-")
-    has_s = "S" in parts
-    has_o = "O" in parts
-    has_in = "in" in parts
-    suffix = parts[-1] if parts else ""
-    verb_parts = [p for p in parts if p not in ("S", "O", "in")]
-    verb_slot = "-".join(verb_parts) if verb_parts else ""
-
-    if suffix == "hiam" or "hiam" in parts:
-        ptype = "question"
-    elif suffix in ("kei", "lo") or "kei" in parts or "lo" in parts:
-        ptype = "negation"
-    elif "ciangin" in parts or suffix == "sak":
-        ptype = "past"
-    elif "ding" in parts:
-        ptype = "future"
-    elif suffix == "hi" or "hi" in parts:
-        ptype = "declarative"
-    else:
-        ptype = "other"
-
-    return {
-        "type": ptype, "has_subject": has_s, "has_object": has_o,
-        "has_ergative": has_in, "verb_slot": verb_slot,
-        "suffix": suffix, "parts": parts,
-    }
-
-
-def generate_from_pattern(
-    pattern: dict[str, Any], rng: random.Random,
-) -> dict[str, str] | None:
-    info = classify_pattern(pattern["pattern"])
-    parts = info["parts"]
-    subject_zo = ""
-    subject_en = ""
-    object_zo = ""
-    object_en = ""
-    verb_zo = ""
-    verb_en_parts: list[str] = []
-
-    if info["has_subject"]:
-        if rng.random() < 0.6:
-            sm = rng.choice(list(SUBJECT_MARKERS.keys()))
-            subject_zo = sm
-            subject_en = SUBJECT_MARKERS[sm]
-        else:
-            noun = rng.choice(COMMON_NOUNS)
-            subject_zo = noun["zo"]
-            subject_en = noun["en"]
-
-    if info["has_object"]:
-        candidates = [n for n in COMMON_NOUNS if n["zo"] != subject_zo]
-        noun = rng.choice(candidates or COMMON_NOUNS)
-        object_zo = noun["zo"]
-        object_en = noun["en"]
-
-    non_slot = [p for p in parts if p not in ("S", "O")]
-    for part in non_slot:
-        if part == "in":
-            continue
-        elif part in SUBJECT_MARKERS:
-            if not subject_zo:
-                subject_zo = part
-                subject_en = SUBJECT_MARKERS[part]
-        elif part in VERB_ROOTS:
-            verb_zo = part
-            verb_en_parts.append(VERB_ROOTS[part])
-        elif part in ("hi", "hiam"):
-            continue
-        elif part == "ding":
-            verb_en_parts.insert(0, "will")
-        elif part == "ciangin":
-            verb_en_parts.insert(0, "did")
-        elif part == "sak":
-            verb_en_parts.append("(completed)")
-        elif part == "ah":
-            verb_en_parts.append("(ongoing)")
-        elif part == "hen":
-            verb_en_parts.append("(finished)")
-        elif part == "kei":
-            verb_en_parts.insert(0, "do not")
-        elif part == "lo":
-            verb_en_parts.insert(0, "does not")
-        elif part == "leh":
-            verb_en_parts.append("and then")
-        elif part in ("amah", "amaute"):
-            if "did" not in " ".join(verb_en_parts):
-                verb_en_parts.insert(0, "did")
-        elif part in ("pia", "nei", "ci", "thei", "bawl", "thu"):
-            if not verb_zo:
-                verb_zo = part
-                verb_en_parts.append(VERB_ROOTS.get(part, part))
-
-    # Build Zolai
-    zo_parts: list[str] = []
-    if subject_zo:
-        zo_parts.append(subject_zo)
-    if info["has_ergative"]:
-        zo_parts.append("in")
-    if object_zo:
-        zo_parts.append(object_zo)
-    if verb_zo:
-        zo_parts.append(verb_zo)
-    for part in non_slot:
-        if part not in ("in", subject_zo, object_zo, verb_zo) and part not in (
-            "hi", "hiam", "kei", "lo", "ding", "ciangin", "sak", "ah",
-            "hen", "leh", "pia", "nei", "ci", "thei", "bawl", "thu",
-            "amah", "amaute",
-        ) and part not in SUBJECT_MARKERS:
-            if part not in zo_parts:
-                zo_parts.append(part)
-    if info["suffix"] in ("hi", "hiam", "kei", "lo"):
-        zo_parts.append(info["suffix"])
-    zolai = " ".join(zo_parts)
-
-    # Build English
-    en_parts: list[str] = []
-    if subject_en:
-        en_parts.append(subject_en)
-    if object_en:
-        en_parts.append(object_en)
-    en_parts.extend(verb_en_parts)
-    if info["type"] == "question":
-        en_parts.append("?")
-    else:
-        en_parts.append(".")
-    english = " ".join(en_parts)
-    if english:
-        english = english[0].upper() + english[1:]
-    english = english.replace("  ", " ").strip()
-    english = english.rstrip(" .") + ("?" if info["type"] == "question" else ".")
-
-    if not zolai.strip():
-        return None
-    return {"zolai": zolai, "english": english, "pattern": pattern["pattern"], "source": "generated"}
-
-
-def step_generate(max_sentences: int, seed: int, verbose: bool) -> list[dict[str, str]]:
-    """Step 1: Generate sentences."""
+def step_generate(
+    max_sentences: int, seed: int, verbose: bool,
+) -> list[dict[str, str]]:
+    """Step 1: Generate sentences from Bible templates."""
     if verbose:
-        print("  Step 1: Loading grammar patterns + vocabulary...")
-    patterns = _load_jsonl(GRAMMAR_PATH)
-    generable = [p for p in patterns if "S" in p["pattern"] or "O" in p["pattern"]]
-    if not generable:
-        generable = patterns
+        print("  Step 1: Generating sentences from Bible templates...")
+    sentences = generate_sentences(
+        max_sentences=max_sentences, seed=seed, verbose=verbose,
+    )
     if verbose:
-        print(f"    {len(generable)} generable patterns from {len(patterns)} total")
-
-    rng = random.Random(seed)
-    sentences: list[dict[str, str]] = []
-    seen: set[str] = set()
-    attempts = 0
-    max_attempts = max_sentences * 5
-
-    while len(sentences) < max_sentences and attempts < max_attempts:
-        attempts += 1
-        pattern = rng.choices(generable, weights=[p.get("frequency", 1) for p in generable])[0]
-        result = generate_from_pattern(pattern, rng)
-        if result is None:
-            continue
-        key = result["zolai"].lower().strip()
-        if key in seen:
-            continue
-        seen.add(key)
-        sentences.append(result)
-        if verbose and len(sentences) % 1000 == 0:
-            print(f"    Generated {len(sentences)}/{max_sentences}...")
-
-    if verbose:
-        print(f"    Done: {len(sentences)} sentences ({attempts} attempts)")
+        print(f"    Generated {len(sentences)} sentences")
     return sentences
 
 
 # ---------------------------------------------------------------------------
-# Step 2: Validate (inline)
+# Step 2: Deep validation
 # ---------------------------------------------------------------------------
-
-
-def check_zvs_compliance(text: str) -> list[dict[str, str]]:
-    violations: list[dict[str, str]] = []
-    for word in text.lower().split():
-        clean = word.strip(".,;:!?\"'()[]{}")
-        if clean in ZVS_CORRECTIONS:
-            violations.append({"form": clean, "correct": ZVS_CORRECTIONS[clean]})
-    return violations
-
-
-def score_sentence(zolai: str, english: str) -> int:
-    score = 100
-    zvs = check_zvs_compliance(zolai)
-    if zvs:
-        score -= min(40, len(zvs) * 20)
-    en_zvs = check_zvs_compliance(english)
-    if en_zvs:
-        score -= 10
-    words = zolai.split()
-    has_verb = any(w in VALID_VERB_ENDINGS for w in words)
-    if not has_verb:
-        score -= 15
-    has_subject = any(w in SUBJECT_MARKERS or w == "in" for w in words)
-    if not has_subject:
-        score -= 15
-    if len(words) < 2:
-        score -= 10
-    if not english or len(english.split()) < 2:
-        score -= 5
-    return max(0, min(100, score))
 
 
 def step_validate(
     sentences: list[dict[str, str]], min_score: int, verbose: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Step 2: Validate sentences."""
+    """Step 2: Validate sentences with deep validator (6 checks)."""
     if verbose:
-        print(f"  Step 2: Validating {len(sentences)} sentences...")
-    valid: list[dict[str, Any]] = []
-    invalid: list[dict[str, Any]] = []
-    for s in sentences:
-        score = score_sentence(s.get("zolai", ""), s.get("english", ""))
-        entry = {**s, "score": score}
-        if score >= min_score:
-            valid.append(entry)
-        else:
-            invalid.append(entry)
+        print(f"  Step 2: Deep-validating {len(sentences)} sentences...")
+    validator = DeepValidator(verbose=verbose)
+    results = validator.validate_batch(sentences)
+    valid = [r for r in results if r["deep_score"] >= min_score]
+    invalid = [r for r in results if r["deep_score"] < min_score]
     if verbose:
         print(f"    Valid: {len(valid)} ({len(valid) * 100 // max(len(sentences), 1)}%)")
         print(f"    Invalid: {len(invalid)}")
@@ -373,11 +140,12 @@ def step_validate(
 
 
 # ---------------------------------------------------------------------------
-# Step 3: Correct (inline)
+# Step 3: Correct (ZVS + proper nouns)
 # ---------------------------------------------------------------------------
 
 
 def fix_zvs_forms(text: str) -> tuple[str, list[dict[str, str]]]:
+    """Replace ZVS 2018 forbidden forms with correct equivalents."""
     corrections: list[dict[str, str]] = []
     words = text.split()
     new_words: list[str] = []
@@ -397,6 +165,7 @@ def fix_zvs_forms(text: str) -> tuple[str, list[dict[str, str]]]:
 
 
 def fix_proper_nouns_en(text: str) -> tuple[str, list[dict[str, str]]]:
+    """Capitalise proper nouns in English text."""
     corrections: list[dict[str, str]] = []
     words = text.split()
     new_words: list[str] = []
@@ -413,6 +182,7 @@ def fix_proper_nouns_en(text: str) -> tuple[str, list[dict[str, str]]]:
 
 
 def correct_sentence(entry: dict[str, Any]) -> dict[str, Any]:
+    """Apply ZVS and proper-noun corrections to a sentence."""
     zolai = entry.get("zolai", "")
     english = entry.get("english", "")
     all_corr: list[dict[str, str]] = []
@@ -469,25 +239,25 @@ def step_correct(
 
 
 # ---------------------------------------------------------------------------
-# Step 4: Re-validate (inline)
+# Step 4: Re-validate (deep validator)
 # ---------------------------------------------------------------------------
 
 
 def step_revalidate(
     corrected: list[dict[str, Any]], min_score: int, verbose: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Step 4: Re-validate corrected sentences."""
+    """Step 4: Re-validate corrected sentences with deep validator."""
     if verbose:
         print(f"  Step 4: Re-validating {len(corrected)} corrected sentences...")
+    validator = DeepValidator(verbose=False)  # suppress loader output on re-run
+    results = validator.validate_batch(corrected)
     valid: list[dict[str, Any]] = []
     still_invalid: list[dict[str, Any]] = []
-    for s in corrected:
-        score = score_sentence(s.get("zolai", ""), s.get("english", ""))
-        s["score"] = score
-        if score >= min_score:
-            valid.append(s)
+    for r in results:
+        if r["deep_score"] >= min_score:
+            valid.append(r)
         else:
-            still_invalid.append(s)
+            still_invalid.append(r)
     if verbose:
         print(f"    Now valid: {len(valid)}")
         print(f"    Still invalid: {len(still_invalid)}")
@@ -495,7 +265,7 @@ def step_revalidate(
 
 
 # ---------------------------------------------------------------------------
-# Step 5: Export to Qwen3 format (inline)
+# Step 5: Export to Qwen3 format (unchanged)
 # ---------------------------------------------------------------------------
 
 
@@ -514,7 +284,7 @@ def step_export(
         source = s.get("source", "generated")
 
         # Build different task types
-        # Type 1: Zolai → English translation
+        # Type 1: Zolai -> English translation
         user_msg = (
             f"Translate the following Tedim Zolai sentence into English.\n\n"
             f"Zolai: {zolai}"
@@ -531,7 +301,7 @@ def step_export(
             "source": source,
         })
 
-        # Type 2: English → Zolai translation
+        # Type 2: English -> Zolai translation
         user_msg2 = (
             f"Translate the following English sentence into Tedim Zolai.\n\n"
             f"English: {english}"
@@ -594,8 +364,8 @@ def run_pipeline(
 
     print()
     print("=" * 60)
-    print("  TRAINING CORPUS PIPELINE")
-    print("  generate → validate → correct → re-validate → export")
+    print("  TRAINING CORPUS PIPELINE (Bible-template + Deep Validator)")
+    print("  generate -> validate -> correct -> re-validate -> export")
     print("=" * 60)
     print()
 
@@ -603,7 +373,7 @@ def run_pipeline(
     sentences = step_generate(max_sentences, seed, verbose)
     print()
 
-    # Step 2: Validate
+    # Step 2: Deep-validate
     valid_v1, invalid = step_validate(sentences, min_score, verbose)
     print()
 
@@ -649,7 +419,7 @@ def run_pipeline(
     with open(stats_path, "w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2)
 
-    # Print final summary
+    # Print final summary with deep_validate breakdown
     print("=" * 60)
     print("  PIPELINE COMPLETE")
     print("=" * 60)
@@ -659,7 +429,7 @@ def run_pipeline(
     print(f"  Corrected:    {stats['corrected']:>8,}")
     print(f"  Valid (v2):   {stats['valid_after_revalidate']:>8,}")
     print(f"  Still invalid:{stats['still_invalid']:>8,}")
-    print("  ─────────────────────────────")
+    print("  ---")
     print(f"  Final valid:  {stats['final_valid']:>8,}")
     print(f"  Chat messages:{stats['final_chat_messages']:>8,}")
     print(f"  Time:         {stats['elapsed_seconds']:>8.1f}s")
@@ -678,7 +448,7 @@ def run_pipeline(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Full training corpus pipeline: generate → validate → correct → export."
+        description="Full training corpus pipeline: generate -> validate -> correct -> export."
     )
     parser.add_argument(
         "--max-sentences", type=int, default=5000,
@@ -695,7 +465,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--min-score", type=int, default=70,
-        help="Minimum validation score (default: 70)",
+        help="Minimum deep validation score (default: 70)",
     )
     parser.add_argument(
         "--quiet", action="store_true",
