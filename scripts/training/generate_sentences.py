@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Rule-based Zolai sentence generation from grammar patterns + dictionary.
+"""Bible-template Zolai sentence generation with semantic variation.
 
-Loads grammar patterns from data/bible/grammar_patterns_text.jsonl and
-vocabulary from data/bible/vocab_index_full.jsonl. For each pattern, fills
-slots (S, O) with real vocabulary words and generates Zolai sentences with
-English translations.
+Loads real Bible sentences from data/bible/parallel_corpus_v1.jsonl and
+creates training variations by:
 
-Pattern types supported:
-  - Declarative: S-in-O-uh-hi, S-in-O-ci-hi, S-in-O-a-hi, etc.
-  - Question:    S-in-O-uh-hiam
-  - Negation:    S-in-O-kei, a-lo, S-in-O-lo
-  - Past:        S-in-O-ciangin, ciangin-a
-  - Future:      S-in-O-ding-hi, ding-hi, S-in-O-ding
+  1. REPLACING SUBJECT: swap pronoun/noun with same-type alternative
+  2. REPLACING OBJECT: swap with noun from same semantic category
+  3. CHANGING TENSE: add/change tense markers (-sak, -ah, -hen, ding)
+  4. MAKING NEGATIVE: add kei/lo negation
+  5. MAKING QUESTION: add hiam question marker
+
+The verb and its argument structure are kept intact — never swapped randomly.
 
 Usage:
     python generate_sentences.py --max-sentences 5000 --output data/training/generated_sentences.jsonl
@@ -22,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +30,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-GRAMMAR_PATH = WORKSPACE / "data/bible/grammar_patterns_text.jsonl"
-VOCAB_PATH = WORKSPACE / "data/bible/vocab_index_full.jsonl"
+PARALLEL_PATH = WORKSPACE / "data/bible/parallel_corpus_v1.jsonl"
 DICT_PATH = WORKSPACE / "data/dictionary/processed/dict_zo_en_clean.jsonl"
 
 # ---------------------------------------------------------------------------
@@ -51,74 +50,154 @@ ZVS_CORRECTIONS: dict[str, str] = {
     "nunnak": "nuntakna",
 }
 
-# Subject markers and their English equivalents
-SUBJECT_MARKERS: dict[str, str] = {
+# ---------------------------------------------------------------------------
+# Semantic categories (from Bible data analysis)
+# ---------------------------------------------------------------------------
+
+# Subjects — animate beings (use as S or in ergative position)
+ANIMATE_SUBJECTS: dict[str, str] = {
+    "pasian": "God",
+    "topa": "the Lord",
+    "mi": "a person",
+    "numei": "a woman",
+    "nupi": "a man",
+    "pi": "a child",
+    "kumpipa": "an angel",
+    "david": "David",
+    "adam": "Adam",
+    "noah": "Noah",
+    "israel": "Israel",
+    "jesuh": "Jesus",
+    "moses": "Moses",
+    "abraham": "Abraham",
+    "eli": "Eli",
+    "samuel": "Samuel",
+    "solomon": "Solomon",
+    "isaac": "Isaac",
+    "jacob": "Jacob",
+}
+
+# Subjects — inanimate forces / natural elements
+INANIMATE_SUBJECTS: dict[str, str] = {
+    "lebung": "the earth",
+    "vantung": "the sky",
+    "khuavak": "light",
+    "khuamial": "darkness",
+    "tui": "water",
+    "sing": "the tree",
+    "tapa": "fire",
+    "kuang": "wind",
+    "siang": "sound",
+    "pua": "rain",
+    "lung": "the mountain",
+    "kawm": "death",
+}
+
+# Subjects — abstract concepts
+ABSTRACT_SUBJECTS: dict[str, str] = {
+    "nuntakna": "knowledge",
+    "suahtakna": "fear of God",
+    "thu": "the word",
+    "hong": "work",
+    "ci": "speech",
+    "pau": "faith",
+    "sim": "love",
+    "gen": "obedience",
+    "zat": "goodness",
+    "lam": "the way",
+    "cung": "truth",
+    "piangzat": "holiness",
+}
+
+# Objects — people / beings (can be direct object)
+PEOPLE_OBJECTS: dict[str, str] = {
+    "mi": "a person",
+    "numei": "a woman",
+    "nupi": "a man",
+    "pi": "a child",
+    "suante": "sons",
+    "tapate": "sons",
+    "pasian": "God",
+    "topa": "the Lord",
+    "kumpipa": "an angel",
+    "david": "David",
+    "israel": "Israel",
+    "jesuh": "Jesus",
+    "moses": "Moses",
+    "abraham": "Abraham",
+}
+
+# Objects — concrete / physical
+CONCRETE_OBJECTS: dict[str, str] = {
+    "vantung": "the sky",
+    "lebung": "the earth",
+    "tui": "water",
+    "sing": "the tree",
+    "tapa": "fire",
+    "lam": "the road",
+    "lung": "the mountain",
+    "sung": "the house",
+    "kung": "the village",
+    "song": "the house",
+    "khat": "a book",
+    "hong": "work",
+    "cuang": "clothes",
+    "nekna": "food",
+    "thu": "the word",
+}
+
+# Objects — abstract
+ABSTRACT_OBJECTS: dict[str, str] = {
+    "nuntakna": "knowledge",
+    "suahtakna": "fear",
+    "thu": "the word",
+    "ci": "speech",
+    "pau": "faith",
+    "sim": "love",
+    "gen": "obedience",
+    "zat": "goodness",
+    "cung": "truth",
+    "hong": "work",
+    "piangzat": "holiness",
+    "piangtung": "the kingdom",
+}
+
+# Verb → valid object categories (what objects make sense with this verb)
+VERB_OBJECT_COMPAT: dict[str, list[str]] = {
+    "nek": ["nekna", "tui"],  # eat → food/drink
+    "sung": ["nekna", "tui"],  # eat → food/drink
+    "in": ["tui"],  # drink → liquid
+    "hoih": ["mi", "numei", "nupi", "pi", "vantung", "lebung"],  # see → visual
+    "kia": ["mi", "numei", "nupi", "pi", "vantung", "lebung"],  # see → visual
+    "chang": ["thu", "ci"],  # hear → audio
+    "ci": ["thu"],  # say → speech
+    "bawl": ["mi", "numei", "vantung", "lebung", "sing"],  # create → created things
+    "piangsak": ["mi", "numei", "vantung", "lebung", "sing"],  # created → created things
+    "piang": ["mi", "numei", "vantung", "lebung", "sing"],  # create → created things
+    "thupha": ["mi", "numei", "nupi", "pi", "topa"],  # bless → people
+    "pia": ["mi", "numei", "nupi", "pi", "topa"],  # bless → people
+    "pau": ["pasian", "topa"],  # trust → God/Lord
+    "gen": ["pasian", "topa"],  # obey → God/Lord
+    "sim": ["pasian", "topa", "mi"],  # love → God/people
+    "thei": ["thu", "ci"],  # know → words/things
+    "mu": ["thu", "ci"],  # know → words/things
+    "nei": ["mi", "numei", "hong"],  # have → people/work
+    "lei": ["mi", "numei", "hong"],  # take → people/work
+    "gam": ["lam"],  # go → road/path
+    "hei": ["lam"],  # go → road/path
+    "tung": ["sung", "kung"],  # come → house/village
+    "na": ["pasian", "topa"],  # fear → God/Lord
+    "uh": [],  # do → any object
+}
+
+# Subject pronouns and their English
+SUBJECT_PRONOUNS: dict[str, str] = {
     "ka": "I",
     "na": "you",
     "a": "he/she/it",
     "i": "she",
-    "ki": "we/they",
-}
-
-# Common nouns for subject/object slots (from Bible vocabulary)
-COMMON_NOUNS: list[dict[str, str]] = [
-    {"zo": "pasian", "en": "God"},
-    {"zo": "topa", "en": "Lord"},
-    {"zo": "mi", "en": "person"},
-    {"zo": "numei", "en": "woman"},
-    {"zo": "nupi", "en": "man"},
-    {"zo": "pi", "en": "child"},
-    {"zo": "sing", "en": "tree"},
-    {"zo": "tui", "en": "water"},
-    {"zo": "lebung", "en": "earth/land"},
-    {"zo": "vantung", "en": "heaven/sky"},
-    {"zo": "khuavak", "en": "light"},
-    {"zo": "khuamial", "en": "darkness"},
-    {"zo": "bawl", "en": "create"},
-    {"zo": "tapa", "en": "fire"},
-    {"zo": "gam", "en": "go/walk"},
-    {"zo": "ci", "en": "say"},
-    {"zo": "nek", "en": "eat"},
-    {"zo": "in", "en": "name"},
-    {"zo": "piang", "en": "name/call"},
-    {"zo": "kumpipa", "en": "angel"},
-    {"zo": "thu", "en": "word/speak"},
-    {"zo": "pia", "en": "bless"},
-    {"zo": "lei", "en": "come"},
-    {"zo": "kia", "en": "see"},
-    {"zo": "thei", "en": "know"},
-    {"zo": "chang", "en": "hear"},
-    {"zo": "zat", "en": "good"},
-    {"zo": "hong", "en": "work"},
-    {"zo": "lam", "en": "road/path"},
-    {"zo": "sung", "en": "inside"},
-    {"zo": "tengah", "en": "there"},
-    {"zo": "kikoih", "en": "keep/put"},
-    {"zo": "piangsak", "en": "created"},
-    {"zo": "chuak", "en": "come out"},
-    {"zo": "nuntakna", "en": "to know"},
-    {"zo": "suahtakna", "en": "to fear"},
-]
-
-# Verb roots that appear in patterns
-VERB_ROOTS: dict[str, str] = {
-    "uh": "do/make",
-    "ci": "say",
-    "a": "do",
-    "ahi": "do (emphatic)",
-    "pia": "bless",
-    "nei": "give",
-    "ka": "do (1st person)",
-    "na": "do (2nd person)",
-    "bawl": "create",
-    "thei": "know",
-    "thu": "speak",
-    "gam": "go",
-    "lei": "come",
-    "kia": "see",
-    "nek": "eat",
-    "chang": "hear",
-    "piang": "name/call",
+    "ki": "we",
+    "they": "they",
 }
 
 # ---------------------------------------------------------------------------
@@ -142,19 +221,9 @@ def _load_jsonl(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
     return rows
 
 
-def load_grammar_patterns() -> list[dict[str, Any]]:
-    """Load grammar patterns."""
-    return _load_jsonl(GRAMMAR_PATH)
-
-
-def load_vocabulary() -> dict[str, dict[str, Any]]:
-    """Load vocabulary index keyed by word."""
-    vocab: dict[str, dict[str, Any]] = {}
-    for row in _load_jsonl(VOCAB_PATH):
-        word = row.get("word", "").strip()
-        if word:
-            vocab[word] = row
-    return vocab
+def load_parallel_corpus(limit: int | None = None) -> list[dict[str, str]]:
+    """Load Bible parallel corpus."""
+    return _load_jsonl(PARALLEL_PATH, limit)
 
 
 def load_dictionary() -> dict[str, dict[str, str]]:
@@ -169,253 +238,564 @@ def load_dictionary() -> dict[str, dict[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Pattern classification
+# Token utilities
 # ---------------------------------------------------------------------------
 
 
-def classify_pattern(pattern: str) -> dict[str, Any]:
-    """Classify a grammar pattern into type and components.
+def tokenize_zolai(text: str) -> list[str]:
+    """Split Zolai text into whitespace-separated tokens."""
+    return text.split()
 
-    Returns dict with:
-      - type: "declarative", "question", "negation", "past", "future", "other"
-      - has_subject: bool
-      - has_object: bool
-      - verb_slot: str (the verb/particle part)
-      - suffix: str (the final particle)
+
+def detokenize_zolai(tokens: list[str]) -> str:
+    """Join tokens back into Zolai text."""
+    return " ".join(tokens)
+
+
+def word_root(word: str) -> str:
+    """Get the base root of a Zolai word (strip common suffixes)."""
+    # Strip possessive suffix '
+    w = word.rstrip("'")
+    # Strip common suffixes
+    for suffix in ("na", "te", "tung", "kawm", "zat"):
+        if len(w) > len(suffix) + 2 and w.endswith(suffix):
+            candidate = w[: -len(suffix)]
+            if len(candidate) >= 3:
+                return candidate
+    return w
+
+
+def lookup_english(word: str, d: dict[str, dict[str, str]]) -> str:
+    """Look up English translation for a Zolai word."""
+    w = word.rstrip("'").lower()
+    if w in d:
+        return d[w]["english"]
+    # Try root
+    root = word_root(w)
+    if root in d:
+        return d[root]["english"]
+    return w
+
+
+def is_pronoun(token: str) -> bool:
+    """Check if token is a subject pronoun."""
+    return token.rstrip("'") in SUBJECT_PRONOUNS
+
+
+def is_ergative(token: str) -> bool:
+    """Check if token is the ergative particle."""
+    return token == "in"
+
+
+def classify_zolai_noun(word: str) -> str:
+    """Classify a Zolai noun into a semantic category.
+
+    Returns: 'animate', 'inanimate', 'abstract', 'people_object',
+             'concrete_object', 'abstract_object', or 'unknown'.
     """
-    parts = pattern.split("-")
-    has_s = "S" in parts
-    has_o = "O" in parts
-    has_in = "in" in parts
+    w = word.rstrip("'").lower()
+    root = word_root(w).lower()
 
-    # Determine pattern type by suffix
-    suffix = parts[-1] if parts else ""
-    verb_parts = [p for p in parts if p not in ("S", "O", "in")]
-    verb_slot = "-".join(verb_parts) if verb_parts else ""
+    for d in (
+        ANIMATE_SUBJECTS,
+        INANIMATE_SUBJECTS,
+        ABSTRACT_SUBJECTS,
+        PEOPLE_OBJECTS,
+        CONCRETE_OBJECTS,
+        ABSTRACT_OBJECTS,
+    ):
+        for key in d:
+            if key.lower() == w or key.lower() == root:
+                if d is ANIMATE_SUBJECTS or d is PEOPLE_OBJECTS:
+                    return "animate"
+                if d is INANIMATE_SUBJECTS or d is CONCRETE_OBJECTS:
+                    return "inanimate"
+                return "abstract"
+    return "unknown"
 
-    # Classify
-    if suffix == "hiam" or "hiam" in parts:
-        ptype = "question"
-    elif suffix in ("kei", "lo") or "kei" in parts or "lo" in parts:
-        ptype = "negation"
-    elif "ciangin" in parts or suffix == "sak":
-        ptype = "past"
-    elif "ding" in parts:
-        ptype = "future"
-    elif suffix == "hi" or "hi" in parts:
-        ptype = "declarative"
+
+def pick_replacement(word: str, category: str, rng: random.Random) -> str:
+    """Pick a replacement noun from the same semantic category."""
+    w = word.rstrip("'").lower()
+    root = word_root(w).lower()
+
+    if category == "animate":
+        candidates = [k for k in ANIMATE_SUBJECTS if k.lower() != w and k.lower() != root]
+    elif category == "inanimate":
+        candidates = [k for k in INANIMATE_SUBJECTS if k.lower() != w and k.lower() != root]
+    elif category == "abstract":
+        candidates = [k for k in ABSTRACT_SUBJECTS if k.lower() != w and k.lower() != root]
     else:
-        ptype = "other"
+        # Fallback — try people objects for animate, concrete for inanimate
+        if category == "animate":
+            candidates = [k for k in PEOPLE_OBJECTS if k.lower() != w and k.lower() != root]
+        else:
+            candidates = [k for k in CONCRETE_OBJECTS if k.lower() != w and k.lower() != root]
 
-    return {
-        "type": ptype,
-        "has_subject": has_s,
-        "has_object": has_o,
-        "has_ergative": has_in,
-        "verb_slot": verb_slot,
-        "suffix": suffix,
-        "parts": parts,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Sentence generation
-# ---------------------------------------------------------------------------
-
-
-def pick_subject(rng: random.Random) -> str:
-    """Pick a random subject marker."""
-    markers = list(SUBJECT_MARKERS.keys())
-    return rng.choice(markers)
-
-
-def pick_noun(rng: random.Random, exclude: str = "") -> dict[str, str]:
-    """Pick a random common noun, avoiding the excluded word."""
-    candidates = [n for n in COMMON_NOUNS if n["zo"] != exclude]
     if not candidates:
-        candidates = COMMON_NOUNS
+        return word  # keep original if no replacement found
+
     return rng.choice(candidates)
 
 
-def generate_from_pattern(
-    pattern: dict[str, Any],
-    vocab: dict[str, dict[str, Any]],
-    d: dict[str, dict[str, str]],
-    rng: random.Random,
-) -> dict[str, str] | None:
-    """Generate a single sentence from a grammar pattern.
+# ---------------------------------------------------------------------------
+# Verb extraction and analysis
+# ---------------------------------------------------------------------------
 
-    Returns {zolai, english, pattern, source} or None if generation fails.
+# All known verb roots (from verb database + common verbs)
+VERB_ROOTS: set[str] = {
+    "ci", "hei", "tung", "hoih", "nei", "piang", "bawl", "lei", "sung", "in",
+    "om", "kawm", "phat", "mu", "sim", "thupha", "na", "pau", "gen", "tampi",
+    "uh", "piangsak", "pia", "chang", "kia", "thei", "gam",
+}
+
+# Subject pronouns → English mapping (used for English reconstruction)
+PRONOUN_ENGLISH: dict[str, str] = {
+    "ka": "I", "ka": "I",
+    "na": "you", "na": "you",
+    "a": "he", "a": "she", "a": "it",
+    "i": "she",
+    "ki": "we", "ki": "they",
+    "amah": "he", "amah": "she",
+}
+
+# Named entities in Bible (Zolai form → English)
+NAMED_ENTITIES: dict[str, str] = {
+    "pasian": "God", "topa": "the Lord",
+    "david": "David", "adam": "Adam", "noah": "Noah",
+    "israel": "Israel", "jesuh": "Jesus", "moses": "Moses",
+    "abraham": "Abraham", "eli": "Eli", "samuel": "Samuel",
+    "solomon": "Solomon", "isaac": "Isaac", "jacob": "Jacob",
+    "seth": "Seth", "enosh": "Enosh", "kenan": "Kenan",
+    "jared": "Jared", "enok": "Enoch", "methuselah": "Methuselah",
+    "lamek": "Lamech",
+}
+
+
+def extract_verb_from_sentence(tokens: list[str]) -> str | None:
+    """Extract the main verb from a Zolai sentence.
+
+    Searches for known verbs from the verb database. Returns the verb root
+    or None if no verb is found.
     """
-    info = classify_pattern(pattern["pattern"])
-    parts = info["parts"]
+    # Check from end (verb usually comes last in SOV)
+    for token in reversed(tokens):
+        w = token.rstrip("'").lower()
+        root = word_root(w)
+        if w in VERB_ROOTS or root in VERB_ROOTS:
+            return root
 
-    subject_zo = ""
-    subject_en = ""
-    object_zo = ""
-    object_en = ""
-    verb_zo = ""
-    verb_en = ""
+    return None
 
-    # Pick subject if S slot exists
-    if info["has_subject"]:
-        if rng.random() < 0.6:
-            # Use subject marker
-            sm = pick_subject(rng)
-            subject_zo = sm
-            subject_en = SUBJECT_MARKERS[sm]
-        else:
-            # Use a noun as subject
-            noun = pick_noun(rng)
-            subject_zo = noun["zo"]
-            subject_en = noun["en"]
 
-    # Pick object if O slot exists
-    if info["has_object"]:
-        noun = pick_noun(rng, exclude=subject_zo)
-        object_zo = noun["zo"]
-        object_en = noun["en"]
+def find_object_in_sentence(
+    tokens: list[str], verb_pos: int | None, d: dict[str, dict[str, str]]
+) -> tuple[int, str] | None:
+    """Find the object in the sentence relative to verb position.
 
-    # Determine verb/particle parts
-    non_slot_parts = [p for p in parts if p not in ("S", "O")]
-    verb_en_parts: list[str] = []
-
-    for part in non_slot_parts:
-        if part == "in":
-            # Ergative marker - no English equivalent, skip
-            continue
-        elif part in SUBJECT_MARKERS:
-            # This is a subject pronoun (e.g., S-in-O-ka-hi → ka is the verb slot person)
-            if not subject_zo:
-                subject_zo = part
-                subject_en = SUBJECT_MARKERS[part]
-        elif part in VERB_ROOTS:
-            verb_zo = part
-            verb_en_parts.append(VERB_ROOTS[part])
-        elif part in ("hi", "hiam"):
-            # Sentence-final particles
-            continue
-        elif part == "ding":
-            verb_en_parts.insert(0, "will")
-        elif part == "ciangin":
-            verb_en_parts.insert(0, "did/was")
-        elif part == "sak":
-            verb_en_parts.append("(completed)")
-        elif part == "ah":
-            verb_en_parts.append("(ongoing)")
-        elif part == "hen":
-            verb_en_parts.append("(finished)")
-        elif part == "nak":
-            verb_en_parts.append("(nominalized)")
-        elif part == "kei":
-            verb_en_parts.insert(0, "do not")
-        elif part == "lo":
-            verb_en_parts.insert(0, "does not")
-        elif part == "leh":
-            verb_en_parts.append("and then")
-        elif part == "pia":
-            if not verb_zo:
-                verb_zo = "pia"
-                verb_en_parts.append("bless")
-        elif part == "nei":
-            if not verb_zo:
-                verb_zo = "nei"
-                verb_en_parts.append("give")
-        elif part == "ci":
-            if not verb_zo:
-                verb_zo = "ci"
-                verb_en_parts.append("say")
-        elif part == "thei":
-            if not verb_zo:
-                verb_zo = "thei"
-                verb_en_parts.append("know")
-        elif part == "bawl":
-            if not verb_zo:
-                verb_zo = "bawl"
-                verb_en_parts.append("create")
-        elif part == "thu":
-            if not verb_zo:
-                verb_zo = "thu"
-                verb_en_parts.append("speak")
-        elif part in ("amah", "amaute", "ciangin"):
-            # Past tense forms
-            if "did" not in " ".join(verb_en_parts):
-                verb_en_parts.insert(0, "did")
-        else:
-            # Unknown part - look it up
-            if part in vocab:
-                trans_list = vocab[part].get("translations", [])
-                if trans_list:
-                    t = str(trans_list[0]).split("/")[0].strip()
-                    verb_en_parts.append(t)
-            elif part.lower() in d:
-                verb_en_parts.append(d[part.lower()]["english"])
-
-    # Build the Zolai sentence
-    zo_parts: list[str] = []
-    if subject_zo:
-        zo_parts.append(subject_zo)
-    if info["has_ergative"]:
-        zo_parts.append("in")
-    if object_zo:
-        zo_parts.append(object_zo)
-    if verb_zo:
-        zo_parts.append(verb_zo)
-    # Add remaining non-slot parts that aren't already included
-    for part in non_slot_parts:
-        if part not in ("in", subject_zo, object_zo, verb_zo) and part not in (
-            "hi", "hiam", "kei", "lo", "ding", "ciangin", "sak", "ah", "hen",
-            "nak", "leh", "pia", "nei", "ci", "thei", "bawl", "thu",
-            "amah", "amaute",
-        ) and part not in SUBJECT_MARKERS:
-            if part not in zo_parts:
-                zo_parts.append(part)
-
-    # Add final particle
-    if info["suffix"] in ("hi", "hiam", "kei", "lo"):
-        zo_parts.append(info["suffix"])
-
-    zolai = " ".join(zo_parts)
-
-    # Build English translation
-    if subject_en:
-        en_parts = [subject_en]
-    else:
-        en_parts = []
-
-    if object_en:
-        en_parts.append(object_en)
-
-    en_parts.extend(verb_en_parts)
-
-    # Add question marker
-    if info["type"] == "question":
-        en_parts.append("?")
-    else:
-        en_parts.append(".")
-
-    english = " ".join(en_parts)
-
-    # Capitalize first letter
-    if english:
-        english = english[0].upper() + english[1:]
-
-    # Clean up
-    english = english.replace("  ", " ").strip()
-    if english.endswith(" ."):
-        english = english[:-2] + "."
-    if english.endswith(" ?"):
-        english = english[:-2] + "?"
-
-    if not zolai.strip():
+    Returns (index, word) or None.
+    """
+    if verb_pos is None or verb_pos < 1:
         return None
 
-    return {
-        "zolai": zolai,
-        "english": english,
-        "pattern": pattern["pattern"],
-        "source": "generated",
+    # In SOV: S + in + O + V — object is typically just before verb
+    for i in range(verb_pos - 1, max(verb_pos - 3, 0) - 1, -1):
+        if i < 0:
+            break
+        candidate = tokens[i].rstrip("'").lower()
+        # Skip particles and pronouns
+        if candidate in SUBJECT_PRONOUNS or candidate in ("in", "hi", "hiam", "a"):
+            continue
+        # Skip tense/negation markers
+        if candidate in ("kei", "lo", "ding", "sak", "ah", "hen"):
+            continue
+        return i, candidate
+
+    return None
+
+
+def find_subject_in_sentence(tokens: list[str]) -> tuple[int, str] | None:
+    """Find the subject in the sentence.
+
+    Returns (index, word) or None.
+    """
+    if not tokens:
+        return None
+
+    # Check first token — could be pronoun or noun
+    first = tokens[0].rstrip("'").lower()
+    if first in SUBJECT_PRONOUNS:
+        return 0, first
+    if first in ANIMATE_SUBJECTS or first in INANIMATE_SUBJECTS or first in NAMED_ENTITIES:
+        return 0, first
+
+    # Check second token (after potential possessive)
+    if len(tokens) > 1:
+        second = tokens[1].rstrip("'").lower()
+        if second in ("in", "ta", "tate", "suante"):
+            # "X in..." or "X' ta..." pattern — X is subject
+            return 0, first
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Variation generation
+# ---------------------------------------------------------------------------
+
+
+def _tense_marker_for_verb(verb: str, tense: str) -> str:
+    """Get the appropriate tense-marked form of a verb."""
+    markers = {
+        "past": "sak",
+        "progressive": "ah",
+        "completive": "hen",
+        "future": "ding",
     }
+    marker = markers.get(tense, "")
+    if not marker:
+        return verb
+    # For future, the marker goes before the verb
+    if tense == "future":
+        return f"{marker} {verb}"
+    # For other tenses, it attaches to the verb
+    return f"{verb}{marker}"
+
+
+def create_negation(tokens: list[str], verb_pos: int) -> list[str]:
+    """Add kei negation before the verb."""
+    new_tokens = list(tokens)
+    new_tokens.insert(verb_pos, "kei")
+    return new_tokens
+
+
+def create_question(tokens: list[str]) -> list[str]:
+    """Add hiam question marker at end."""
+    new_tokens = list(tokens)
+    if new_tokens and new_tokens[-1].rstrip("'").lower() in ("hi", "a"):
+        new_tokens[-1] = "hiam"
+    elif new_tokens and new_tokens[-1].rstrip("'").lower() != "hiam":
+        new_tokens.append("hiam")
+    return new_tokens
+
+
+def create_tense_variation(tokens: list[str], verb_pos: int, tense: str) -> list[str]:
+    """Change tense of the verb."""
+    new_tokens = list(tokens)
+    verb = new_tokens[verb_pos].rstrip("'")
+    marked = _tense_marker_for_verb(verb, tense)
+    new_tokens[verb_pos] = marked
+    return new_tokens
+
+
+def _pick_subject_replacement(subject_word: str, rng: random.Random) -> str:
+    """Pick a replacement subject from the same semantic category."""
+    w = subject_word.rstrip("'").lower()
+    category = classify_zolai_noun(w)
+
+    if category in ("animate", "unknown"):
+        candidates = [k for k in ANIMATE_SUBJECTS if k.lower() != w]
+    elif category == "inanimate":
+        candidates = [k for k in INANIMATE_SUBJECTS if k.lower() != w]
+    else:
+        candidates = [k for k in ABSTRACT_SUBJECTS if k.lower() != w]
+
+    if not candidates:
+        return subject_word
+    return rng.choice(candidates)
+
+
+def _pick_object_replacement(object_word: str, verb: str, rng: random.Random) -> str:
+    """Pick a replacement object compatible with the verb."""
+    w = object_word.rstrip("'").lower()
+    compat = VERB_OBJECT_COMPAT.get(verb, [])
+
+    if compat:
+        candidates = [o for o in compat if o.lower() != w]
+        if candidates:
+            return rng.choice(candidates)
+
+    # Fallback: category match
+    category = classify_zolai_noun(w)
+    if category == "animate":
+        candidates = [k for k in PEOPLE_OBJECTS if k.lower() != w]
+    elif category == "inanimate":
+        candidates = [k for k in CONCRETE_OBJECTS if k.lower() != w]
+    else:
+        candidates = [k for k in ABSTRACT_OBJECTS if k.lower() != w]
+
+    if not candidates:
+        return object_word
+    return rng.choice(candidates)
+
+
+def _zo_to_english_word(word: str, d: dict[str, dict[str, str]]) -> str:
+    """Convert a Zolai word to English for translation."""
+    w = word.rstrip("'").lower()
+
+    # Check named entities first
+    if w in NAMED_ENTITIES:
+        return NAMED_ENTITIES[w]
+
+    # Check animate subjects
+    if w in ANIMATE_SUBJECTS:
+        return ANIMATE_SUBJECTS[w]
+    if w in INANIMATE_SUBJECTS:
+        return INANIMATE_SUBJECTS[w]
+    if w in ABSTRACT_SUBJECTS:
+        return ABSTRACT_SUBJECTS[w]
+    if w in PEOPLE_OBJECTS:
+        return PEOPLE_OBJECTS[w]
+    if w in CONCRETE_OBJECTS:
+        return CONCRETE_OBJECTS[w]
+    if w in ABSTRACT_OBJECTS:
+        return ABSTRACT_OBJECTS[w]
+
+    # Dictionary lookup
+    if w in d:
+        return d[w]["english"]
+
+    # Root lookup
+    root = word_root(w)
+    if root in d:
+        return d[root]["english"]
+
+    return w
+
+
+def rebuild_english_from_variations(
+    original_en: str,
+    variation_type: str,
+    old_zo: str,
+    new_zo: str,
+    d: dict[str, dict[str, str]],
+) -> str:
+    """Rebuild English translation from the original.
+
+    For subject/object replacement: find and replace the corresponding
+    English word in the original translation.
+    For tense/negation/question: apply simple transformations.
+    """
+    en = original_en
+
+    if variation_type == "subject":
+        # Find the English word for the old subject and replace with new
+        old_en = _zo_to_english_word(old_zo, d)
+        new_en = _zo_to_english_word(new_zo, d)
+        if old_en.lower() in en.lower():
+            # Case-insensitive replacement preserving case
+            pattern = re.compile(re.escape(old_en), re.IGNORECASE)
+            en = pattern.sub(new_en, en, count=1)
+        elif en.split():
+            # Fallback: replace first word (subject position in English)
+            words = en.split()
+            words[0] = new_en
+            en = " ".join(words)
+
+    elif variation_type == "object":
+        old_en = _zo_to_english_word(old_zo, d)
+        new_en = _zo_to_english_word(new_zo, d)
+        if old_en.lower() in en.lower():
+            pattern = re.compile(re.escape(old_en), re.IGNORECASE)
+            en = pattern.sub(new_en, en, count=1)
+
+    elif variation_type == "tense_past":
+        if " did " not in en.lower():
+            en = f"{en} (in the past)"
+
+    elif variation_type == "tense_future":
+        if "will" not in en.lower():
+            en = f"will {en}"
+
+    elif variation_type == "tense_progressive":
+        en = f"{en} (ongoing)"
+
+    elif variation_type == "negation":
+        en_lower = en.lower()
+        if en_lower.startswith("will "):
+            en = "will not " + en[5:]
+        elif en_lower.startswith("do "):
+            en = "do not " + en[3:]
+        elif en_lower.startswith("does "):
+            en = "does not " + en[5:]
+        else:
+            en = f"do not {en}"
+
+    elif variation_type == "question":
+        en = en.rstrip(".")
+        en = en.rstrip()
+        en += "?"
+
+    # Capitalize first letter
+    if en:
+        en = en[0].upper() + en[1:]
+
+    # Clean up
+    en = en.replace("  ", " ").strip()
+    if "?" in en:
+        en = en.rstrip(".") + "?"
+    elif not en.endswith(".") and not en.endswith("?") and not en.endswith(";"):
+        en += "."
+
+    return en
+
+
+# ---------------------------------------------------------------------------
+# Main variation pipeline
+# ---------------------------------------------------------------------------
+
+
+def generate_variations_from_verse(
+    verse: dict[str, str],
+    d: dict[str, dict[str, str]],
+    rng: random.Random,
+    max_variations: int = 3,
+) -> list[dict[str, str]]:
+    """Generate training variations from a single Bible verse.
+
+    Creates multiple variations by applying controlled transformations
+    to the real Bible sentence while keeping the verb structure intact.
+
+    Returns list of {zolai, english, pattern, source} dicts.
+    """
+    zo_raw = verse.get("zo_tdb77")
+    en_raw = verse.get("en_kJV")
+    zo = zo_raw.strip() if isinstance(zo_raw, str) else ""
+    en = en_raw.strip() if isinstance(en_raw, str) else ""
+    ref_raw = verse.get("ref")
+    ref = ref_raw.strip() if isinstance(ref_raw, str) else ""
+
+    if not zo or not en:
+        return []
+
+    tokens = tokenize_zolai(zo)
+    if len(tokens) < 3:
+        return []
+
+    is_short = len(tokens) <= 8  # Only do subject/object swap on short sentences
+
+    variations: list[dict[str, str]] = []
+
+    # 1. Original sentence (if it's a complete sentence with verb)
+    verb = extract_verb_from_sentence(tokens)
+    if verb:
+        variations.append(
+            {
+                "zolai": zo,
+                "english": en,
+                "pattern": "bible_original",
+                "source": ref,
+            }
+        )
+
+    # Find structural positions
+    verb_pos = None
+    known_verbs = VERB_ROOTS
+    for i, t in enumerate(reversed(tokens)):
+        idx = len(tokens) - 1 - i
+        w = t.rstrip("'").lower()
+        if w in known_verbs or word_root(w) in known_verbs:
+            verb_pos = idx
+            break
+
+    subject_info = find_subject_in_sentence(tokens)
+    object_info = find_object_in_sentence(tokens, verb_pos, d) if verb_pos is not None else None
+
+    # Determine allowed variation types based on sentence length
+    if is_short:
+        allowed_types = ["subject", "object", "tense_past", "tense_future",
+                         "tense_progressive", "negation", "question"]
+    else:
+        # Long sentences: only tense/negation/question (no word swapping)
+        allowed_types = ["tense_past", "tense_future",
+                         "tense_progressive", "negation", "question"]
+
+    # Generate up to max_variations variations
+    attempts = 0
+    seen = {zo.lower().strip()}
+
+    while len(variations) < max_variations and attempts < max_variations * 3:
+        attempts += 1
+        variation_type = rng.choice(allowed_types)
+
+        new_tokens = list(tokens)
+        new_en = en
+        pattern = ""
+        changed = False
+        old_zo_word = ""
+
+        if variation_type == "subject" and subject_info and is_short:
+            pos, word = subject_info
+            old_zo_word = word
+            replacement = _pick_subject_replacement(word, rng)
+            new_tokens[pos] = replacement
+            new_en = rebuild_english_from_variations(
+                en, "subject", word, replacement, d
+            )
+            pattern = "subject_replacement"
+            changed = True
+
+        elif variation_type == "object" and object_info and verb and is_short:
+            pos, word = object_info
+            old_zo_word = word
+            replacement = _pick_object_replacement(word, verb, rng)
+            new_tokens[pos] = replacement
+            new_en = rebuild_english_from_variations(
+                en, "object", word, replacement, d
+            )
+            pattern = "object_replacement"
+            changed = True
+
+        elif variation_type == "tense_past" and verb_pos is not None:
+            new_tokens = create_tense_variation(new_tokens, verb_pos, "past")
+            new_en = f"{en} [past tense]"
+            pattern = "tense_past"
+            changed = True
+
+        elif variation_type == "tense_future" and verb_pos is not None:
+            new_tokens = create_tense_variation(new_tokens, verb_pos, "future")
+            new_en = f"{en} [future]"
+            pattern = "tense_future"
+            changed = True
+
+        elif variation_type == "tense_progressive" and verb_pos is not None:
+            new_tokens = create_tense_variation(new_tokens, verb_pos, "progressive")
+            new_en = f"{en} [ongoing]"
+            pattern = "tense_progressive"
+            changed = True
+
+        elif variation_type == "negation" and verb_pos is not None:
+            new_tokens = create_negation(new_tokens, verb_pos)
+            new_en = f"{en} [not]"
+            pattern = "negation"
+            changed = True
+
+        elif variation_type == "question":
+            new_tokens = create_question(new_tokens)
+            new_en = f"{en}?"
+            pattern = "question"
+            changed = True
+
+        if not changed:
+            continue
+
+        new_zo = detokenize_zolai(new_tokens)
+        key = new_zo.lower().strip()
+
+        if key in seen:
+            continue
+        seen.add(key)
+
+        variations.append(
+            {
+                "zolai": new_zo,
+                "english": new_en,
+                "pattern": pattern,
+                "source": ref,
+            }
+        )
+
+    return variations[:max_variations]
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +808,7 @@ def generate_sentences(
     seed: int = 42,
     verbose: bool = True,
 ) -> list[dict[str, str]]:
-    """Generate Zolai sentences from grammar patterns + vocabulary.
+    """Generate Zolai training sentences from Bible templates.
 
     Args:
         max_sentences: Maximum number of sentences to generate.
@@ -441,16 +821,10 @@ def generate_sentences(
     rng = random.Random(seed)
 
     if verbose:
-        print("Loading grammar patterns...")
-    patterns = load_grammar_patterns()
+        print("Loading Bible parallel corpus...")
+    corpus = load_parallel_corpus()
     if verbose:
-        print(f"  Loaded {len(patterns)} patterns")
-
-    if verbose:
-        print("Loading vocabulary...")
-    vocab = load_vocabulary()
-    if verbose:
-        print(f"  Loaded {len(vocab)} words")
+        print(f"  Loaded {len(corpus)} Bible verses")
 
     if verbose:
         print("Loading dictionary...")
@@ -458,47 +832,50 @@ def generate_sentences(
     if verbose:
         print(f"  Loaded {len(d)} dictionary entries")
 
-    # Weight patterns by frequency
-    total_freq = sum(p.get("frequency", 1) for p in patterns)
-    weights = [p.get("frequency", 1) / total_freq for p in patterns]
-
-    # Filter patterns that have S or O slots (can generate sentences)
-    generable = [p for p in patterns if "S" in p["pattern"] or "O" in p["pattern"]]
+    # Filter: only keep verses with 3-12 Zolai words (short, clear sentences)
+    filtered = []
+    for v in corpus:
+        zo = v.get("zo_tdb77")
+        if zo and isinstance(zo, str):
+            zo_strip = zo.strip()
+            if 3 <= len(zo_strip.split()) <= 12:
+                filtered.append(v)
     if verbose:
-        print(f"  {len(generable)} patterns with S/O slots (out of {len(patterns)})")
+        print(f"  Filtered to {len(filtered)} verses (3-12 words)")
 
-    if not generable:
-        generable = patterns  # fallback to all patterns
+    # Shuffle with seed for reproducibility
+    rng.shuffle(filtered)
 
-    # Generate sentences
-    sentences: list[dict[str, str]] = []
+    # Generate variations from Bible verses
+    all_variations: list[dict[str, str]] = []
     seen: set[str] = set()
-    attempts = 0
-    max_attempts = max_sentences * 5  # allow 5x attempts for dedup
 
-    while len(sentences) < max_sentences and attempts < max_attempts:
-        attempts += 1
+    # Process ALL filtered verses, limit to 3 variations per verse
+    if verbose:
+        print(f"Processing {len(filtered)} filtered verses (max 3 variations each)...")
 
-        # Pick a pattern weighted by frequency
-        pattern = rng.choices(generable, weights=[p.get("frequency", 1) for p in generable])[0]
+    for i, verse in enumerate(filtered):
+        variations = generate_variations_from_verse(verse, d, rng, max_variations=3)
 
-        result = generate_from_pattern(pattern, vocab, d, rng)
-        if result is None:
-            continue
+        for v in variations:
+            key = v["zolai"].lower().strip()
+            if key not in seen:
+                seen.add(key)
+                all_variations.append(v)
 
-        # Dedup by Zolai sentence
-        key = result["zolai"].lower().strip()
-        if key in seen:
-            continue
-        seen.add(key)
+        if len(all_variations) >= max_sentences:
+            break
 
-        sentences.append(result)
+        if verbose and (i + 1) % 500 == 0:
+            print(f"  Processed {i + 1}/{len(filtered)} verses, "
+                  f"generated {len(all_variations)} variations...")
 
-        if verbose and len(sentences) % 500 == 0:
-            print(f"  Generated {len(sentences)}/{max_sentences} sentences...")
+    # Trim to max_sentences
+    sentences = all_variations[:max_sentences]
 
     if verbose:
-        print(f"  Done: {len(sentences)} unique sentences from {attempts} attempts")
+        print(f"  Done: {len(sentences)} unique sentences from "
+              f"{len(filtered)} filtered Bible verses")
 
     return sentences
 
@@ -518,7 +895,7 @@ def save_sentences(sentences: list[dict[str, str]], output_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate Zolai sentences from grammar patterns + dictionary."
+        description="Generate Zolai sentences from Bible templates with semantic variation."
     )
     parser.add_argument(
         "--max-sentences",
@@ -549,7 +926,7 @@ def main() -> None:
 
     print("=" * 60)
     print("  Zolai Sentence Generator")
-    print("  Grammar patterns + Dictionary vocabulary")
+    print("  Bible-template semantic variation")
     print("=" * 60)
     print()
 
@@ -566,18 +943,24 @@ def main() -> None:
     print("Sample sentences:")
     rng = random.Random(99)
     for s in rng.sample(sentences, min(10, len(sentences))):
-        print(f"  {s['zolai']:40s} → {s['english']:40s}  [{s['pattern']}]")
+        print(f"  {s['zolai']:60s} → {s['english'][:50]:50s}  [{s['pattern']}]")
 
     # Stats
-    types: dict[str, int] = {}
+    patterns: dict[str, int] = {}
+    sources: dict[str, int] = {}
     for s in sentences:
-        t = classify_pattern(s["pattern"])["type"]
-        types[t] = types.get(t, 0) + 1
+        p = s["pattern"]
+        patterns[p] = patterns.get(p, 0) + 1
+        src = s["source"]
+        sources[src] = sources.get(src, 0) + 1
 
     print()
     print("Pattern type distribution:")
-    for t, c in sorted(types.items(), key=lambda x: -x[1]):
-        print(f"  {t:15s} {c:6d} ({c * 100 // len(sentences)}%)")
+    for t, c in sorted(patterns.items(), key=lambda x: -x[1]):
+        print(f"  {t:25s} {c:6d} ({c * 100 // len(sentences)}%)")
+
+    print()
+    print(f"Unique source verses: {len(sources)}")
 
 
 if __name__ == "__main__":
