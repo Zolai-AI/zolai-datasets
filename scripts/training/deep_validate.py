@@ -92,13 +92,15 @@ YES_NO_QUEST = "hiam"
 
 
 def tokenize(text: str) -> list[str]:
-    """Split sentence into words, stripping punctuation."""
-    raw = text.split()
+    """Tokenize Zolai text into words, handling hyphens and punctuation."""
     cleaned: list[str] = []
-    for w in raw:
-        c = w.strip(".,;:!?\"'()[]{}")
+    for token in text.split():
+        c = token.strip(".,;:!?\"'()[]{}").lower()
         if c:
-            cleaned.append(c.lower())
+            # Split hyphens: "pai-in" -> ["pai", "in"]
+            for part in c.split("-"):
+                if part:
+                    cleaned.append(part)
     return cleaned
 
 
@@ -375,7 +377,7 @@ def check_pattern_match(
         return 0, details
 
     details["found"] = False
-    return 10, details
+    return 5, details
 
 
 # ---------------------------------------------------------------------------
@@ -567,7 +569,7 @@ def check_sov_order(
             return 0, details  # Correct SOV
         else:
             # Subject after verb — might be VOS or wrong order
-            return 15, details
+            return 8, details
 
     # No subject found — might be imperative or pro-drop
     return 0, details
