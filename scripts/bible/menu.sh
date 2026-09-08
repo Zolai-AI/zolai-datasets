@@ -845,6 +845,100 @@ cmd_kaggle_guide() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Bible Engine — additional commands ───────────────────────
+cmd_generate_training_data() {
+  echo -e "${C}═══ Generate Training Data ═══${NC}"
+  echo ""
+  echo -e "  Grammar-aware training data from Bible patterns + vocabulary."
+  echo ""
+  $PYTHON "$SCRIPT_DIR/generate_training_data.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_bible_context_learn() {
+  echo -e "${C}═══ Bible Context Learner ═══${NC}"
+  echo ""
+  echo -e "  Per-book word usage profiles, hyphen rules, phrase banks."
+  echo ""
+  $PYTHON "$SCRIPT_DIR/bible_context_learner.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+# ── Online Data Tools — additional commands ──────────────────
+cmd_fetch_bible_versions() {
+  echo -e "${C}═══ Fetch Bible Versions ═══${NC}"
+  echo ""
+  echo -e "  Fetch Bible versions from bible.com for comparison."
+  echo ""
+  $PYTHON "$SCRIPT_DIR/fetch_bible_versions.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_data_quality_scorer() {
+  echo -e "${C}═══ Data Quality Scorer ═══${NC}"
+  echo ""
+  echo -e "  Score data quality using 8 linguistic features."
+  echo ""
+  $PYTHON "$SCRIPT_DIR/data_quality_scorer.py" "$@"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+# ── Data Build submenu ───────────────────────────────────────
+cmd_data_build() {
+  while true; do
+    banner
+    echo -e "${M}── Data Build Tools (13 scripts) ──────${NC}"
+    echo ""
+    echo -e "  ${Y}── Grammar & Patterns ──────────────────${NC}"
+    echo -e "  ${G}1${NC}) 📝 Extract grammar patterns from Bible"
+    echo -e "  ${G}2${NC}) 📝 Extract grammar from Grammar Vol 1 PDF"
+    echo -e "  ${G}3${NC}) 📝 Extract ZVS 2018 orthography rules"
+    echo -e "  ${G}4${NC}) 📝 Build grammar reference v2"
+    echo ""
+    echo -e "  ${Y}── Exercises & References ───────────────${NC}"
+    echo -e "  ${G}5${NC}) 📝 Build exercises from reference stories"
+    echo -e "  ${G}6${NC}) 📝 Build polysemy database from references"
+    echo -e "  ${G}7${NC}) 📝 Build consolidated AI context index"
+    echo -e "  ${G}8${NC}) 📝 Extract Sinna lesson content"
+    echo ""
+    echo -e "  ${Y}── Training & Pipeline ──────────────────${NC}"
+    echo -e "  ${G}9${NC}) 📝 Generate training data (grammar-aware)"
+    echo -e "  ${G}A${NC}) 📝 Bible context learner (per-book usage)"
+    echo -e "  ${G}B${NC}) 📝 Build full linguistic pipeline (8 steps)"
+    echo ""
+    echo -e "  ${Y}── Online & Quality ─────────────────────${NC}"
+    echo -e "  ${G}C${NC}) 📝 Fetch Bible versions from bible.com"
+    echo -e "  ${G}D${NC}) 📝 Data quality scorer (8 features)"
+    echo ""
+    echo -e "  ${G}0${NC}) Back to main menu"
+    echo ""
+    read -p "  Select [1]: " db_choice
+    case "$db_choice" in
+      1) $PYTHON "$SCRIPT_DIR/extract_grammar_patterns.py" ;;
+      2) $PYTHON "$SCRIPT_DIR/extract_grammar_from_vol1.py" ;;
+      3) $PYTHON "$SCRIPT_DIR/extract_zvs_rules.py" ;;
+      4) $PYTHON "$SCRIPT_DIR/build_grammar_reference_v2.py" ;;
+      5) $PYTHON "$SCRIPT_DIR/build_exercises_from_stories.py" ;;
+      6) $PYTHON "$SCRIPT_DIR/build_polysemy_from_references.py" ;;
+      7) $PYTHON "$SCRIPT_DIR/build_reference_index.py" ;;
+      8) $PYTHON "$SCRIPT_DIR/extract_sinna_lessons.py" ;;
+      9) $PYTHON "$SCRIPT_DIR/generate_training_data.py" ;;
+      A|a) $PYTHON "$SCRIPT_DIR/bible_context_learner.py" ;;
+      B|b) $PYTHON "$SCRIPT_DIR/build_linguistic_pipeline.py" ;;
+      C|c) $PYTHON "$SCRIPT_DIR/fetch_bible_versions.py" ;;
+      D|d) $PYTHON "$SCRIPT_DIR/data_quality_scorer.py" ;;
+      0|q|Q) return ;;
+      *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
+    esac
+    echo ""
+    read -p "Press Enter to return to menu..."
+  done
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -870,6 +964,8 @@ while true; do
   echo -e "  ${G}G${NC}) 📦 Export training datasets"
   echo -e "  ${G}V${NC}) ✅ Grammar check (verify sentence correctness)"
   echo -e "  ${G}W${NC}) 📝 Vocabulary quiz (test word knowledge)"
+  echo -e "  ${G}Y${NC}) 📝 Generate training data (grammar-aware)"
+  echo -e "  ${G}Z${NC}) 📝 Bible context learner (per-book usage)"
   echo ""
   echo ""
   echo -e "  ${M}── Paragraph Engine ───────────────────${NC}"
@@ -885,10 +981,15 @@ while true; do
   echo -e "  ${G}P${NC}) 💬 Integrate conversational data"
   echo -e "  ${G}Q${NC}) 🌐 Build cross-language comparison"
   echo -e "  ${G}R${NC}) 📦 Build master vocabulary (all sources)"
+  echo -e "  ${G}L${NC}) 🌐 Fetch Bible versions from bible.com"
+  echo -e "  ${G}T${NC}) 📊 Data quality scorer (8 features)"
   echo ""
   echo -e "  ${M}── Context Learning ────────────────────${NC}"
   echo -e "  ${G}X${NC}) 🧠 Context Deep Learning (per-book/chapter/topic analysis)"
   echo -e "  ${G}Y${NC}) 📝 Proficiency Test (A1–C2 levels)"
+  echo ""
+  echo -e "  ${M}── Data Build Tools (13 scripts) ────────${NC}"
+  echo -e "  ${G}AA${NC}) 📦 Grammar, exercises, references, pipeline, quality"
   echo ""
   echo -e "  ${M}── Training Tools ──────────────────────${NC}"
   echo -e "  ${G}S${NC}) 🌱 Create seed data for training (500 pairs)"
@@ -933,6 +1034,7 @@ while true; do
     U|u) cmd_kaggle_guide ;;
     X|x) cmd_context_deep_learn ;;
     Y|y) cmd_proficiency_test ;;
+    AA|aa) cmd_data_build ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
