@@ -886,6 +886,9 @@ while true; do
   echo -e "  ${G}Q${NC}) 🌐 Build cross-language comparison"
   echo -e "  ${G}R${NC}) 📦 Build master vocabulary (all sources)"
   echo ""
+  echo -e "  ${M}── Context Learning ────────────────────${NC}"
+  echo -e "  ${G}X${NC}) 🧠 Context Deep Learning (per-book/chapter/topic analysis)"
+  echo ""
   echo -e "  ${M}── Training Tools ──────────────────────${NC}"
   echo -e "  ${G}S${NC}) 🌱 Create seed data for training (500 pairs)"
   echo -e "  ${G}T${NC}) 🤖 Generate synthetic training data"
@@ -927,10 +930,53 @@ while true; do
     S|s) cmd_create_seed ;;
     T|t) cmd_generate_synthetic ;;
     U|u) cmd_kaggle_guide ;;
+    X|x) cmd_context_deep_learn ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
 done
+
+# ── Context Deep Learning ──────────────────────────────────
+cmd_context_deep_learn() {
+  echo -e "${C}═══ Context Deep Learning Engine ═══${NC}"
+  echo ""
+  echo -e "  Analyzes how Zolai words, phrases, and sentences are used"
+  echo -e "  per-book, per-chapter, and per-topic context."
+  echo ""
+  echo -e "  ${G}Options:${NC}"
+  echo -e "    1) Build all context indexes (--build --stats)"
+  echo -e "    2) Analyze a specific book (e.g., GEN)"
+  echo -e "    3) Look up a word (e.g., pasian)"
+  echo -e "    4) Explore a topic (e.g., creation)"
+  echo -e "    5) Context lookup: word in book"
+  echo ""
+  read -p "  Select [1]: " ctx_choice
+  case "$ctx_choice" in
+    2)
+      read -p "  Book code (e.g., GEN): " ctx_book
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/context_deep_learner.py" --book "$ctx_book"
+      ;;
+    3)
+      read -p "  Word: " ctx_word
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/context_deep_learner.py" --word "$ctx_word"
+      ;;
+    4)
+      read -p "  Topic (creation/law/history/praise/prophecy/wisdom/love/war/exile/redemption/miracle/teaching): " ctx_topic
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/context_deep_learner.py" --topic "$ctx_topic"
+      ;;
+    5)
+      read -p "  Word: " ctx_word
+      read -p "  Book (e.g., GEN): " ctx_book
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/context_deep_learner.py" --lookup "$ctx_word" "$ctx_book"
+      ;;
+    *)
+      echo -e "${C}Building context deep learning index...${NC}"
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/context_deep_learner.py" --build --stats
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
 
 # ── Grammar Check ────────────────────────────────────────────
 cmd_grammar_check() {
