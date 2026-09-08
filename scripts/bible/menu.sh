@@ -888,6 +888,7 @@ while true; do
   echo ""
   echo -e "  ${M}── Context Learning ────────────────────${NC}"
   echo -e "  ${G}X${NC}) 🧠 Context Deep Learning (per-book/chapter/topic analysis)"
+  echo -e "  ${G}Y${NC}) 📝 Proficiency Test (A1–C2 levels)"
   echo ""
   echo -e "  ${M}── Training Tools ──────────────────────${NC}"
   echo -e "  ${G}S${NC}) 🌱 Create seed data for training (500 pairs)"
@@ -931,6 +932,7 @@ while true; do
     T|t) cmd_generate_synthetic ;;
     U|u) cmd_kaggle_guide ;;
     X|x) cmd_context_deep_learn ;;
+    Y|y) cmd_proficiency_test ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
@@ -1110,4 +1112,34 @@ cmd_para_paraphrase() {
 cmd_para_knowledge() {
   echo -e "${C}═══ Paragraph Knowledge Base ═══${NC}"
   python3 "$SCRIPT_DIR/paragraph_engine.py" --stats
+}
+
+# ── Proficiency Test ────────────────────────────────────────
+cmd_proficiency_test() {
+  echo -e "${C}═══ Zolai Proficiency Test ═══${NC}"
+  echo ""
+  echo -e "  ${G}Select level:${NC}"
+  echo -e "  ${G}1${NC}) A1 — Beginner (12 questions)"
+  echo -e "  ${G}2${NC}) A2 — Elementary (30 questions)"
+  echo -e "  ${G}3${NC}) B1 — Intermediate (50 questions)"
+  echo -e "  ${G}4${NC}) B2 — Upper-Intermediate (50 questions)"
+  echo -e "  ${G}5${NC}) C1 — Advanced (50 questions)"
+  echo -e "  ${G}6${NC}) C2 — Mastery (40 questions)"
+  echo ""
+  read -p "  Select level [1]: " plevel
+  case "${plevel:-1}" in
+    2) PLEVEL="A2" ;;
+    3) PLEVEL="B1" ;;
+    4) PLEVEL="B2" ;;
+    5) PLEVEL="C1" ;;
+    6) PLEVEL="C2" ;;
+    *) PLEVEL="A1" ;;
+  esac
+  echo ""
+  echo -e "  Starting ${G}${PLEVEL}${NC} proficiency test..."
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/proficiency_test.py" \
+    --level "$PLEVEL" --interactive
+  echo ""
+  read -p "Press Enter to return to menu..."
 }
