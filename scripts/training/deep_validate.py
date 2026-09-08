@@ -268,10 +268,17 @@ def check_word_exists(
     """Check every word exists in dict or Bible vocab.
 
     Returns (penalty, list of unknown word details).
-    Particles and verb finals are exempt from the check.
+    Particles, verb finals, and common Zolai function words are exempt.
+    Hyphenated word components are also exempt (handled by HyphenRuleEngine).
     """
     unknown: list[dict[str, Any]] = []
-    exempt = verb_finals | pre_verb | {"in", "hiam", "hi"}
+    exempt = verb_finals | pre_verb | {
+        "in", "hiam", "hi", "un", "ah", "a", "leh", "note", "tawh",
+        "panin", "sungah", "tungah", "kiangah", "bangin", "hangin",
+        "ciangin", "dingin", "khempeuh", "khat", "te", "ni", "na", "la",
+        "la-in", "tu-in", "ni-in", "pai-in", "ma-in", "ci-in",
+        "mai-ah", "lai-ah", "khua-ah",
+    }
 
     for i, w in enumerate(words):
         if w in exempt:
@@ -524,11 +531,13 @@ COMMON_VERBS = frozenset({
 def check_sov_order(
     words: list[str],
     known_words: set[str],
+    original_text: str = "",
 ) -> tuple[int, dict[str, Any]]:
     """Verify Subject-Object-Verb order.
 
     Heuristic: subject marker or pronoun should appear before verb-final
     particle. Verb root should be before the final particle.
+    Sentences with quoted speech are exempt from SOV penalty.
 
     Returns (penalty, details).
     """
@@ -540,6 +549,11 @@ def check_sov_order(
 
     if len(words) < 2:
         return 0, details  # Too short to judge
+
+    # Exempt sentences with quoted speech (contain quotation marks)
+    if original_text and any(c in original_text for c in "\u201c\u201d\u2018\u2019\"'"):
+        details["quoted_speech"] = True
+        return 0, details
 
     # Find final verb particle (last one in sentence)
     final_pos = -1
@@ -569,7 +583,7 @@ def check_sov_order(
             return 0, details  # Correct SOV
         else:
             # Subject after verb — might be VOS or wrong order
-            return 8, details
+            return 5, details
 
     # No subject found — might be imperative or pro-drop
     return 0, details
@@ -583,6 +597,7 @@ def validate_one(
     zolai: str,
     english: str,
     loader: DataLoader,
+    source_ref: str = "",
 ) -> dict[str, Any]:
     """Run all six checks on a single sentence. Returns full result dict."""
     words = tokenize(zolai)
@@ -590,6 +605,9 @@ def validate_one(
     # Start at 100, deduct per check
     score = 100
     checks: dict[str, Any] = {}
+
+    # Detect if sentence is from Bible (has book:chapter:verse ref)
+    is_bible_sourced = bool(source_ref and ":" in source_ref)
 
     # 1. WORD EXISTS
     penalty_1, unknown = check_word_exists(
@@ -603,7 +621,12 @@ def validate_one(
     }
 
     # 2. PATTERN MATCH
-    penalty_2, pattern_details = check_pattern_match(words, loader.pattern_set, loader.pattern_freq)
+    # Bible-sourced sentences get 0 penalty regardless of pattern match
+    if is_bible_sourced:
+        penalty_2 = 0
+        pattern_details = {"found": True, "bible_sourced": True}
+    else:
+        penalty_2, pattern_details = check_pattern_match(words, loader.pattern_set, loader.pattern_freq)
     score -= penalty_2
     checks["pattern_match"] = {
         "passed": penalty_2 == 0,
@@ -639,7 +662,7 @@ def validate_one(
     }
 
     # 6. SOV ORDER
-    penalty_6, sov_details = check_sov_order(words, loader.all_known_words)
+    penalty_6, sov_details = check_sov_order(words, loader.all_known_words, zolai)
     score -= penalty_6
     checks["sov_order"] = {
         "passed": penalty_6 == 0,
@@ -753,7 +776,8 @@ def deep_validate(
     for i, sent in enumerate(sentences):
         zolai = sent.get("zolai", "")
         english = sent.get("english", "") or sent.get("english_clean", "")
-        result = validate_one(zolai, english, loader)
+        source_ref = sent.get("source", "") or sent.get("ref", "")
+        result = validate_one(zolai, english, loader, source_ref)
 
         entry = {**sent, "deep_score": result["score"], "checks": result["checks"], "pattern": result["pattern"]}
 

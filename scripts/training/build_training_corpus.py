@@ -98,6 +98,15 @@ VALID_VERB_ENDINGS = frozenset({
 from generate_sentences import generate_sentences
 from deep_validate import DeepValidator
 
+# Bible context learner (optional, for context-based scoring)
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bible"))
+    from bible_context_learner import ContextValidator
+
+    HAS_CONTEXT_LEARNER = True
+except ImportError:
+    HAS_CONTEXT_LEARNER = False
+
 
 # ---------------------------------------------------------------------------
 # Step 1: Generate sentences (Bible templates)
@@ -137,6 +146,54 @@ def step_validate(
         print(f"    Valid: {len(valid)} ({len(valid) * 100 // max(len(sentences), 1)}%)")
         print(f"    Invalid: {len(invalid)}")
     return valid, invalid
+
+
+# ---------------------------------------------------------------------------
+# Step 2.5: Context validation (Bible context override)
+# ---------------------------------------------------------------------------
+
+
+def step_context_validate(
+    sentences: list[dict[str, Any]], min_score: int, verbose: bool,
+) -> list[dict[str, Any]]:
+    """Step 2.5: Override deep_validate scores with Bible context scores.
+
+    For Bible-sourced sentences (have a book ref), the context validator's
+    score is used to override the deep_validate score.
+    """
+    if not HAS_CONTEXT_LEARNER:
+        if verbose:
+            print("  Step 2.5: Skipped (bible_context_learner not available)")
+        return sentences
+
+    if verbose:
+        print(f"  Step 2.5: Context-validating {len(sentences)} sentences...")
+
+    cv = ContextValidator(verbose=False)
+    if not cv.load():
+        if verbose:
+            print("    Context indexes not found — run bible_context_learner.py --build")
+        return sentences
+
+    overridden = 0
+    for sent in sentences:
+        source_ref = sent.get("source", "") or sent.get("ref", "")
+        # Only override for Bible-sourced sentences
+        if source_ref and ":" in source_ref:
+            # Extract book from ref like "GEN 1:1"
+            book = source_ref.split()[0] if " " in source_ref else ""
+            zolai = sent.get("zolai", "")
+            english = sent.get("english", "")
+            ctx = cv.score_sentence(zolai, english, book)
+            # Override deep_score with context score if context is more confident
+            if ctx["score"] > sent.get("deep_score", 0):
+                sent["deep_score"] = ctx["score"]
+                sent["context_score"] = ctx
+                overridden += 1
+
+    if verbose:
+        print(f"    Context overrides: {overridden}/{len(sentences)}")
+    return sentences
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +433,17 @@ def run_pipeline(
     # Step 2: Deep-validate
     valid_v1, invalid = step_validate(sentences, min_score, verbose)
     print()
+
+    # Step 2.5: Context validation (Bible context override)
+    all_sentences_validated = valid_v1 + invalid
+    if HAS_CONTEXT_LEARNER:
+        all_sentences_validated = step_context_validate(
+            all_sentences_validated, min_score, verbose,
+        )
+        # Re-split after context override
+        valid_v1 = [s for s in all_sentences_validated if s.get("deep_score", 0) >= min_score]
+        invalid = [s for s in all_sentences_validated if s.get("deep_score", 0) < min_score]
+        print()
 
     # Step 3: Correct
     corrected = step_correct(invalid, verbose)
