@@ -32,6 +32,9 @@ PARTICLE_DB = DATA / "bible" / "particle_database_v1.jsonl"
 PHRASES_DB = DATA / "bible" / "phrases_v1.jsonl"
 WORD_ALIGNMENTS = DATA / "bible" / "word_alignments_v1.jsonl"
 KB_DIR = DATA / "bible" / "knowledge_base"
+CONTEXT_DIR = DATA / "bible" / "context"
+WORD_USAGE_PROFILES = CONTEXT_DIR / "word_usage_profiles.jsonl"
+PER_BOOK_ANALYSIS = CONTEXT_DIR / "per_book_analysis.jsonl"
 
 # ══════════════════════════════════════════════════════════════════════
 # COLORS
@@ -340,6 +343,134 @@ class GlossingEngine:
 
 
 # ══════════════════════════════════════════════════════════════════════
+# CONTEXT GLOSSER
+# ══════════════════════════════════════════════════════════════════════
+class ContextGlosser:
+    """Context-aware glossing using per-book word usage profiles.
+
+    Loads word_usage_profiles.jsonl and per_book_analysis.jsonl lazily.
+    When glossing a word in a specific book, returns the most common
+    translation for that book, with meaning-shift detection and
+    co-occurring word context.
+    """
+
+    def __init__(self) -> None:
+        self._profiles_loaded = False
+        self._books_loaded = False
+        self._word_profiles: dict[str, dict] = {}
+        self._book_analysis: dict[str, dict] = {}
+
+    def _ensure_profiles(self) -> None:
+        if self._profiles_loaded:
+            return
+        if WORD_USAGE_PROFILES.exists():
+            with open(WORD_USAGE_PROFILES) as f:
+                for line in f:
+                    rec = json.loads(line)
+                    w = rec.get("word", "").strip().lower()
+                    if w:
+                        self._word_profiles[w] = rec
+        self._profiles_loaded = True
+
+    def _ensure_books(self) -> None:
+        if self._books_loaded:
+            return
+        if PER_BOOK_ANALYSIS.exists():
+            with open(PER_BOOK_ANALYSIS) as f:
+                for line in f:
+                    rec = json.loads(line)
+                    bk = rec.get("book", "").strip()
+                    if bk:
+                        self._book_analysis[bk] = rec
+        self._books_loaded = True
+
+    def get_context_aware_translation(
+        self, word: str, book_code: str,
+    ) -> dict:
+        """Return context-aware translation for *word* in *book_code*.
+
+        Returns:
+            {
+                "translation": str,        # best translation for this book
+                "confidence": str,         # HIGH/MEDIUM/LOW/UNCERTAIN
+                "meaning_shift": bool,     # True if word differs from global
+                "alternatives": list[str], # other translations in this book
+                "co_occurring": list[dict],# top 3 co-occurring words
+                "book_freq": int,          # frequency of word in this book
+                "global_freq": int,        # frequency across all books
+            }
+        """
+        self._ensure_profiles()
+        self._ensure_books()
+
+        w = word.strip().lower()
+        book = book_code.strip().upper()
+
+        result: dict = {
+            "translation": "",
+            "confidence": UNCERTAIN,
+            "meaning_shift": False,
+            "alternatives": [],
+            "co_occurring": [],
+            "book_freq": 0,
+            "global_freq": 0,
+        }
+
+        profile = self._word_profiles.get(w)
+        if not profile:
+            return result
+
+        result["global_freq"] = profile.get("total_freq", 0)
+
+        # Find the per-book entry
+        book_entry: dict | None = None
+        for bk_info in profile.get("per_book_distribution", []):
+            if bk_info.get("book", "").upper() == book:
+                book_entry = bk_info
+                break
+
+        if not book_entry:
+            return result
+
+        result["book_freq"] = book_entry.get("frequency", 0)
+        top_trans = book_entry.get("top_translations", [])
+        result["translation"] = top_trans[0] if top_trans else ""
+        result["alternatives"] = top_trans[1:3] if len(top_trans) > 1 else []
+        result["co_occurring"] = book_entry.get("co_occurring_words", [])[:3]
+
+        # Detect meaning shift
+        shifts = profile.get("meaning_shifts", [])
+        if shifts:
+            for shift in shifts:
+                if book in shift.get("books", []):
+                    result["meaning_shift"] = True
+                    if shift.get("translation") and not result["translation"]:
+                        result["translation"] = shift["translation"]
+                    break
+
+        # Confidence from frequency ratio
+        total = profile.get("total_freq", 0)
+        bk_freq = result["book_freq"]
+        if total > 0:
+            ratio = bk_freq / total
+            if ratio > 0.3:
+                result["confidence"] = HIGH
+            elif ratio > 0.1:
+                result["confidence"] = MEDIUM
+            elif bk_freq > 0:
+                result["confidence"] = LOW
+        elif bk_freq > 0:
+            result["confidence"] = LOW
+
+        return result
+
+    def get_book_info(self, book_code: str) -> dict:
+        """Return per-book analysis metadata."""
+        self._ensure_books()
+        return self._book_analysis.get(book_code.strip().upper(), {})
+
+
+# ══════════════════════════════════════════════════════════════════════
 # PHRASE EXTRACTOR
 # ══════════════════════════════════════════════════════════════════════
 class PhraseExtractor:
@@ -492,7 +623,7 @@ class GrammarMatcher:
             "pattern": r"\b(\w+)\s+(?:(?:ki|si|tu|a|in)\s+)?(\w+)\s+([a-zA-Z']+)\b",
             "description": "Subject + Object + Verb (SOV order)",
             "confidence": HIGH,
-    
+
         "negation_kei": {
             "pattern": r"\b(\w+)\s+kei\s+(?:hi|ding|un|leh)\b",
             "description": "1st/2nd person negation (kei)",
@@ -646,26 +777,26 @@ class GrammarMatcher:
         - Future negation: "V + kei + ding" or "V + lo + ding"
         """
         words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]
-        
+
         # Check for person markers
         has_ka = "ka" in words
         has_na = "na" in words
         has_a = "a" in words
-        
+
         # Check for negation particles
         has_kei = "kei" in words
         has_lo = "lo" in words
-        
+
         # Check for future marker
         has_ding = "ding" in words
-        
+
         # Determine person
         person = None
         if has_ka or has_na:
             person = "1st/2nd"
         elif has_a:
             person = "3rd"
-        
+
         # "kei" is the standard negation for ALL persons
         if has_kei:
             return {
@@ -674,7 +805,7 @@ class GrammarMatcher:
                 "negation": "kei",
                 "reason": "kei is the standard negation for all persons",
             }
-        
+
         # "lo" is also valid in different contexts
         if has_lo:
             return {
@@ -683,7 +814,7 @@ class GrammarMatcher:
                 "negation": "lo",
                 "reason": "lo is valid (literary/formal context)",
             }
-        
+
         return {
             "correct": None,
             "person": person,
@@ -700,7 +831,7 @@ class GrammarMatcher:
         - Content: bang hang + verb + subject + hiam?
         """
         words = [w.lower() for w in re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)]
-        
+
         if "hiam" in words:
             # Check if it's a content question with "bang hang"
             if "bang" in words and "hang" in words:
@@ -712,13 +843,13 @@ class GrammarMatcher:
             return {"type": "future", "marker": "diam", "correct": True}
         elif "bang" in words and "ci" in words:
             return {"type": "content", "marker": "bang ci", "correct": True}
-        
+
         return {"type": None, "marker": None, "correct": None}
 
     def check_verb_conjugation(self, zo_text: str) -> dict:
         """Check verb conjugation patterns."""
         words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo_text)
-        
+
         # Check for incorrect "an ne" pattern
         if "an" in words and "ne" in words:
             return {
@@ -727,7 +858,7 @@ class GrammarMatcher:
                 "reason": "Use 'ne' directly, not 'an ne'",
                 "suggestion": "ka ne hi",
             }
-        
+
         # Check for incorrect "nek" usage
         if "nek" in words:
             # Check if it's in correct construction
@@ -741,7 +872,7 @@ class GrammarMatcher:
                             "reason": "Use 'ne' directly after pronoun",
                             "suggestion": f"{prev} ne hi",
                         }
-        
+
         return {"correct": None, "issue": None, "reason": None}
 
     def match_sov(self, zo_text: str) -> dict:
@@ -997,7 +1128,7 @@ class ParticleDatabase:
                 "meaning": "tag question", "frequency": 0},
         "hia": {"position": "sentence-final", "function": "question",
                 "meaning": "casual question", "frequency": 0},
-        
+
         # Pre-verbal particles
         "ding": {"position": "pre-verbal", "function": "future",
                  "meaning": "future tense marker", "frequency": 19773},
@@ -1007,7 +1138,7 @@ class ParticleDatabase:
               "meaning": "3rd person subject agreement marker (goes before verb)", "frequency": 26743},
         "ki": {"position": "pre-verbal", "function": "reflexive",
                "meaning": "reflexive marker", "frequency": 0},
-        
+
         # Post-verbal particles
         "leh": {"position": "post-verbal", "function": "conjunction",
                 "meaning": "and/with", "frequency": 15254},
@@ -1015,7 +1146,7 @@ class ParticleDatabase:
                "meaning": "not (3rd person)", "frequency": 0},
         "kei": {"position": "post-verbal", "function": "negation",
                 "meaning": "not (1st/2nd person)", "frequency": 7059},
-        
+
         # Post-nominal particles
         "ta": {"position": "post-nominal", "function": "possessive",
                "meaning": "possessive marker", "frequency": 0},
@@ -1031,13 +1162,13 @@ class ParticleDatabase:
                     "meaning": "outside", "frequency": 4209},
         "panin": {"position": "post-nominal", "function": "locative",
                   "meaning": "before", "frequency": 4355},
-        
+
         # Demonstrative particles
         "tua": {"position": "pre-nominal", "function": "demonstrative",
                 "meaning": "that/those", "frequency": 12576},
         "hih": {"position": "pre-nominal", "function": "demonstrative",
                 "meaning": "this/these", "frequency": 5353},
-        
+
         # Person agreement markers
         "ka": {"position": "pre-verbal", "function": "agreement",
                "meaning": "1st person singular", "frequency": 13818},
@@ -1045,7 +1176,7 @@ class ParticleDatabase:
                "meaning": "2nd person singular", "frequency": 9334},
         "i": {"position": "pre-verbal", "function": "agreement",
               "meaning": "1st person plural", "frequency": 1045},
-        
+
         # Pronouns
         "amah": {"position": "pre-verbal", "function": "pronoun (emphatic)",
                  "meaning": "he/she/it (standalone pronoun, used for emphasis)", "frequency": 6423},
@@ -1053,7 +1184,7 @@ class ParticleDatabase:
                "meaning": "they/them (3rd person plural marker)", "frequency": 22550},
         "amaute": {"position": "pre-verbal", "function": "pronoun",
                    "meaning": "they (emphatic)", "frequency": 5775},
-        
+
         # Nouns
         "mite": {"position": "pre-verbal", "function": "noun",
                  "meaning": "people", "frequency": 6188},
@@ -1063,87 +1194,87 @@ class ParticleDatabase:
                  "meaning": "Lord", "frequency": 5881},
         "pasian": {"position": "pre-verbal", "function": "title",
                    "meaning": "God", "frequency": 4264},
-        
+
         # Copula
         "ahih": {"position": "sentence-final", "function": "copula",
                  "meaning": "is/am/are", "frequency": 6229},
         "ahi": {"position": "sentence-final", "function": "copula",
                 "meaning": "is/am/are", "frequency": 8617},
-        
+
         # Quotative
         "ci": {"position": "pre-verbal", "function": "quotative",
                "meaning": "say/speak", "frequency": 7932},
-        
+
         # Temporal
         "ciangin": {"position": "pre-verbal", "function": "temporal",
                     "meaning": "then/at that time", "frequency": 10026},
-        
+
         # Directional
         "hong": {"position": "pre-verbal", "function": "directional",
                  "meaning": "toward speaker", "frequency": 15600},
-        
+
         # Conjunctions
         "hang": {"position": "inter-clausal", "function": "conjunction",
                  "meaning": "but/however", "frequency": 0},
         "cih": {"position": "inter-clausal", "function": "conjunction",
                 "meaning": "then/and then", "frequency": 0},
-        
+
         # Question words
         "bang": {"position": "pre-verbal", "function": "question",
                  "meaning": "what/how", "frequency": 0},
         "kua": {"position": "sentence-final", "function": "question",
                 "meaning": "who (question)", "frequency": 0},
-        
+
         # Auxiliaries
         "thei": {"position": "pre-verbal", "function": "auxiliary",
                  "meaning": "know/understand", "frequency": 0},
         "gal": {"position": "pre-verbal", "function": "auxiliary",
                 "meaning": "can/able", "frequency": 0},
-        
+
         # Focus
         "mai": {"position": "sentence-final", "function": "focus",
                 "meaning": "focus/emphasis", "frequency": 0},
-        
+
         # Plural
         "te": {"position": "post-nominal", "function": "plural",
                "meaning": "plural marker", "frequency": 0},
-        
+
         # Nominalizer
         "na": {"position": "post-nominal", "function": "nominalizer",
                "meaning": "nominalizer", "frequency": 0},
-        
+
         # Relative
         "hih": {"position": "sentence-medial", "function": "relative",
                 "meaning": "which/that", "frequency": 5353},
-        
+
         # Temporal
         "zat": {"position": "sentence-medial", "function": "temporal",
                 "meaning": "when/at the time of", "frequency": 0},
-        
+
         # Adversative
         "kia": {"position": "pre-verbal", "function": "adversative",
                 "meaning": "only/but", "frequency": 0},
-        
+
         # Imperative
         "ang": {"position": "pre-verbal", "function": "imperative",
                 "meaning": "do (imperative)", "frequency": 0},
-        
+
         # Exclamative
         "khi": {"position": "post-verbal", "function": "exclamative",
                 "meaning": "exclamative particle", "frequency": 0},
-        
+
         # Locative
         "le": {"position": "post-nominal", "function": "locative",
                "meaning": "at/on/in", "frequency": 0},
-        
+
         # Subordinator
         "ci": {"position": "pre-verbal", "function": "subordinator",
                "meaning": "that (complementizer)", "frequency": 7932},
-        
+
         # Comparative
         "than": {"position": "pre-verbal", "function": "comparative",
                  "meaning": "more than", "frequency": 0},
-        
+
         # Emphatic
         "lah": {"position": "sentence-final", "function": "emphatic",
                 "meaning": "emphatic particle", "frequency": 0},
@@ -1175,7 +1306,8 @@ class VerseAnalyzer:
     def __init__(self, glossing: GlossingEngine, phrases: PhraseExtractor,
                  morphology: MorphologyAnalyzer, grammar: GrammarMatcher,
                  clauses: ClauseAnalyzer, contrastive: ContrastiveAnalyzer,
-                 verbs: VerbDatabase, particles: ParticleDatabase):
+                 verbs: VerbDatabase, particles: ParticleDatabase,
+                 context_glosser: "ContextGlosser | None" = None):
         self.glossing = glossing
         self.phrases = phrases
         self.morphology = morphology
@@ -1184,6 +1316,7 @@ class VerseAnalyzer:
         self.contrastive = contrastive
         self.verbs = verbs
         self.particles = particles
+        self.context_glosser = context_glosser
 
     def analyze_verse(self, verse: dict) -> dict:
         """Full analysis of a single verse with comprehensive study output."""
@@ -1200,6 +1333,20 @@ class VerseAnalyzer:
         # 1. Glossing (phrase-first, then word-by-word)
         glosses = self.glossing.gloss_verse(zo)
         dict_rate = sum(1 for g in glosses if g["source"] != "miss") / len(glosses) if glosses else 0
+
+        # 1b. Context-aware glossing (optional, book-specific)
+        context_translations: dict[str, dict] = {}
+        if self.context_glosser and book:
+            words = re.findall(r"[a-zA-Z\u0027\u2019]+", zo)
+            seen_words: set[str] = set()
+            for w in words:
+                wl = w.lower()
+                if wl in seen_words:
+                    continue
+                seen_words.add(wl)
+                ctx = self.context_glosser.get_context_aware_translation(wl, book)
+                if ctx.get("translation") or ctx.get("co_occurring"):
+                    context_translations[wl] = ctx
 
         # 2. Phrase extraction
         phrases_found = self.phrases.extract_all(zo)
@@ -1265,6 +1412,7 @@ class VerseAnalyzer:
             "word_combinations": word_combinations,
             "vocabulary": vocabulary,
             "sentence_pattern": sentence_pattern,
+            "context_translations": context_translations,
             "word_count": len(zo_words),
             "analysis_timestamp": datetime.now().isoformat(),
         }
@@ -1849,21 +1997,26 @@ class BibleEngine:
         self.searcher = CorpusSearcher()
         self.exporter = DatasetExporter(load_corpus_by_book, self.glossing, self.grammar)
         self.evidence = EvidenceScorer()
+        self.context_glosser = ContextGlosser()
 
         self.analyzer = VerseAnalyzer(
             self.glossing, self.phrases, self.morphology, self.grammar,
             self.clauses, self.contrastive, self.verb_db, self.particle_db,
+            self.context_glosser,
         )
 
         print(f"  {self.verb_db.count()} verbs loaded")
         print(f"  {self.particle_db.count()} particles loaded")
         print(f"{G}Engine ready.{NC}\n")
 
-    def study_book(self, book: str) -> dict:
+    def study_book(self, book: str, context: bool = False) -> dict:
         """Full verse analysis for a book."""
         verses = load_corpus_by_book(book)
         if not verses:
             return {"book": book, "verses": 0, "error": "no_verses_found"}
+
+        # Enable/disable context glosser for this run
+        self.analyzer.context_glosser = self.context_glosser if context else None
 
         output_dir = KB_DIR / "verses"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1893,16 +2046,17 @@ class BibleEngine:
             "vocab_rate": round(vocab_hits / max(total_words, 1) * 100, 1),
             "miss_rate": round(misses / max(total_words, 1) * 100, 1),
             "output": str(output_file),
+            "context_enabled": context,
         }
 
-    def study_all(self) -> dict:
+    def study_all(self, context: bool = False) -> dict:
         """Study all 66 books."""
         corpus = load_jsonl(CORPUS)
         books = sorted({v.get("book", "") for v in corpus if v.get("book")})
         results = []
         for i, book in enumerate(books, 1):
             print(f"  [{i}/{len(books)}] Analyzing {book}...")
-            r = self.study_book(book)
+            r = self.study_book(book, context=context)
             results.append(r)
         return {"books": len(books), "results": results}
 
@@ -2008,6 +2162,8 @@ Stats:
     parser.add_argument("--study", action="store_true", help="Full verse analysis (study mode)")
     parser.add_argument("--all", action="store_true", help="Process all books")
     parser.add_argument("--book", type=str, help="Book code(s) comma-separated")
+    parser.add_argument("--context", action="store_true",
+                        help="Enable context-aware glossing (per-book word usage profiles)")
 
     # Learning mode
     parser.add_argument("--learn", action="store_true", help="Progressive learning mode")
@@ -2046,17 +2202,29 @@ Stats:
         return
 
     if args.study:
+        ctx = args.context
+        if ctx:
+            # Verify context data exists
+            ctx_dir = DATA / "bible" / "context"
+            if not ctx_dir.exists():
+                print(f"{R}Warning: context data not found at {ctx_dir}{NC}")
+                print("  Run context_deep_learner.py --build first")
+                ctx = False
+            else:
+                print(f"{G}Context-aware glossing ENABLED{NC}")
         if args.all:
-            result = engine.study_all()
+            result = engine.study_all(context=ctx)
             print(f"\n{G}═══ Study Complete ═══{NC}")
             print(f"  Books analyzed: {result['books']}")
         elif args.book:
             books = [b.strip().upper() for b in args.book.split(",")]
             for book in books:
-                result = engine.study_book(book)
+                result = engine.study_book(book, context=ctx)
                 print(f"\n{G}═══ {book} Complete ═══{NC}")
                 print(f"  Verses: {result['verses']}")
                 print(f"  Dict rate: {result.get('dict_rate', 0)}%")
+                if result.get("context_enabled"):
+                    print("  Context: ON (per-book profiles)")
                 print(f"  Output: {result.get('output', '')}")
         else:
             parser.error("--study requires --book or --all")
@@ -2133,6 +2301,36 @@ Stats:
         for r in results[:10]:
             print(f"\n  {B}{r['ref']}{NC}")
             print(f"    ZO: {r['zo'][:100]}...")
+        return
+
+    # Standalone word + book context lookup
+    if args.word and not args.review:
+        word = args.word.strip().lower()
+        book = (args.book or "").strip().upper()
+        print(f"\n{Y}═══ Word: {word} ═══{NC}")
+        # Basic gloss
+        gloss = engine.glossing.gloss_word(word)
+        print(f"  Translation: {gloss.get('gloss', '?')}")
+        print(f"  Source: {gloss.get('source', '?')}")
+        print(f"  Alternatives: {gloss.get('alternatives', [])}")
+        # Context-aware if book given
+        if book:
+            ctx = engine.context_glosser.get_context_aware_translation(word, book)
+            book_info = engine.context_glosser.get_book_info(book)
+            print(f"\n  {C}── {book} ({book_info.get('book_name', '?')}) ──{NC}")
+            print(f"  Book frequency: {ctx.get('book_freq', 0)} "
+                  f"(global: {ctx.get('global_freq', 0)})")
+            if ctx.get("translation"):
+                print(f"  Book-specific translation: {ctx['translation']}")
+            if ctx.get("meaning_shift"):
+                print(f"  {Y}⚠ Meaning shift detected in {book}{NC}")
+            if ctx.get("alternatives"):
+                print(f"  Alternatives in {book}: {ctx['alternatives']}")
+            if ctx.get("co_occurring"):
+                co = ctx["co_occurring"]
+                print("  Co-occurring words: "
+                      + ", ".join(f"{c['word']}({c['count']})" for c in co))
+        print()
         return
 
     # Default: show help
