@@ -126,7 +126,7 @@ def test_pipeline_steps():
 # === DICTIONARY ===
 
 def test_dict_zo_en_clean():
-    path = DATA / "dictionary" / "processed" / "dict_zo_en_clean.jsonl"
+    path = DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
     assert path.exists(), f"Missing: {path}"
     with open(path) as f:
         first = json.loads(f.readline())
@@ -142,7 +142,7 @@ def test_dict_canonical_clean():
 
 
 def test_dict_zo_en_search():
-    path = DATA / "dictionary" / "processed" / "dict_zo_en_clean.jsonl"
+    path = DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
     with open(path) as f:
         for line in f:
             d = json.loads(line)

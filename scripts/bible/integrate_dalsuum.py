@@ -2,7 +2,7 @@
 """
 Integrate Dalsuum Zolai-English-Myanmar Dictionary
 Reads data/online/dalsuum-zolai-dictionary/words.json (7,861 headwords)
-Cross-checks against existing dict_zo_en_clean.jsonl (93K entries)
+Cross-checks against existing dict_zo_en_master_v1.jsonl (93K entries)
 Outputs: data/dictionary/processed/dict_dalsuum_merged.jsonl
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 INPUT_FILE = DATA_DIR / "online" / "dalsuum-zolai-dictionary" / "words.json"
-EXISTING_DICT = DATA_DIR / "dictionary" / "processed" / "dict_zo_en_clean.jsonl"
+EXISTING_DICT = DATA_DIR / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
 OUTPUT_FILE = DATA_DIR / "dictionary" / "processed" / "dict_dalsuum_merged.jsonl"
 
 # ZVS 2018 forbidden form mappings

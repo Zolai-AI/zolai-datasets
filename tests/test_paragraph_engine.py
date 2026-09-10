@@ -95,7 +95,7 @@ print(found[0] if found else 'NOT_FOUND')
         result = run_cmd([sys.executable, "-c", f"""
 import json
 q = 'pasian'
-path = '{WORKSPACE}/data/dictionary/processed/dict_zo_en_clean.jsonl'
+path = '{WORKSPACE}/data/dictionary/processed/dict_zo_en_master_v1.jsonl'
 found = []
 with open(path) as f:
     for line in f:

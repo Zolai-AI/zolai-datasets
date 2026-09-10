@@ -105,7 +105,7 @@ def main():
         print("  Bible: NOT FOUND")
     
     # Load dictionary
-    dict_path = data_dir / 'dictionary' / 'processed' / 'dict_zo_en_clean.jsonl'
+    dict_path = data_dir / 'dictionary' / 'processed' / 'dict_zo_en_master_v1.jsonl'
     if dict_path.exists():
         dictionary = load_jsonl(dict_path)
         print(f"  Dictionary: {len(dictionary)} entries")

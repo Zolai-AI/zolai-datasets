@@ -33,7 +33,7 @@ WORKSPACE = Path(__file__).resolve().parents[3]
 DATA_PATHS = {
     "bible": WORKSPACE / "data/bible/parallel_corpus_v1.jsonl",
     "parallel": WORKSPACE / "data/parallel/zo_en_pairs_combined_v1.jsonl",
-    "dict": WORKSPACE / "data/dictionary/processed/dict_zo_en_clean.jsonl",
+    "dict": WORKSPACE / "data/dictionary/processed/dict_zo_en_master_v1.jsonl",
 }
 
 SYSTEM_PROMPT = (

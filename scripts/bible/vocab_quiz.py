@@ -28,7 +28,7 @@ DATA = Path("/home/peter/Documents/Projects/zolai-ai/data")
 VOCAB_INDEX = DATA / "bible" / "vocab_index_full.jsonl"
 PHRASES_DB = DATA / "bible" / "phrases_v1.jsonl"
 DICT_ZO_EN = DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
-SUPPLEMENT_DICT = DATA / "dictionary" / "processed" / "dict_bible_supplement_v1.jsonl"
+SUPPLEMENT_DICT = DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
 
 class VocabQuiz:
     """Vocabulary quiz engine."""
