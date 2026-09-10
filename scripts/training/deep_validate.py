@@ -35,7 +35,7 @@ from typing import Any
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 
-DICT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_zo_en_clean.jsonl"
+DICT_PATH = WORKSPACE / "data" / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
 VOCAB_PATH = WORKSPACE / "data" / "bible" / "vocab_index_full.jsonl"
 CORPUS_PATH = WORKSPACE / "data" / "bible" / "parallel_corpus_v1.jsonl"
 PATTERNS_PATH = WORKSPACE / "data" / "bible" / "grammar_patterns_text.jsonl"

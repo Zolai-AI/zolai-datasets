@@ -32,7 +32,7 @@ VOCAB_SOURCES = [
     },
     {
         "name": "dict_zo_en",
-        "path": DATA_DIR / "dictionary" / "processed" / "dict_zo_en_clean.jsonl",
+        "path": DATA_DIR / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl",
         "key_zo": "zolai",
         "key_en": "english_clean",
         "has_freq": False,

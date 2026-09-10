@@ -31,7 +31,7 @@ INPUT_FILES = {
     "verb_database": BIBLE_DIR / "verb_database_v1.jsonl",
     "particle_database": BIBLE_DIR / "particle_database_v1.jsonl",
     "dict_zo_en": DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl",
-    "dict_supplement": DATA / "dictionary" / "processed" / "dict_bible_supplement_v1.jsonl",
+    "dict_supplement": DATA / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl",
 }
 
 # Output directories

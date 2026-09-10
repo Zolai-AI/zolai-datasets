@@ -31,7 +31,7 @@ from typing import Any
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 PARALLEL_PATH = WORKSPACE / "data/bible/parallel_corpus_v1.jsonl"
-DICT_PATH = WORKSPACE / "data/dictionary/processed/dict_zo_en_clean.jsonl"
+DICT_PATH = WORKSPACE / "data/dictionary/processed/dict_zo_en_master_v1.jsonl"
 
 # ---------------------------------------------------------------------------
 # ZVS 2018 forbidden forms → correct forms
