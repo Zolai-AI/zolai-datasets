@@ -37,6 +37,7 @@ VERIFIED_PATH = OUTPUT_DIR / "dict_zo_en_verified_v1.jsonl"
 # ── Correction rules ───────────────────────────────────────────────────────
 # Format: {zolai_word: {"old_english": ..., "new_english": ..., "new_english_clean": ..., "reason": ...}}
 CORRECTIONS = {
+    # Original 7 corrections (kept as-is)
     "in": {
         "old_english": ["! (imperative)"],
         "new_english": ["ergative marker (agent of transitive); directional 'in/to'"],
@@ -79,11 +80,96 @@ CORRECTIONS = {
         "new_english_clean": "plural marker (3rd person verb suffix — NOT standalone 'they')",
         "reason": "Native speaker: uh = plural marker only; they = hihte/amaute/huate",
     },
+    # Additional corrections (8-20)
     "nasep": {
-        "old_english": ["work, labor"],
-        "new_english": ["work/labor/job"],
-        "new_english_clean": "work/labor/job",
-        "reason": "Standardized: nasep = work (kammal = deed/commandment)",
+        "old_english": ["deed"],
+        "new_english": ["work/service"],
+        "new_english_clean": "work/service (NOT deed — deed = kammal)",
+        "reason": "Native speaker: nasep = work; kammal = deed/commandment",
+    },
+    "na": {
+        "old_english": ["new, fresh"],
+        "new_english": ["possessive particle (your/my); quotative connector"],
+        "new_english_clean": "possessive particle (your/my); quotative connector",
+        "reason": "Native speaker: na = possessive + quotative, NOT 'new/fresh'",
+    },
+    "kei": {
+        "old_english": [""],
+        "new_english": ["negation not (ALL persons); OR I/me (1st person pronoun)"],
+        "new_english_clean": "negation not (ALL persons); OR I/me (1st person pronoun)",
+        "reason": "Native speaker: kei = negation for all persons; also 1st person pronoun in some dialects",
+    },
+    "tawh": {
+        "old_english": [""],
+        "new_english": ["with (comitative); key; free-hand"],
+        "new_english_clean": "with (comitative); key; free-hand",
+        "reason": "Native speaker: tawh = with, key, free-hand (multiple meanings)",
+    },
+    "ahi": {
+        "old_english": [""],
+        "new_english": ["copula is/am/are/was (context-dependent)"],
+        "new_english_clean": "copula is/am/are/was (context-dependent)",
+        "reason": "Native speaker: ahi = copula verb, context-dependent",
+    },
+    "ci": {
+        "old_english": [""],
+        "new_english": ["say/speak/tell (quotative verb, most frequent)"],
+        "new_english_clean": "say/speak/tell (quotative verb, most frequent)",
+        "reason": "Native speaker: ci = quotative verb, most frequent in Bible",
+    },
+    "lo": {
+        "old_english": [""],
+        "new_english": ["literary negation (standalone, NO agreement)"],
+        "new_english_clean": "literary negation (standalone, NO agreement)",
+        "reason": "Native speaker: lo = literary negation, standalone (pai lo hi, NOT a pai lo hi)",
+    },
+    "u": {
+        "old_english": ["they"],
+        "new_english": ["elder brother/sister (NOT they!)"],
+        "new_english_clean": "elder brother/sister (NOT they!)",
+        "reason": "Bible: 1JN 2:9 — u = elder brother/sister; they = hihte/amaute/huate",
+    },
+    "nau": {
+        "old_english": ["younger"],
+        "new_english": ["younger brother/sister"],
+        "new_english_clean": "younger brother/sister",
+        "reason": "Bible: 1CO 1:10 — nau = younger brother/sister",
+    },
+    "hihte": {
+        "old_english": [""],
+        "new_english": ["they (respectful/older)"],
+        "new_english_clean": "they (respectful/older)",
+        "reason": "Native speaker: hihte = respectful/older 'they'",
+    },
+    "huate": {
+        "old_english": [""],
+        "new_english": ["those/them (demonstrative)"],
+        "new_english_clean": "those/them (demonstrative)",
+        "reason": "Native speaker: huate = demonstrative 'those/them'",
+    },
+    "mankhin": {
+        "old_english": [""],
+        "new_english": ["truly/completed"],
+        "new_english_clean": "truly/completed",
+        "reason": "Bible: EXO 39:32 — mankhin = truly/completed",
+    },
+    "kiman": {
+        "old_english": [""],
+        "new_english": ["finished/completed"],
+        "new_english_clean": "finished/completed",
+        "reason": "Bible: EXO 39:32 — kiman = finished/completed",
+    },
+    "khin": {
+        "old_english": ["experiential"],
+        "new_english": ["past simple/experiential marker"],
+        "new_english_clean": "past simple/experiential marker (NOT just experiential)",
+        "reason": "Native speaker: khin = past simple AND experiential; ta = completive/realized",
+    },
+    "ta": {
+        "old_english": ["past"],
+        "new_english": ["completive/realized aspect"],
+        "new_english_clean": "completive/realized aspect (NOT past simple)",
+        "reason": "Native speaker: ta = completive/realized; khin = past simple",
     },
 }
 
@@ -155,7 +241,12 @@ def apply_corrections(records, corpus):
                     break
 
             # Always correct for specific words regardless of current value
-            always_correct_words = {"uh", "in", "leh", "nek", "kammal", "sing", "siam"}
+            always_correct_words = {
+                "in", "leh", "nek", "kammal", "sing", "siam", "uh",
+                "nasep", "na", "kei", "tawh", "ahi", "ci", "lo",
+                "u", "nau", "hihte", "huate", "mankhin", "kiman",
+                "khin", "ta",
+            }
             if zolai in always_correct_words:
                 should_correct = True
 
@@ -222,6 +313,43 @@ def find_potential_errors(records):
             })
 
     return issues
+
+
+def scan_high_frequency_words(records, corpus):
+    """Scan for high-frequency Bible words (>50 occurrences) that may need review."""
+    print("\n--- High-Frequency Bible Words Scanner ---")
+    
+    # Build word frequency from corpus
+    word_freq = {}
+    for verse in corpus:
+        zo_text = verse.get("zo_tdb77") or verse.get("zo_tedim2010") or ""
+        words = re.findall(r"\b\w+\b", zo_text.lower())
+        for w in words:
+            word_freq[w] = word_freq.get(w, 0) + 1
+    
+    # Find high-frequency words (>50 occurrences)
+    high_freq = {w: f for w, f in word_freq.items() if f > 50}
+    print(f"  Found {len(high_freq)} words with >50 Bible occurrences")
+    
+    # Cross-reference with dictionary
+    dict_words = {r.get("zolai", "").lower(): r for r in records}
+    
+    high_freq_issues = []
+    for word, freq in sorted(high_freq.items(), key=lambda x: -x[1])[:100]:
+        if word in dict_words:
+            record = dict_words[word]
+            english = record.get("english_clean", "") or ""
+            # Flag words with suspicious definitions
+            suspicious = ["!", "?", "...", "xx", "yy", "zz"]
+            if any(s in english.lower() for s in suspicious):
+                high_freq_issues.append({
+                    "word": word,
+                    "freq": freq,
+                    "current_def": english,
+                    "issue": "Suspicious definition in high-frequency word",
+                })
+    
+    return high_freq, high_freq_issues
 
 
 def build_verified_database(records):
@@ -294,6 +422,14 @@ def main():
     issues = find_potential_errors(corrected_records)
     print(f"  Found {len(issues)} potential issues")
 
+    # Scan high-frequency words
+    high_freq, high_freq_issues = scan_high_frequency_words(corrected_records, corpus)
+    if high_freq_issues:
+        print(f"  Found {len(high_freq_issues)} high-frequency words with suspicious definitions")
+
+    # Build dict lookup for stats
+    dict_words = {r.get("zolai", "").lower(): r for r in corrected_records}
+
     # Build verified database
     print("\n--- Building Verified Database ---")
     verified = build_verified_database(corrected_records)
@@ -315,6 +451,7 @@ def main():
     print(f"  Original entries:    {len(records)}")
     print(f"  Corrections applied: {len(corrections_log)}")
     print(f"  Potential issues:    {len(issues)}")
+    print(f"  High-freq words:     {len(high_freq)} (>50 Bible occurrences)")
     print(f"  Verified entries:    {len(verified)}")
 
     if "--stats" in sys.argv:
@@ -333,6 +470,20 @@ def main():
                 print(f"  [{issue['zolai']}] {issue['issue']}")
                 print(f"    English: {issue['english_clean']}")
                 print()
+
+        if high_freq_issues:
+            print("\n--- High-Frequency Words with Suspicious Definitions ---")
+            for issue in high_freq_issues[:20]:
+                print(f"  [{issue['word']}] freq={issue['freq']}")
+                print(f"    Current: {issue['current_def']}")
+                print(f"    Issue: {issue['issue']}")
+                print()
+
+        print("\n--- Top 20 High-Frequency Bible Words ---")
+        for word, freq in sorted(high_freq.items(), key=lambda x: -x[1])[:20]:
+            dict_entry = dict_words.get(word, {})
+            eng = dict_entry.get("english_clean", "") or "NOT IN DICT"
+            print(f"  {word}: {freq} occurrences → {eng}")
 
     if "--scan-only" in sys.argv:
         print("\n--- Scan Only Mode ---")
