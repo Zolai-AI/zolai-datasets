@@ -135,6 +135,64 @@ def get_vocab_translations(word, vocab_data):
     return None
 
 
+def _is_zolai_word(word):
+    """Check if a word looks like Zolai (not pure English).
+
+    Returns True if the word is likely a Zolai headword rather than
+    an English dictionary entry.  Rough heuristic: skip words that
+    are common English, have English-only morphology, or contain
+    only ASCII alphanumerics and spaces with no Zolai particle
+    patterns.
+    """
+    if not word:
+        return False
+    wl = word.lower().strip()
+
+    # Skip entries that are clearly English dictionary markers / junk
+    skip_prefixes = (
+        "& ", "(", ")", '"', "'", "adv", "v.", "n.", "adj",
+    )
+    if any(wl.startswith(p) for p in skip_prefixes):
+        return False
+
+    # Skip words with clearly English suffixes
+    eng_suffixes = (
+        "tion", "ment", "ness", "ity", "ous", "ive", "ing",
+        "ed", "ful", "less", "able", "ible", "tion", "ence",
+        "ance", "ism", "ist", "ize", "ise", "ly", "al",
+    )
+    if any(wl.endswith(s) for s in eng_suffixes):
+        return False
+
+    # Skip common English words
+    common_english = {
+        "the", "and", "for", "are", "but", "not", "you",
+        "all", "can", "had", "her", "was", "one", "our",
+        "out", "has", "his", "how", "its", "may", "new",
+        "now", "old", "see", "way", "who", "did", "got",
+        "let", "say", "she", "too", "use", "from", "that",
+        "with", "have", "this", "will", "your", "each",
+        "make", "like", "long", "look", "many", "most",
+        "over", "such", "take", "than", "them", "then",
+        "what", "when", "come", "could", "been", "were",
+        "some", "very", "just", "know", "also",
+    }
+    if wl in common_english:
+        return False
+
+    # Skip if it's purely ASCII and contains no Zolai particles
+    if wl.isascii():
+        zolai_particles = (
+            "leh", "hi", "in ", " na", " ka", " a ", "tu ",
+            " ki", " hi.", " hiam", " kei", " ding", " lai",
+            " ta.", " zo.", " sung", " tawh", " ciang",
+        )
+        if not any(p in wl for p in zolai_particles):
+            return False
+
+    return True
+
+
 class ProficiencyTest:
     """Zolai proficiency test generator."""
 
@@ -159,10 +217,10 @@ class ProficiencyTest:
         self.vocab = load_vocab()
         self.dict_data = load_dict()
         self._loaded = True
-        # Build vocab lookup
+        # Build vocab lookup  (vocab_index uses headword/english)
         self.vocab_map = {}
         for v in self.vocab:
-            w = v.get("word", "")
+            w = v.get("headword", v.get("word", ""))
             if w:
                 self.vocab_map[w.lower()] = v
         # Build dict lookup
@@ -171,28 +229,42 @@ class ProficiencyTest:
             w = d.get("zolai", "")
             if w:
                 self.dict_map[w.lower()] = d
+        # Build list of (zolai_word, english_translation) pairs
+        # from vocab_index (canonical source — 20K+ real Zolai words)
+        self.zolai_pairs = []
+        for v in self.vocab:
+            head = v.get("headword", v.get("word", ""))
+            eng = v.get("english", "")
+            if head and eng and _is_zolai_word(head):
+                self.zolai_pairs.append((head, str(eng)))
+        # Also pull from dict_zo_en_clean (filtered dict)
+        for d in self.dict_data:
+            zol = d.get("zolai", "")
+            eng = d.get("english_clean", "")
+            if zol and eng and _is_zolai_word(zol):
+                self.zolai_pairs.append((zol, eng))
+        # Deduplicate by Zolai word (keep first occurrence)
+        seen = set()
+        deduped = []
+        for z, e in self.zolai_pairs:
+            key = z.lower().strip()
+            if key not in seen:
+                seen.add(key)
+                deduped.append((z, e))
+        self.zolai_pairs = deduped
 
     def _pick_random_vocab(self, n):
-        """Pick n random vocab entries with translations."""
+        """Pick n random vocab entries with translations.
+
+        Uses self.zolai_pairs — already filtered to Zolai headwords
+        only (no English dictionary entries).
+        """
         self._ensure_loaded()
-        good = []
-        for v in self.vocab:
-            trans = v.get("translations", [])
-            if isinstance(trans, list) and trans:
-                t = str(trans[0]).strip()
-                if t and len(t) > 2:
-                    good.append(v)
-        if not good:
-            # Fallback: use dict
-            for d in self.dict_data:
-                eng = d.get("english", [])
-                if isinstance(eng, list) and eng:
-                    good.append({
-                        "word": d.get("zolai", ""),
-                        "translations": eng,
-                        "frequency": 0,
-                    })
-        return random.sample(good, min(n, len(good)))
+        if not self.zolai_pairs:
+            return []
+        return random.sample(
+            self.zolai_pairs, min(n, len(self.zolai_pairs))
+        )
 
     def _pick_random_sentences(self, n):
         """Pick n random Bible verses with translations."""
@@ -213,19 +285,15 @@ class ProficiencyTest:
         """Multiple choice: what does this Zolai word mean?"""
         items = self._pick_random_vocab(n)
         questions = []
-        for item in items:
-            word = item.get("word", "")
-            trans_list = item.get("translations", [])
-            if isinstance(trans_list, list):
-                correct = str(trans_list[0]) if trans_list else "?"
-            else:
-                correct = str(trans_list)
-            # Truncate long translations
+        for word, correct in items:
+            if not word or not correct or len(str(correct)) < 2:
+                continue
+            correct = str(correct)
             if len(correct) > 60:
                 correct = correct[:57] + "..."
-            # Pick 3 wrong answers
-            distractors = self._get_distractors(
-                correct, self.vocab, key="translations"
+            # Pick 3 wrong answers from zolai_pairs
+            distractors = self._get_distractors_from_pairs(
+                word, correct, self.zolai_pairs
             )
             options = [correct] + distractors
             random.shuffle(options)
@@ -233,7 +301,7 @@ class ProficiencyTest:
                 "type": "vocab",
                 "question": (
                     "What does the Zolai word "
-                    f"'{word}' mean?"
+                    f"'{word}' mean in English?"
                 ),
                 "options": options,
                 "answer": options.index(correct),
@@ -594,6 +662,24 @@ class ProficiencyTest:
                 break
         random.shuffle(candidates)
         return candidates[:3]
+
+    def _get_distractors_from_pairs(
+        self, correct_word, correct_translation, pairs, count=3
+    ):
+        """Pick 3 wrong translations from zolai_pairs (tuples)."""
+        candidates = []
+        for word, trans in pairs:
+            t = str(trans)
+            if (
+                word != correct_word
+                and t != correct_translation
+                and len(t) > 2
+            ):
+                candidates.append(t)
+            if len(candidates) >= 20:
+                break
+        random.shuffle(candidates)
+        return candidates[:count]
 
     def _get_sentence_distractors(self, correct, corpus):
         """Pick 3 wrong English sentences."""
