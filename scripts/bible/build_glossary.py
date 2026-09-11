@@ -124,7 +124,7 @@ def build_glossary(records, word_freq):
     lines.append("=" * 70)
     lines.append("ZOLAI AI — FINAL GLOSSARY (Bible-Verified)")
     lines.append("=" * 70)
-    lines.append(f"Generated: 2026-09-11")
+    lines.append("Generated: 2026-09-11")
     lines.append(f"Dictionary entries: {len(records)}")
     lines.append(f"Bible words with frequency: {len(word_freq)}")
     lines.append("")
