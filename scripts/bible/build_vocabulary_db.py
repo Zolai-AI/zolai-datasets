@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.VocabularyBuilder.build_vocab_db()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """
 Phase 4: Vocabulary Database Builder.
 

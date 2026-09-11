@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.GrammarBuilder.extract_sinna_lessons()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → GrammarBuilder
 """
 Script 2: Extract Sinna lessons from Zolai_Sinna.md
 Parses 34 lessons into structured JSON with vocab, sentences, grammar.

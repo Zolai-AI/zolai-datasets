@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.GrammarBuilder.extract_zvs_rules()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → GrammarBuilder
 """
 Script 3: Extract ZVS 2018 rules from ZVS_PDF.md
 Parses vowel chart, adopted word rules, apostrophe usage, word formation.

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.ParallelBuilder.build_from_markdown()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → ParallelBuilder
 """
 Phase 1: Parallel Corpus Parser.
 
