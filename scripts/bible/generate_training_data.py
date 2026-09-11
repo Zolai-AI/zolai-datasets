@@ -11,7 +11,7 @@ Usage:
 Input:
     ../data/bible/parallel_corpus_v1.jsonl
     ../data/bible/vocabulary_db_v1.jsonl
-    ../data/bible/grammar_patterns_v1.jsonl
+    ../data/bible/grammar_patterns_v2.jsonl
 
 Output:
     ../data/bible/translation_pairs_v1.jsonl
@@ -30,7 +30,7 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parent.parent.parent.parent
 CORPUS_PATH = WORKSPACE / "data" / "bible" / "parallel_corpus_v1.jsonl"
 VOCAB_PATH = WORKSPACE / "data" / "bible" / "vocabulary_db_v1.jsonl"
-GRAMMAR_PATH = WORKSPACE / "data" / "bible" / "grammar_patterns_v1.jsonl"
+GRAMMAR_PATH = WORKSPACE / "data" / "bible" / "grammar_patterns_v2.jsonl"
 TRANSLATIONS_PATH = WORKSPACE / "data" / "bible" / "translation_pairs_v1.jsonl"
 EXERCISES_PATH = WORKSPACE / "data" / "bible" / "grammar_exercises_v1.jsonl"
 QUIZ_PATH = WORKSPACE / "data" / "bible" / "vocabulary_quiz_v1.jsonl"

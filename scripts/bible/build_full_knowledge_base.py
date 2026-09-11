@@ -511,7 +511,7 @@ def main():
     # Full knowledge base
     print("\nBuilding grammar patterns...")
     gp = extract_grammar_patterns(verses, d)
-    out = KB_DIR / "grammar_patterns_v1.jsonl"
+    out = KB_DIR / "grammar_patterns_v2.jsonl"
     with open(out, "w") as f:
         for entry in gp:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
