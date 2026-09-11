@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """.. deprecated::
     Use ``bible_knowledge_builder.ParallelBuilder.build_from_usx()``
@@ -9,7 +10,6 @@
 Usage:
     python scripts/build_parallel_bible.py [--books GEN JHN ...] [--out-dir PATH]
 """
-from __future__ import annotations
 
 import argparse
 import sys

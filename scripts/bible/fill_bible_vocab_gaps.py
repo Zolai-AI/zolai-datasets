@@ -1,3 +1,4 @@
+from __future__ import annotations
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script required external API keys (Gemini) and is kept for
@@ -10,7 +11,6 @@ Pipeline: Extract Bible vocab → find gaps → fill with Gemini → update DB +
 Usage:
   python scripts/fill_bible_vocab_gaps.py --book GEN [--chapters 1-50] [--dry-run]
 """
-from __future__ import annotations
 
 import argparse
 import json

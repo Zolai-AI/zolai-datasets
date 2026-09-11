@@ -1,3 +1,4 @@
+from __future__ import annotations
 """.. deprecated::
     Use ``bible_knowledge_builder.ParallelBuilder.rebuild_combined()``
     instead. This script is kept for reference only.
@@ -8,7 +9,6 @@ Rebuild data/master/combined/parallel.jsonl from all 4 fixed Bible versions + KJ
 Adds TDB_online, TB77_online, TBR17, Tedim2010 × KJV pairs.
 Preserves existing non-Bible pairs (wiki, synthetic, etc.).
 """
-from __future__ import annotations
 
 import hashlib
 import json

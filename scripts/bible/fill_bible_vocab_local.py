@@ -1,3 +1,4 @@
+from __future__ import annotations
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
@@ -21,7 +22,6 @@ Usage:
   python scripts/fill_bible_vocab_local.py --book GEN
   python scripts/fill_bible_vocab_local.py --book GEN --chapters 1-10
 """
-from __future__ import annotations
 
 import argparse
 import json
