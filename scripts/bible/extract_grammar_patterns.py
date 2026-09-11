@@ -13,7 +13,7 @@ Input:
     ../data/bible/word_alignments_v1.jsonl
 
 Output:
-    ../data/bible/grammar_patterns_v1.jsonl
+    ../data/bible/grammar_patterns_v2.jsonl
 """
 
 import json
@@ -26,7 +26,7 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parent.parent.parent.parent
 CORPUS_PATH = WORKSPACE / "data" / "bible" / "parallel_corpus_v1.jsonl"
 ALIGNMENTS_PATH = WORKSPACE / "data" / "bible" / "word_alignments_v1.jsonl"
-OUTPUT_PATH = WORKSPACE / "data" / "bible" / "grammar_patterns_v1.jsonl"
+OUTPUT_PATH = WORKSPACE / "data" / "bible" / "grammar_patterns_v2.jsonl"
 
 # ── Pattern definitions ──────────────────────────────────────────────────────
 
