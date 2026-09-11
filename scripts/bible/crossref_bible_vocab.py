@@ -1,3 +1,4 @@
+from __future__ import annotations
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
@@ -12,7 +13,6 @@
 Usage:
   python scripts/crossref_bible_vocab.py
 """
-from __future__ import annotations
 
 import json
 import re

@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
@@ -6,7 +7,6 @@
 """
 # DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """Extract vocabulary with context and usage from all 66 Bible books."""
-from __future__ import annotations
 
 import json
 import os

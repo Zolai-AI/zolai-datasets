@@ -1,3 +1,4 @@
+from __future__ import annotations
 """.. deprecated::
     Use ``bible_knowledge_builder.VocabularyBuilder.extract_bible_vocab()``
     instead. This script is kept for reference only.
@@ -9,7 +10,6 @@ Usage:
   python scripts/extract_bible_vocab.py --book GEN --chapter 1
   python scripts/extract_bible_vocab.py --book GEN  # all chapters
 """
-from __future__ import annotations
 
 import argparse
 import json
