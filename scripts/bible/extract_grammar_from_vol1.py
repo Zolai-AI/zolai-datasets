@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.GrammarBuilder.extract_from_vol1()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → GrammarBuilder
 """
 Script 1: Extract comprehensive grammar from Zolai_Grammar_Vol1.md
 Parses the 17,000+ line grammar reference into structured JSON.

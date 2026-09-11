@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
+    This script required external API keys (OpenRouter/Groq) and is
+    kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """Extract vocabulary with context and usage from all 66 Bible books."""
 from __future__ import annotations
 

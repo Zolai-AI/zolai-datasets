@@ -1,3 +1,9 @@
+""".. deprecated::
+    Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
+    This script required external API keys (Gemini) and is kept for
+    reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """
 Pipeline: Extract Bible vocab → find gaps → fill with Gemini → update DB + JSONL.
 

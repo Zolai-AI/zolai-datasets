@@ -1,3 +1,8 @@
+""".. deprecated::
+    Use ``bible_knowledge_builder.ParallelBuilder.rebuild_combined()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → ParallelBuilder
 """
 Rebuild data/master/combined/parallel.jsonl from all 4 fixed Bible versions + KJV.
 Adds TDB_online, TB77_online, TBR17, Tedim2010 × KJV pairs.

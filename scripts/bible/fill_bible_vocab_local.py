@@ -1,3 +1,8 @@
+""".. deprecated::
+    Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
+    This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """
 Fill Bible vocab gaps using only local dictionary sources (no Gemini).
 

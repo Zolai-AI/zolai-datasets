@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.GrammarBuilder.build_grammar_patterns()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → GrammarBuilder
 """
 Phase 3: Grammar Pattern Extractor.
 

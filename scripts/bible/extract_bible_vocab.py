@@ -1,3 +1,8 @@
+""".. deprecated::
+    Use ``bible_knowledge_builder.VocabularyBuilder.extract_bible_vocab()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """Extract vocabulary from Bible chapters with dictionary lookups.
 
 Usage:

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.ParallelBuilder.build_from_usx()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → ParallelBuilder
 """Build parallel Bible .md files: TDB77 (1977) + Tedim2010 (ZVS) + KJV (English).
 
 Usage:

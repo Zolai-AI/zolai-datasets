@@ -1,3 +1,8 @@
+""".. deprecated::
+    Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
+    This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
 """
 1. Build bible_parallel_tbr17.jsonl (TBR17 × KJV aligned pairs)
 2. Fix number words in dictionary (sawmnih=20, sawmguk=60, etc.)

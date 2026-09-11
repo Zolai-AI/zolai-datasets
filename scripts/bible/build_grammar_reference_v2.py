@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""".. deprecated::
+    Use ``bible_knowledge_builder.GrammarBuilder.build_grammar_reference_v2()``
+    instead. This script is kept for reference only.
+"""
+# DEPRECATED — see bible_knowledge_builder.py → GrammarBuilder
 """
 Script 7: Build comprehensive grammar reference v2
 Merges existing grammar_reference.json + Grammar Vol 1 rules + ZVS rules
