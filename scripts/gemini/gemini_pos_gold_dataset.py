@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
 Gemini POS Gold Dataset — Generate gold-standard POS tags from Bible verses.
-Uses Gemini directly with multi-model ensemble voting (3 models).
+Uses EnsembleVoter with multi-model ensemble voting (configurable).
 """
 import asyncio
 import json
 import os
-import re
 import sqlite3
 import sys
 import argparse
@@ -21,11 +20,11 @@ sys.path.insert(
 )
 
 try:
-    from gemini.client_openai import ZolaiGeminiOpenAIClient
+    from ensemble_voter import EnsembleVoter
 
-    HAS_LOCAL = True
+    HAS_ENSEMBLE = True
 except ImportError:
-    HAS_LOCAL = False
+    HAS_ENSEMBLE = False
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 POS_TAGS = (
@@ -58,74 +57,19 @@ def ensure_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _extract_json(text: str) -> list:
-    """Extract JSON array from Gemini response."""
-    match = re.search(r"\[[\s\S]*?\]", text)
-    if match:
-        return json.loads(match.group())
-    return []
-
-
-# ── Multi-model ensemble voting ────────────────────────────────────────────────
-ENSEMBLE_MODELS = [
-    "gemini-3-flash",
-    "gemini-3-pro-plus",
-    "gemini-3-pro",
-]
-
-
-def majority_vote(votes: dict[str, list]) -> list:
-    """Return the most common response across models (majority vote)."""
-    counts: dict[str, int] = {}
-    for resp in votes.values():
-        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
-        counts[key] = counts.get(key, 0) + 1
-    best_key = max(counts, key=lambda k: counts[k])
-    return json.loads(best_key)
-
-
-async def _build_client() -> ZolaiGeminiOpenAIClient:
-    """Build Gemini client — requires zolai-ai-local package."""
-    if not HAS_LOCAL:
-        raise RuntimeError(
-            "zolai-ai-local package not found. "
-            "Install or set ZOLAI_AI_LOCAL env var."
-        )
-    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
-
-
 async def pos_tag_verse(
-    client: ZolaiGeminiOpenAIClient,
+    voter: EnsembleVoter,
     sentence: str,
     ref: str,
 ) -> tuple[dict, float] | None:
-    """POS tag a sentence using 3-model ensemble voting."""
-    prompt = (
-        "Task: POS Tag this Zolai sentence word by word.\n"
-        f"Rules: {POS_TAGS}\n"
-        "Output format: JSON array of [word, tag] pairs.\n"
-        f"Sentence: {sentence}"
-    )
-    votes = {}
-    for model in ENSEMBLE_MODELS:
-        try:
-            result = await client.ask(model, prompt, use_system_prompt=True)
-            parsed = _extract_json(result)
-            if parsed:
-                votes[model] = parsed
-        except Exception as exc:
-            print(f"  WARN ({ref}) {model}: {exc}")
-        await asyncio.sleep(1)
-
-    if not votes:
-        print(f"  ERROR ({ref}): no models returned valid response")
+    """POS tag a sentence using ensemble voting."""
+    result = await voter.vote_pos_sentence(sentence)
+    parsed = result.get("result")
+    if not parsed:
+        print(f"  ERROR ({ref}): no valid response")
         return None
 
-    final_tags = majority_vote(votes)
-    confidence = len({json.dumps(v, sort_keys=True) for v in votes.values()}) / len(ENSEMBLE_MODELS)
-    confidence = 1.0 - confidence  # More agreement = higher confidence
-
-    pairs = final_tags
+    pairs = parsed if isinstance(parsed, list) else []
     tokens = [p[0] for p in pairs if isinstance(p, list) and len(p) >= 2]
     tags = [p[1] for p in pairs if isinstance(p, list) and len(p) >= 2]
 
@@ -134,10 +78,14 @@ async def pos_tag_verse(
         "tokens": json.dumps(tokens, ensure_ascii=False),
         "tags": json.dumps(tags, ensure_ascii=False),
         "source_verse": ref,
-    }, confidence
+    }, result["confidence"]
 
 
 async def run(args: argparse.Namespace) -> None:
+    if not HAS_ENSEMBLE:
+        print("ERROR: ensemble_voter module not found in zolai-ai-local.")
+        return
+
     conn = get_db()
     ensure_table(conn)
 
@@ -158,8 +106,8 @@ async def run(args: argparse.Namespace) -> None:
 
     print(f"Fetched {len(rows)} verses, {len(existing)} already tagged.")
 
-    client = await _build_client()
-    await client.init()
+    voter = EnsembleVoter(strategy=args.strategy)
+    await voter.init()
 
     tagged = 0
 
@@ -171,7 +119,7 @@ async def run(args: argparse.Namespace) -> None:
             tagged += 1
             continue
 
-        result = await pos_tag_verse(client, zo, ref)
+        result = await pos_tag_verse(voter, zo, ref)
         if result:
             data, conf = result
             conn = get_db()
@@ -184,7 +132,7 @@ async def run(args: argparse.Namespace) -> None:
                     data["tokens"],
                     data["tags"],
                     data["source_verse"],
-                    f"gemini-ensemble({conf:.2f})",
+                    f"gemini-ensemble({args.strategy},{conf:.2f})",
                 ),
             )
             conn.commit()
@@ -197,9 +145,8 @@ async def run(args: argparse.Namespace) -> None:
             )
         await asyncio.sleep(1)
 
-    print(f"\n✅ Done. Tagged {tagged} verses.")
-    if hasattr(client, "close"):
-        await client.close()
+    print(f"\nDone. Tagged {tagged} verses.")
+    await voter.close()
 
 
 def main() -> None:
@@ -208,7 +155,11 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=100)
-    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument(
+        "--strategy",
+        choices=["fast", "accurate", "full", "reasoning"],
+        default="fast",
+    )
     args = parser.parse_args()
     asyncio.run(run(args))
 
