@@ -1,3 +1,9 @@
+# Path setup for gemini_cookies import
+import os
+import sys
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BIBLE_DIR = os.path.join(SCRIPT_DIR, "bible")
+if BIBLE_DIR not in sys.path: sys.path.insert(0, BIBLE_DIR)
 #!/usr/bin/env python3
 """Fast local Gemini Zolai translator using browser cookies.
 Usage: python3 gemini_zolai.py "English text to translate"
@@ -7,10 +13,11 @@ Usage: python3 gemini_zolai.py "English text to translate"
 import asyncio
 import sys
 
-sys.path.insert(0, '/home/peter/.local/lib/python3.12/site-packages')
-sys.path.insert(0, '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 
-from gemini_webapi import GeminiClient
+
+
+
+from gemini_cookies import get_gemini_client
 
 GLOSSARY = """Tedim Zolai (ZVS 2018) Translation Rules:
 
@@ -49,7 +56,7 @@ FORBIDDEN (use correct form):
 
 
 async def translate(text: str, direction: str = "en_to_zo") -> str:
-    client = GeminiClient()
+    client = get_gemini_client()
     
     if direction == "en_to_zo":
         prompt = f"{GLOSSARY}\n\nTranslate to Tedim Zolai. Reply ONLY with translation:\n\n{text}"

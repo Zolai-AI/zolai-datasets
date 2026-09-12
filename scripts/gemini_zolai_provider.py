@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Gemini Web Session Zolai Provider — standalone service for pcore-brain.
-Runs on port 4080. Provides /translate, /chat, /health endpoints.
-Uses browser cookies (no API key needed, bypasses geo-restriction).
+"""Gemini Web Session Zolai Provider — OpenAI-compatible API.
+Runs on port 4080. Uses Chrome browser cookies (no API key).
 """
 
 import asyncio
 import sys
+import os
+
+# Hardcoded paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BIBLE_DIR = os.path.join(SCRIPT_DIR, "bible")
+WEB_API = "/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi"
+
+for p in [SCRIPT_DIR, BIBLE_DIR, WEB_API]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+from gemini_cookies import get_gemini_client
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-
-WEB_API_PATH = '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi'
-sys.path.insert(0, WEB_API_PATH)
-
-from gemini_webapi import GeminiClient
 
 app = FastAPI(title="Gemini Zolai Provider", version="2.0.0")
 
@@ -74,7 +80,7 @@ def clean_response(text: str) -> str:
 
 
 async def call_gemini(prompt: str, model: str) -> str:
-    client = GeminiClient()
+    client = get_gemini_client()
     output = await client.generate_content(prompt=prompt, model=model)
     return clean_response(output.text or "")
 
@@ -83,7 +89,6 @@ async def call_gemini(prompt: str, model: str) -> str:
 async def chat_completions(req: ChatRequest):
     """OpenAI-compatible /chat/completions endpoint."""
     try:
-        # Build prompt from messages
         system_parts = []
         user_parts = []
         for msg in req.messages:
@@ -101,10 +106,7 @@ async def chat_completions(req: ChatRequest):
         result = await call_gemini(prompt, req.model)
 
         return {
-            "choices": [{
-                "message": {"role": "assistant", "content": result},
-                "finish_reason": "stop"
-            }],
+            "choices": [{"message": {"role": "assistant", "content": result}, "finish_reason": "stop"}],
             "model": req.model,
             "provider": "gemini-web"
         }
