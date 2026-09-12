@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Gemini Embedding Validation — Create word similarity test set from Bible co-occurrence.
-Uses local AI package with fallback to requests.
+Gemini Embedding Validation — Create word similarity test set from Bible
+co-occurrence. Uses Gemini directly with multi-model ensemble voting.
 """
 import asyncio
 import json
@@ -27,11 +27,6 @@ try:
     HAS_LOCAL = True
 except ImportError:
     HAS_LOCAL = False
-
-try:
-    import requests
-except ImportError:
-    requests = None  # type: ignore[assignment]
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
@@ -63,42 +58,6 @@ def ensure_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-class RequestsGeminiClient:
-    API_URL = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        "models/gemini-2.0-flash:generateContent"
-    )
-
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-    async def ask(self, _model: str, prompt: str, **_kw: object) -> str:
-        if requests is None:
-            raise RuntimeError("requests library not installed")
-        resp = requests.post(
-            self.API_URL,
-            params={"key": self.api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2},
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def _build_client() -> object:
-    if HAS_LOCAL:
-        return ZolaiGeminiOpenAIClient(use_zvs_context=True)
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "No Gemini client. Install zolai-ai-local or set GEMINI_API_KEY."
-        )
-    return RequestsGeminiClient(api_key)
-
-
 def _extract_json(text: str) -> dict:
     match = re.search(r"\{[^{}]*\}", text)
     if match:
@@ -109,9 +68,38 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
-def _generate_pairs(conn: sqlite3.Connection, limit: int) -> list[tuple]:
+# ── Multi-model ensemble voting ────────────────────────────────────────────────
+ENSEMBLE_MODELS = [
+    "gemini-3-flash",
+    "gemini-3-pro-plus",
+    "gemini-3-pro",
+]
+
+
+def majority_vote(votes: dict[str, dict]) -> dict:
+    """Return the most common response across models (majority vote)."""
+    counts: dict[str, int] = {}
+    for resp in votes.values():
+        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
+        counts[key] = counts.get(key, 0) + 1
+    best_key = max(counts, key=lambda k: counts[k])
+    return json.loads(best_key)
+
+
+async def _build_client() -> ZolaiGeminiOpenAIClient:
+    """Build Gemini client — requires zolai-ai-local package."""
+    if not HAS_LOCAL:
+        raise RuntimeError(
+            "zolai-ai-local package not found. "
+            "Install or set ZOLAI_AI_LOCAL env var."
+        )
+    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
+
+
+def _generate_pairs(
+    conn: sqlite3.Connection, limit: int
+) -> list[tuple]:
     """Generate word pairs from Bible co-occurrence."""
-    # Pick random verses that have 2+ aligned words
     verse_rows = conn.execute(
         "SELECT ref FROM word_alignments "
         "WHERE zolai_word IS NOT NULL AND zolai_word != '' "
@@ -125,7 +113,8 @@ def _generate_pairs(conn: sqlite3.Connection, limit: int) -> list[tuple]:
         words = conn.execute(
             "SELECT zolai_word, english_word "
             "FROM word_alignments "
-            "WHERE ref = ? AND zolai_word IS NOT NULL AND zolai_word != ''",
+            "WHERE ref = ? "
+            "AND zolai_word IS NOT NULL AND zolai_word != ''",
             (ref,),
         ).fetchall()
         if len(words) < 2:
@@ -141,31 +130,44 @@ def _generate_pairs(conn: sqlite3.Connection, limit: int) -> list[tuple]:
 
 
 async def rate_similarity(
-    client: object,
+    client: ZolaiGeminiOpenAIClient,
     word1: str,
     english1: str,
     word2: str,
     english2: str,
-) -> dict | None:
+) -> tuple[dict, float] | None:
+    """Rate semantic similarity using 3-model ensemble voting."""
     prompt = (
-        "Task: Rate semantic similarity between these Zolai words (0.0 to 1.0).\n"
+        "Task: Rate semantic similarity between these "
+        "Zolai words (0.0 to 1.0).\n"
         f"Word 1: {word1} ({english1})\n"
         f"Word 2: {word2} ({english2})\n"
-        "Output JSON: {\"similarity\": 0.85, \"reason\": \"...\"}"
+        'Output JSON: {"similarity": 0.85, "reason": "..."}'
     )
-    try:
-        if HAS_LOCAL and hasattr(client, "ask"):
-            result = await client.ask(
-                "gemini-3-flash", prompt, use_system_prompt=True
-            )
-        else:
-            result = await client.ask("gemini-2.0-flash", prompt)
-    except Exception as exc:
-        print(f"  ERROR ({word1}↔{word2}): {exc}")
+    votes = {}
+    for model in ENSEMBLE_MODELS:
+        try:
+            result = await client.ask(model, prompt, use_system_prompt=True)
+            parsed = _extract_json(result)
+            if parsed and parsed.get("similarity") is not None:
+                votes[model] = parsed
+        except Exception as exc:
+            print(f"  WARN ({word1}↔{word2}) {model}: {exc}")
+        await asyncio.sleep(1)
+
+    if not votes:
+        print(f"  ERROR ({word1}↔{word2}): no models returned valid response")
         return None
 
-    data = _extract_json(result)
-    sim = data.get("similarity")
+    final = majority_vote(votes)
+    sims = [v.get("similarity", 0) for v in votes.values()]
+    agreement = sum(
+        1 for s in sims
+        if abs(s - final.get("similarity", 0)) < 0.15
+    )
+    confidence = agreement / len(ENSEMBLE_MODELS)
+
+    sim = final.get("similarity")
     if sim is None:
         print(f"  WARN ({word1}↔{word2}): no similarity in response")
         return None
@@ -176,8 +178,8 @@ async def rate_similarity(
         "english1": english1,
         "english2": english2,
         "similarity": float(sim),
-        "reason": data.get("reason", ""),
-    }
+        "reason": final.get("reason", ""),
+    }, confidence
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -194,15 +196,19 @@ async def run(args: argparse.Namespace) -> None:
     pairs = _generate_pairs(conn, args.limit)
     conn.close()
 
-    # Filter already-done
     todo = [
         (w1, w2, e1, e2)
         for w1, w2, e1, e2 in pairs
         if tuple(sorted([w1, w2])) not in existing
     ]
 
-    print(f"Pairs to rate: {len(todo)} (from {len(pairs)} generated, {len(existing)} existing)")
-    client = _build_client()
+    print(
+        f"Pairs to rate: {len(todo)} "
+        f"(from {len(pairs)} generated, {len(existing)} existing)"
+    )
+
+    client = await _build_client()
+    await client.init()
     rated = 0
 
     for w1, w2, e1, e2 in todo:
@@ -213,20 +219,30 @@ async def run(args: argparse.Namespace) -> None:
 
         result = await rate_similarity(client, w1, e1, w2, e2)
         if result:
+            data, conf = result
             conn = get_db()
             conn.execute(
                 "INSERT OR IGNORE INTO word_similarity "
-                "(word1, word2, english1, english2, similarity, reason) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (result["word1"], result["word2"], result["english1"],
-                 result["english2"], result["similarity"], result["reason"]),
+                "(word1, word2, english1, english2, "
+                "similarity, reason, source) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    data["word1"],
+                    data["word2"],
+                    data["english1"],
+                    data["english2"],
+                    data["similarity"],
+                    data["reason"],
+                    f"gemini-ensemble({conf:.2f})",
+                ),
             )
             conn.commit()
             conn.close()
             rated += 1
             print(
                 f"  {w1:15s} ↔ {w2:15s} "
-                f"sim={result['similarity']:.2f}"
+                f"sim={data['similarity']:.2f} "
+                f"(confidence={conf:.2f})"
             )
         await asyncio.sleep(1)
 
@@ -237,7 +253,9 @@ async def run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Create word similarity test set via Gemini"
+        description=(
+            "Create word similarity test set via Gemini"
+        )
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=50)

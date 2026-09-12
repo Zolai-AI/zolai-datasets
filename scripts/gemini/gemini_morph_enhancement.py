@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Gemini Morphological Enhancement — Analyze morphology of complex words.
-Uses local AI package with fallback to requests.
+Uses Gemini directly with multi-model ensemble voting (3 models).
 """
 import asyncio
 import json
@@ -26,11 +26,6 @@ try:
     HAS_LOCAL = True
 except ImportError:
     HAS_LOCAL = False
-
-try:
-    import requests
-except ImportError:
-    requests = None  # type: ignore[assignment]
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
@@ -60,42 +55,6 @@ def ensure_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-class RequestsGeminiClient:
-    API_URL = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        "models/gemini-2.0-flash:generateContent"
-    )
-
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-    async def ask(self, _model: str, prompt: str, **_kw: object) -> str:
-        if requests is None:
-            raise RuntimeError("requests library not installed")
-        resp = requests.post(
-            self.API_URL,
-            params={"key": self.api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2},
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def _build_client() -> object:
-    if HAS_LOCAL:
-        return ZolaiGeminiOpenAIClient(use_zvs_context=True)
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "No Gemini client. Install zolai-ai-local or set GEMINI_API_KEY."
-        )
-    return RequestsGeminiClient(api_key)
-
-
 def _extract_json(text: str) -> dict:
     match = re.search(r"\{[\s\S]*?\}", text)
     if match:
@@ -106,11 +65,40 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
+# ── Multi-model ensemble voting ────────────────────────────────────────────────
+ENSEMBLE_MODELS = [
+    "gemini-3-flash",
+    "gemini-3-pro-plus",
+    "gemini-3-pro",
+]
+
+
+def majority_vote(votes: dict[str, dict]) -> dict:
+    """Return the most common response across models (majority vote)."""
+    counts: dict[str, int] = {}
+    for resp in votes.values():
+        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
+        counts[key] = counts.get(key, 0) + 1
+    best_key = max(counts, key=lambda k: counts[k])
+    return json.loads(best_key)
+
+
+async def _build_client() -> ZolaiGeminiOpenAIClient:
+    """Build Gemini client — requires zolai-ai-local package."""
+    if not HAS_LOCAL:
+        raise RuntimeError(
+            "zolai-ai-local package not found. "
+            "Install or set ZOLAI_AI_LOCAL env var."
+        )
+    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
+
+
 async def analyze_morphology(
-    client: object,
+    client: ZolaiGeminiOpenAIClient,
     word: str,
     english: str,
-) -> dict | None:
+) -> tuple[dict, float] | None:
+    """Analyze morphology using 3-model ensemble voting."""
     prompt = (
         "Task: Break down the morphology of this Zolai word.\n"
         f"Word: {word}\n"
@@ -120,24 +108,34 @@ async def analyze_morphology(
         '{"root": "...", "prefix": "", "suffix": "", '
         '"morphemes": ["root"], "POS": "NOUN"}'
     )
-    try:
-        if HAS_LOCAL and hasattr(client, "ask"):
-            result = await client.ask(
-                "gemini-3-flash", prompt, use_system_prompt=True
-            )
-        else:
-            result = await client.ask("gemini-2.0-flash", prompt)
-    except Exception as exc:
-        print(f"  ERROR ({word}): {exc}")
+    votes = {}
+    for model in ENSEMBLE_MODELS:
+        try:
+            result = await client.ask(model, prompt, use_system_prompt=True)
+            parsed = _extract_json(result)
+            if parsed and (parsed.get("morphemes") or parsed.get("root")):
+                votes[model] = parsed
+        except Exception as exc:
+            print(f"  WARN ({word}) {model}: {exc}")
+        await asyncio.sleep(1)
+
+    if not votes:
+        print(f"  ERROR ({word}): no models returned valid response")
         return None
 
-    data = _extract_json(result)
-    morphemes = data.get("morphemes", [])
-    if isinstance(morphemes, str):
-        morphemes = [m.strip() for m in morphemes.split(",") if m.strip()]
+    final = majority_vote(votes)
+    root_votes = [v.get("root", "") for v in votes.values()]
+    agreement = sum(1 for r in root_votes if r == final.get("root", ""))
+    confidence = agreement / len(ENSEMBLE_MODELS)
 
-    root = data.get("root", "")
-    pos = data.get("POS", data.get("pos", ""))
+    morphemes = final.get("morphemes", [])
+    if isinstance(morphemes, str):
+        morphemes = [
+            m.strip() for m in morphemes.split(",") if m.strip()
+        ]
+
+    root = final.get("root", "")
+    pos = final.get("POS", final.get("pos", ""))
 
     if not morphemes and not root:
         print(f"  WARN ({word}): no morphemes in response")
@@ -148,8 +146,8 @@ async def analyze_morphology(
         "morphemes": json.dumps(morphemes, ensure_ascii=False),
         "root": root,
         "POS": pos.upper() if pos else "",
-        "analysis_json": json.dumps(data, ensure_ascii=False),
-    }
+        "analysis_json": json.dumps(final, ensure_ascii=False),
+    }, confidence
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -158,10 +156,11 @@ async def run(args: argparse.Namespace) -> None:
 
     existing = {
         row[0]
-        for row in conn.execute("SELECT word FROM morph_verified").fetchall()
+        for row in conn.execute(
+            "SELECT word FROM morph_verified"
+        ).fetchall()
     }
 
-    # Words with 4+ syllables from vocab (actual Zolai words)
     polysyllabic = conn.execute(
         "SELECT v.headword, v.english, v.frequency "
         "FROM vocab v "
@@ -176,35 +175,55 @@ async def run(args: argparse.Namespace) -> None:
     ).fetchall()
     conn.close()
 
-    words = [(w, eng or "", freq) for w, eng, freq in polysyllabic if w not in existing]
+    words = [
+        (w, eng or "", freq)
+        for w, eng, freq in polysyllabic
+        if w not in existing
+    ]
 
-    print(f"Words to analyze: {len(words)} (from {len(polysyllabic)} long words)")
-    client = _build_client()
+    print(
+        f"Words to analyze: {len(words)} "
+        f"(from {len(polysyllabic)} long words)"
+    )
+
+    client = await _build_client()
+    await client.init()
     analyzed = 0
 
     for word, eng, freq in words:
         if args.dry_run:
-            print(f"  [DRY] {word:25s} (freq={freq}) → {eng[:30]}")
+            print(
+                f"  [DRY] {word:25s} "
+                f"(freq={freq}) → {eng[:30]}"
+            )
             analyzed += 1
             continue
 
         result = await analyze_morphology(client, word, eng)
         if result:
+            data, conf = result
             conn = get_db()
             conn.execute(
                 "INSERT OR REPLACE INTO morph_verified "
                 "(word, morphemes, root, POS, analysis_json) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (result["word"], result["morphemes"], result["root"],
-                 result["POS"], result["analysis_json"]),
+                (
+                    data["word"],
+                    data["morphemes"],
+                    data["root"],
+                    data["POS"],
+                    data["analysis_json"],
+                ),
             )
             conn.commit()
             conn.close()
             analyzed += 1
-            morphemes = json.loads(result["morphemes"])
+            morphemes = json.loads(data["morphemes"])
             print(
-                f"  {word:25s} → root={result['root']:15s} "
-                f"POS={result['POS']:6s} morphemes={len(morphemes)}"
+                f"  {word:25s} → root={data['root']:15s} "
+                f"POS={data['POS']:6s} "
+                f"morphemes={len(morphemes)} "
+                f"(confidence={conf:.2f})"
             )
         await asyncio.sleep(1)
 
@@ -215,7 +234,9 @@ async def run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Analyze morphology of complex Zolai words via Gemini"
+        description=(
+            "Analyze morphology of complex Zolai words via Gemini"
+        )
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=50)
