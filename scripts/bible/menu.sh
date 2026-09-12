@@ -18,7 +18,7 @@ banner() {
   clear
   echo -e "${C}╔══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${C}║${NC}  ${M}ZOLAI LANGUAGE LEARNING${NC} — Learn from Bible Data       ${C}║${NC}"
-  echo -e "${C}║${NC}  ${B}23,383 Words • 8 Levels • 31,102 Sentences • AI Help  ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}23,383 Words • 8 Levels • 31,102 Sentences • MY Support  ${C}║${NC}"
   echo -e "${C}║${NC}  ${B}ZVS 2018 • SOV • Ergative 'in' • 'hiam' = question  ${C}║${NC}"
   echo -e "${C}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
@@ -939,6 +939,169 @@ cmd_data_build() {
   done
 }
 
+# ── Myanmar / Burmese Tools ────────────────────────────────
+cmd_myanmar_dict_search() {
+  echo -e "${C}═══ Myanmar Dictionary Search ═══${NC}"
+  echo ""
+  read -p "  Myanmar text to search: " query
+  if [ -n "$query" ]; then
+    PYTHONPATH="$WORKSPACE/zolai-core:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+results = db.lookup_myanmar('$query')
+if not results:
+    print('  No results found.')
+else:
+    for r in results[:10]:
+        if r.get('type') == 'dictionary':
+            print(f\"  {r.get('myanmar','?')} → ZO: {r.get('zolai','?')}, EN: {r.get('english','?')}\")
+        elif r.get('type') == 'bible':
+            print(f\"  {r.get('ref','?')}: {r.get('myanmar','')[:60]}\")
+            print(f\"    ZO: {r.get('zo_tdb77','')[:60]}\")
+"
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_translate_zo() {
+  echo -e "${C}═══ Zolai → Myanmar Translation ═══${NC}"
+  echo ""
+  read -p "  Zolai word: " word
+  if [ -n "$word" ]; then
+    PYTHONPATH="$WORKSPACE/zolai-core:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+result = db.translate_zo_my('$word')
+if result:
+    print(f\"  {result['zolai']} → {result['myanmar']}\")
+    print(f\"  EN: {result['english']}\")
+else:
+    print('  No Myanmar translation found.')
+"
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_translate_my() {
+  echo -e "${C}═══ Myanmar → Zolai Translation ═══${NC}"
+  echo ""
+  read -p "  Myanmar word: " word
+  if [ -n "$word" ]; then
+    PYTHONPATH="$WORKSPACE/zolai-core:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+result = db.translate_my_zo('$word')
+if result:
+    print(f\"  {result['myanmar']} → {result['zolai']}\")
+    print(f\"  EN: {result['english']}\")
+else:
+    print('  No Zolai translation found.')
+"
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_inventory() {
+  echo -e "${C}═══ Myanmar Data Inventory ═══${NC}"
+  echo ""
+  PYTHONPATH="$WORKSPACE/zolai-core:$PYTHONPATH" python3 -c "
+import sqlite3, os
+db_path = os.path.join('$DATA', 'zolai.db')
+conn = sqlite3.connect(db_path, timeout=10)
+
+# Dictionary Myanmar coverage
+cur = conn.execute('SELECT COUNT(*) FROM dictionary')
+total_dict = cur.fetchone()[0]
+cur = conn.execute(\"SELECT COUNT(*) FROM dictionary WHERE myanmar IS NOT NULL AND myanmar != ''\")
+dict_my = cur.fetchone()[0]
+
+# Bible Myanmar coverage
+cur = conn.execute('SELECT COUNT(*) FROM bible_verses')
+total_bible = cur.fetchone()[0]
+cur = conn.execute(\"SELECT COUNT(*) FROM bible_verses WHERE myanmar IS NOT NULL AND myanmar != ''\")
+bible_my = cur.fetchone()[0]
+
+conn.close()
+
+print(f'  Dictionary: {dict_my}/{total_dict} entries have Myanmar ({dict_my*100//total_dict if total_dict else 0}%)')
+print(f'  Bible:      {bible_my}/{total_bible} verses have Myanmar ({bible_my*100//total_bible if total_bible else 0}%)')
+print(f'  Total:      {dict_my + bible_my} rows with Myanmar data')
+"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_trilingual() {
+  echo -e "${C}═══ ZO-MY-EN Trilingual Study ═══${NC}"
+  echo ""
+  read -p "  Book (e.g., GEN): " book
+  read -p "  Chapter: " ch
+  if [ -n "$book" ] && [ -n "$ch" ]; then
+    PYTHONPATH="$WORKSPACE/zolai-core:$PYTHONPATH" python3 -c "
+import sqlite3, os
+db_path = os.path.join('$DATA', 'zolai.db')
+conn = sqlite3.connect(db_path, timeout=10)
+conn.row_factory = sqlite3.Row
+cur = conn.execute('''SELECT ref, zo_tdb77, en_kjv, myanmar
+    FROM bible_verses
+    WHERE book = ? AND chapter = ?
+    AND myanmar IS NOT NULL AND myanmar != ''
+    ORDER BY verse LIMIT 20''', ('$book', int('$ch')))
+rows = [dict(r) for r in cur.fetchall()]
+conn.close()
+if not rows:
+    print('  No trilingual verses found for this chapter.')
+else:
+    for r in rows:
+        print(f\"  {r['ref']}\")
+        print(f\"    MY: {r['myanmar']}\")
+        print(f\"    ZO: {r['zo_tdb77']}\")
+        print(f\"    EN: {r['en_kjv']}\")
+        print()
+"
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_bible() {
+  echo -e "${C}═══ Myanmar Bible Engine (Judson Parallel) ═══${NC}"
+  echo ""
+  echo -e "  ${G}Options:${NC}"
+  echo -e "  ${G}1${NC}) Show parallel verse (ZO + MY + EN)"
+  echo -e "  ${G}2${NC}) Show parallel chapter"
+  echo -e "  ${G}3${NC}) Search Myanmar Bible"
+  echo -e "  ${G}4${NC}) Book coverage stats"
+  echo -e "  ${G}0${NC}) Back"
+  echo ""
+  read -p "  Select: " choice
+  case "$choice" in
+    1)
+      read -p "  Book: " book
+      read -p "  Chapter: " ch
+      read -p "  Verse: " v
+      python3 "$SCRIPT_DIR/../my/myanmar_bible_engine.py" --parallel "$book" "$ch" "$v"
+      ;;
+    2)
+      read -p "  Book: " book
+      read -p "  Chapter: " ch
+      python3 "$SCRIPT_DIR/../my/myanmar_bible_engine.py" --chapter-parallel "$book" "$ch"
+      ;;
+    3)
+      read -p "  Myanmar text: " query
+      python3 "$SCRIPT_DIR/../my/myanmar_bible_engine.py" --search "$query"
+      ;;
+    4)
+      python3 "$SCRIPT_DIR/../my/myanmar_bible_engine.py" --stats
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -983,6 +1146,14 @@ while true; do
   echo -e "  ${G}R${NC}) 📦 Build master vocabulary (all sources)"
   echo -e "  ${G}L${NC}) 🌐 Fetch Bible versions from bible.com"
   echo -e "  ${G}T${NC}) 📊 Data quality scorer (8 features)"
+  echo ""
+  echo -e "  ${M}── Myanmar / Burmese Tools ────────────${NC}"
+  echo -e "  ${G}M1${NC}) 🔍 Search Myanmar dictionary"
+  echo -e "  ${G}M2${NC}) 🔄 Translate Zolai → Myanmar"
+  echo -e "  ${G}M3${NC}) 🔄 Translate Myanmar → Zolai"
+  echo -e "  ${G}M4${NC}) 📊 Myanmar data inventory"
+  echo -e "  ${G}M5${NC}) 📖 Study ZO-MY-EN trilingual"
+  echo -e "  ${G}M6${NC}) 📖 Myanmar Bible Engine (parallel display)"
   echo ""
   echo -e "  ${M}── Context Learning ────────────────────${NC}"
   echo -e "  ${G}X${NC}) 🧠 Context Deep Learning (per-book/chapter/topic analysis)"
@@ -1034,6 +1205,12 @@ while true; do
     U|u) cmd_kaggle_guide ;;
     X|x) cmd_context_deep_learn ;;
     Y|y) cmd_proficiency_test ;;
+    M1|m1) cmd_myanmar_dict_search ;;
+    M2|m2) cmd_myanmar_translate_zo ;;
+    M3|m3) cmd_myanmar_translate_my ;;
+    M4|m4) cmd_myanmar_inventory ;;
+    M5|m5) cmd_myanmar_trilingual ;;
+    M6|m6) cmd_myanmar_bible ;;
     AA|aa) cmd_data_build ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
