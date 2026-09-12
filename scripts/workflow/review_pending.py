@@ -83,7 +83,7 @@ def regenerate_jsonl_from_approved():
     for entry in approved:
         eid, _zolai, pos, english, version, remarks, description, zvs_status = entry
         
-        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        zolai_word_clean = _zolai2.strip().strip('"').strip("'").strip()
         if not zolai_word_clean:
             continue
         
@@ -125,7 +125,7 @@ def regenerate_jsonl_from_approved():
     master_entries = []
     for entry in approved:
         eid, _zolai, pos, english, version, remarks, description, zvs_status = entry
-        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        zolai_word_clean = _zolai2.strip().strip('"').strip("'").strip()
         if not zolai_word_clean:
             continue
         
@@ -197,9 +197,9 @@ async def main():
     
     idx = 0
     while idx < len(entries):
-        entry_id, zolai_word, version, current_remarks, current_description, current_status = entries[idx]
+        entry_id, _zolai2, version, current_remarks, current_description, current_status = entries[idx]
         
-        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        zolai_word_clean = _zolai2.strip().strip('"').strip("'").strip()
         if not zolai_word_clean:
             idx += 1
             continue
