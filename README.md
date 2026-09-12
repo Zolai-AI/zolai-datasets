@@ -1,5 +1,7 @@
 # zolai-datasets — Zolai bilingual corpora & datasets
 
+<p align="center"><img src="logo.png" alt="Zolai AI" width="120"></p>
+
 Build scripts and pointers for Zolai datasets. The heavy corpora live on
 **HuggingFace Hub / Kaggle** (never in git).
 
