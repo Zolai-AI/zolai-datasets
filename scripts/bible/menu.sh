@@ -37,15 +37,15 @@ log_event() {
 # ── Model selection ─────────────────────────────────────────
 select_model() {
   echo -e "${Y}Available free models:${NC}"
-  echo -e "  ${G}1${NC}) auto (best available)       ${C}(recommended, fast ✅)${NC}"
-  echo -e "  ${G}2${NC}) mimo-v2.5-free              ${C}(good, ~7s ✅)${NC}"
+  echo -e "  ${G}1${NC}) gemini-3-flash (fast, accurate)       ${C}(recommended, fast ✅)${NC}"
+  echo -e "  ${G}2${NC}) gemini-3-pro-plus (best quality)              ${C}(good, ~7s ✅)${NC}"
   echo -e "  ${G}3${NC}) No AI — dictionary only"
   echo ""
   read -p "  Select model [1]: " choice
   case "$choice" in
-    2)  MODEL="opencode/mimo-v2.5-free"; AI_FLAG="" ;;
+    2)  MODEL="gemini-3-pro-plus"; AI_FLAG="" ;;
     3)  MODEL=""; AI_FLAG="--no-ai" ;;
-    *)  MODEL="auto"; AI_FLAG="" ;;
+    *)  MODEL="gemini-3-flash"; AI_FLAG="" ;;
   esac
   echo -e "  → Using: ${G}${MODEL:-dict-only}${NC}"
   log_event "model_select" "${MODEL:-dict-only}"
