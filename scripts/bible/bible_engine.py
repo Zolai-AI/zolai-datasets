@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 ZOLAI BIBLE ENGINE — Comprehensive Language Learning & Grammar Engine
@@ -2507,4 +2508,3 @@ def load_collocations() -> list[dict]:
 
 
 # Import os for DB_PATH
-import os
