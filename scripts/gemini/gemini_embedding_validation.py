@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
 Gemini Embedding Validation — Create word similarity test set from Bible
-co-occurrence. Uses Gemini directly with multi-model ensemble voting.
+co-occurrence. Uses EnsembleVoter with multi-model ensemble voting.
 """
 import asyncio
-import json
 import os
 import random
-import re
 import sqlite3
 import sys
 import argparse
@@ -22,11 +20,11 @@ sys.path.insert(
 )
 
 try:
-    from gemini.client_openai import ZolaiGeminiOpenAIClient
+    from ensemble_voter import EnsembleVoter
 
-    HAS_LOCAL = True
+    HAS_ENSEMBLE = True
 except ImportError:
-    HAS_LOCAL = False
+    HAS_ENSEMBLE = False
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
@@ -56,44 +54,6 @@ def get_db() -> sqlite3.Connection:
 def ensure_table(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_TABLE_SQL)
     conn.commit()
-
-
-def _extract_json(text: str) -> dict:
-    match = re.search(r"\{[^{}]*\}", text)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return {}
-
-
-# ── Multi-model ensemble voting ────────────────────────────────────────────────
-ENSEMBLE_MODELS = [
-    "gemini-3-flash",
-    "gemini-3-pro-plus",
-    "gemini-3-pro",
-]
-
-
-def majority_vote(votes: dict[str, dict]) -> dict:
-    """Return the most common response across models (majority vote)."""
-    counts: dict[str, int] = {}
-    for resp in votes.values():
-        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
-        counts[key] = counts.get(key, 0) + 1
-    best_key = max(counts, key=lambda k: counts[k])
-    return json.loads(best_key)
-
-
-async def _build_client() -> ZolaiGeminiOpenAIClient:
-    """Build Gemini client — requires zolai-ai-local package."""
-    if not HAS_LOCAL:
-        raise RuntimeError(
-            "zolai-ai-local package not found. "
-            "Install or set ZOLAI_AI_LOCAL env var."
-        )
-    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
 
 
 def _generate_pairs(
@@ -130,59 +90,36 @@ def _generate_pairs(
 
 
 async def rate_similarity(
-    client: ZolaiGeminiOpenAIClient,
+    voter: EnsembleVoter,
     word1: str,
     english1: str,
     word2: str,
     english2: str,
 ) -> tuple[dict, float] | None:
-    """Rate semantic similarity using 3-model ensemble voting."""
-    prompt = (
-        "Task: Rate semantic similarity between these "
-        "Zolai words (0.0 to 1.0).\n"
-        f"Word 1: {word1} ({english1})\n"
-        f"Word 2: {word2} ({english2})\n"
-        'Output JSON: {"similarity": 0.85, "reason": "..."}'
-    )
-    votes = {}
-    for model in ENSEMBLE_MODELS:
-        try:
-            result = await client.ask(model, prompt, use_system_prompt=True)
-            parsed = _extract_json(result)
-            if parsed and parsed.get("similarity") is not None:
-                votes[model] = parsed
-        except Exception as exc:
-            print(f"  WARN ({word1}↔{word2}) {model}: {exc}")
-        await asyncio.sleep(1)
-
-    if not votes:
-        print(f"  ERROR ({word1}↔{word2}): no models returned valid response")
+    """Rate semantic similarity using ensemble voting."""
+    result = await voter.vote_similarity(word1, english1, word2, english2)
+    parsed = result.get("result")
+    if not parsed or parsed.get("similarity") is None:
+        print(f"  ERROR ({word1}<->{word2}): no valid response")
         return None
 
-    final = majority_vote(votes)
-    sims = [v.get("similarity", 0) for v in votes.values()]
-    agreement = sum(
-        1 for s in sims
-        if abs(s - final.get("similarity", 0)) < 0.15
-    )
-    confidence = agreement / len(ENSEMBLE_MODELS)
-
-    sim = final.get("similarity")
-    if sim is None:
-        print(f"  WARN ({word1}↔{word2}): no similarity in response")
-        return None
+    conf = result["confidence"]
 
     return {
         "word1": word1,
         "word2": word2,
         "english1": english1,
         "english2": english2,
-        "similarity": float(sim),
-        "reason": final.get("reason", ""),
-    }, confidence
+        "similarity": float(parsed["similarity"]),
+        "reason": parsed.get("reason", ""),
+    }, conf
 
 
 async def run(args: argparse.Namespace) -> None:
+    if not HAS_ENSEMBLE:
+        print("ERROR: ensemble_voter module not found in zolai-ai-local.")
+        return
+
     conn = get_db()
     ensure_table(conn)
 
@@ -207,17 +144,17 @@ async def run(args: argparse.Namespace) -> None:
         f"(from {len(pairs)} generated, {len(existing)} existing)"
     )
 
-    client = await _build_client()
-    await client.init()
+    voter = EnsembleVoter(strategy=args.strategy)
+    await voter.init()
     rated = 0
 
     for w1, w2, e1, e2 in todo:
         if args.dry_run:
-            print(f"  [DRY] {w1:15s} ↔ {w2:15s}")
+            print(f"  [DRY] {w1:15s} <-> {w2:15s}")
             rated += 1
             continue
 
-        result = await rate_similarity(client, w1, e1, w2, e2)
+        result = await rate_similarity(voter, w1, e1, w2, e2)
         if result:
             data, conf = result
             conn = get_db()
@@ -233,22 +170,21 @@ async def run(args: argparse.Namespace) -> None:
                     data["english2"],
                     data["similarity"],
                     data["reason"],
-                    f"gemini-ensemble({conf:.2f})",
+                    f"gemini-ensemble({args.strategy},{conf:.2f})",
                 ),
             )
             conn.commit()
             conn.close()
             rated += 1
             print(
-                f"  {w1:15s} ↔ {w2:15s} "
+                f"  {w1:15s} <-> {w2:15s} "
                 f"sim={data['similarity']:.2f} "
                 f"(confidence={conf:.2f})"
             )
         await asyncio.sleep(1)
 
-    print(f"\n✅ Done. Rated {rated} pairs.")
-    if hasattr(client, "close"):
-        await client.close()
+    print(f"\nDone. Rated {rated} pairs.")
+    await voter.close()
 
 
 def main() -> None:
@@ -259,7 +195,11 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument(
+        "--strategy",
+        choices=["fast", "accurate", "full", "reasoning"],
+        default="fast",
+    )
     args = parser.parse_args()
     asyncio.run(run(args))
 

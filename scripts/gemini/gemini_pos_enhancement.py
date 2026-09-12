@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
 Gemini POS Enhancement — Verify POS tags for ambiguous/rare words.
-Uses Gemini directly with multi-model ensemble voting (3 models).
+Uses EnsembleVoter with multi-model ensemble voting (configurable).
 """
 import asyncio
-import json
 import os
-import re
 import sqlite3
 import sys
 import argparse
@@ -21,11 +19,11 @@ sys.path.insert(
 )
 
 try:
-    from gemini.client_openai import ZolaiGeminiOpenAIClient
+    from ensemble_voter import EnsembleVoter
 
-    HAS_LOCAL = True
+    HAS_ENSEMBLE = True
 except ImportError:
-    HAS_LOCAL = False
+    HAS_ENSEMBLE = False
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
@@ -54,94 +52,35 @@ def ensure_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _extract_json(text: str) -> dict:
-    match = re.search(r"\{[^{}]*\}", text)
-    if match:
-        return json.loads(match.group())
-    return {}
-
-
-# ── Multi-model ensemble voting ────────────────────────────────────────────────
-ENSEMBLE_MODELS = [
-    "gemini-3-flash",
-    "gemini-3-pro-plus",
-    "gemini-3-pro",
-]
-
-
-def majority_vote(votes: dict[str, dict]) -> dict:
-    """Return the most common response across models (majority vote)."""
-    counts: dict[str, int] = {}
-    for resp in votes.values():
-        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
-        counts[key] = counts.get(key, 0) + 1
-    best_key = max(counts, key=lambda k: counts[k])
-    return json.loads(best_key)
-
-
-async def _build_client() -> ZolaiGeminiOpenAIClient:
-    """Build Gemini client — requires zolai-ai-local package."""
-    if not HAS_LOCAL:
-        raise RuntimeError(
-            "zolai-ai-local package not found. "
-            "Install or set ZOLAI_AI_LOCAL env var."
-        )
-    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
-
-
 async def verify_word(
-    client: ZolaiGeminiOpenAIClient,
+    voter: EnsembleVoter,
     word: str,
     english: str,
     freq: int,
 ) -> tuple[dict, float] | None:
-    """Verify POS for a word using 3-model ensemble voting."""
-    prompt = (
-        "Task: What is the POS tag for this Zolai word?\n"
-        f"Word: {word}\n"
-        f"English: {english}\n"
-        f"Bible frequency: {freq}\n"
-        'Output JSON: {"pos": "NOUN", "confidence": 0.9, '
-        '"reason": "..."}\n'
-        "Valid tags: NOUN, VERB, ADJ, ADV, PRON, "
-        "DET, POST, CONJ, PART, NUM, INTJ"
-    )
-    votes = {}
-    for model in ENSEMBLE_MODELS:
-        try:
-            result = await client.ask(model, prompt, use_system_prompt=True)
-            parsed = _extract_json(result)
-            if parsed and parsed.get("pos"):
-                votes[model] = parsed
-        except Exception as exc:
-            print(f"  WARN ({word}) {model}: {exc}")
-        await asyncio.sleep(1)
-
-    if not votes:
-        print(f"  ERROR ({word}): no models returned valid response")
+    """Verify POS for a word using ensemble voting."""
+    result = await voter.vote_pos(word, english)
+    parsed = result.get("result")
+    if not parsed or not parsed.get("pos"):
+        print(f"  ERROR ({word}): no valid POS response")
         return None
 
-    final = majority_vote(votes)
-    agreement = sum(
-        1 for v in votes.values()
-        if v.get("pos", "").upper() == final.get("pos", "").upper()
-    )
-    confidence = agreement / len(ENSEMBLE_MODELS)
-
-    pos = final.get("pos", "").upper()
-    if not pos:
-        print(f"  WARN ({word}): no pos in response")
-        return None
+    pos = parsed["pos"].upper()
+    conf = result["confidence"]
 
     return {
         "word": word,
         "pos_tag": pos,
-        "confidence": float(final.get("confidence", 1.0)) * confidence,
-        "reason": final.get("reason", ""),
-    }, confidence
+        "confidence": float(parsed.get("confidence", 1.0)) * conf,
+        "reason": parsed.get("reason", ""),
+    }, conf
 
 
 async def run(args: argparse.Namespace) -> None:
+    if not HAS_ENSEMBLE:
+        print("ERROR: ensemble_voter module not found in zolai-ai-local.")
+        return
+
     conn = get_db()
     ensure_table(conn)
 
@@ -181,17 +120,17 @@ async def run(args: argparse.Namespace) -> None:
         f"(no_pos: {len(no_pos)}, low_freq: {len(low_freq)})"
     )
 
-    client = await _build_client()
-    await client.init()
+    voter = EnsembleVoter(strategy=args.strategy)
+    await voter.init()
     verified = 0
 
     for word, eng, freq in words:
         if args.dry_run:
-            print(f"  [DRY] {word:20s} → {eng[:40]}")
+            print(f"  [DRY] {word:20s} -> {eng[:40]}")
             verified += 1
             continue
 
-        result = await verify_word(client, word, eng, freq)
+        result = await verify_word(voter, word, eng, freq)
         if result:
             data, _conf = result
             conn = get_db()
@@ -210,14 +149,13 @@ async def run(args: argparse.Namespace) -> None:
             conn.close()
             verified += 1
             print(
-                f"  {word:20s} → {data['pos_tag']:6s} "
+                f"  {word:20s} -> {data['pos_tag']:6s} "
                 f"(conf={data['confidence']:.2f})"
             )
         await asyncio.sleep(1)
 
-    print(f"\n✅ Done. Verified {verified} words.")
-    if hasattr(client, "close"):
-        await client.close()
+    print(f"\nDone. Verified {verified} words.")
+    await voter.close()
 
 
 def main() -> None:
@@ -228,7 +166,11 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=60)
-    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument(
+        "--strategy",
+        choices=["fast", "accurate", "full", "reasoning"],
+        default="fast",
+    )
     args = parser.parse_args()
     asyncio.run(run(args))
 
