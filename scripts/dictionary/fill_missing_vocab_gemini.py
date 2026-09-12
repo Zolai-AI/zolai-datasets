@@ -60,11 +60,11 @@ def call_gemini(words: list[str], key: str) -> list[dict]:
 def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id FROM dictionary WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
     raw = json.dumps(entry, ensure_ascii=False)
-    cur.execute("INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+    cur.execute("INSERT INTO dictionary (zolai, pos, sources, raw_json) VALUES (?,?,?,?)",
                 (hw, entry.get("pos", ""), "gemini_vocab", raw))
     eid = cur.lastrowid
     for t in (entry.get("english") or []):
