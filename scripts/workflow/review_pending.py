@@ -27,7 +27,7 @@ def get_pending_entries(limit=50):
     conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, headword, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?",
+        "SELECT id, zolai, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?",
         (limit,)
     )
     entries = cur.fetchall()
@@ -72,7 +72,7 @@ def regenerate_jsonl_from_approved():
     cur = conn.cursor()
     
     # Get all approved entries
-    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='approved'")
+    cur.execute("SELECT id, zolai, pos, english, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='approved'")
     approved = cur.fetchall()
     
     total = len(approved)
@@ -81,10 +81,10 @@ def regenerate_jsonl_from_approved():
     # Regenerate verified dict
     verified_entries = []
     for entry in approved:
-        eid, headword, pos, english, sources, raw_json, version, remarks, description, zvs_status = entry
+        eid, _zolai, pos, english, version, remarks, description, zvs_status = entry
         
-        headword_clean = headword.strip().strip('"').strip("'").strip()
-        if not headword_clean:
+        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        if not zolai_word_clean:
             continue
         
         english_clean = english if english else []
@@ -95,7 +95,7 @@ def regenerate_jsonl_from_approved():
         zvs_status_clean = zvs_status if zvs_status else 'pending'
         
         entry_dict = {
-            'zolai': headword_clean,
+            'zolai': zolai_word_clean,
             'english': english_clean,
             'source': sources_clean[:200] if isinstance(sources_clean, str) else str(sources_clean)[:200],
             'pos': pos.strip() if pos else '',
@@ -124,9 +124,9 @@ def regenerate_jsonl_from_approved():
     # Regenerate master dict (includes id and raw_json)
     master_entries = []
     for entry in approved:
-        eid, headword, pos, english, sources, raw_json, version, remarks, description, zvs_status = entry
-        headword_clean = headword.strip().strip('"').strip("'").strip()
-        if not headword_clean:
+        eid, _zolai, pos, english, version, remarks, description, zvs_status = entry
+        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        if not zolai_word_clean:
             continue
         
         english_clean = english if english else []
@@ -137,7 +137,7 @@ def regenerate_jsonl_from_approved():
         zvs_status_clean = zvs_status if zvs_status else 'pending'
         
         entry_dict = {
-            'zolai': headword_clean,
+            'zolai': zolai_word_clean,
             'english': english_clean,
             'source': sources_clean if isinstance(sources_clean, str) else str(sources_clean),
             'pos': pos.strip() if pos else '',
@@ -197,17 +197,17 @@ async def main():
     
     idx = 0
     while idx < len(entries):
-        entry_id, headword, version, current_remarks, current_description, current_status = entries[idx]
+        entry_id, zolai_word, version, current_remarks, current_description, current_status = entries[idx]
         
-        headword_clean = headword.strip().strip('"').strip("'").strip()
-        if not headword_clean:
+        zolai_word_clean = _zolai.strip().strip('"').strip("'").strip()
+        if not zolai_word_clean:
             idx += 1
             continue
         
         print(f"\n{'='*60}")
         print(f"Entry {idx+1}/{len(entries)}")
         print(f"  ID: {entry_id}")
-        print(f"  Headword: '{headword_clean}'")
+        print(f"  Word: '{zolai_word_clean}'")
         print(f"  Current version: {version}")
         print(f"  Current status: {current_status}")
         if current_remarks:
