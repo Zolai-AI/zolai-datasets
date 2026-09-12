@@ -87,8 +87,8 @@ async def rebuild_database():
     """Rebuild the SQLite database from JSONL with proper structure."""
     
     # Backup existing database
-    backup_path = 'data/dictionary/db/master_unified_dictionary.db.bak'
-    original_path = 'data/dictionary/db/master_unified_dictionary.db'
+    backup_path = 'data/zolai.db.bak'
+    original_path = 'data/zolai.db'
     
     if os.path.exists(original_path):
         shutil.copy2(original_path, backup_path)
@@ -183,7 +183,7 @@ async def rebuild_database():
         # Try to insert, handle duplicates
         try:
             cur.execute(
-                '''INSERT INTO entries 
+                '''INSERT INTO dictionary 
                    (headword, pos, english, sources, raw_json, entry_version, 
                     update_remarks, update_description, zvs_compliance_status)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
@@ -208,7 +208,7 @@ async def rebuild_database():
     conn.commit()
     
     # Print summary
-    cur.execute("SELECT COUNT(*) FROM entries")
+    cur.execute("SELECT COUNT(*) FROM dictionary")
     final_count = cur.fetchone()[0]
     
     print(f"\n=== DATABASE REBUILD SUMMARY ===")
@@ -219,14 +219,14 @@ async def rebuild_database():
     print(f"Final DB count: {final_count}")
     
     # Verify some entries
-    cur.execute("SELECT id, headword, entry_version, zvs_compliance_status FROM entries LIMIT 10")
+    cur.execute("SELECT id, headword, entry_version, zvs_compliance_status FROM dictionary LIMIT 10")
     rows = cur.fetchall()
     print(f"\nVerified - first 10 entries:")
     for row in rows:
         print(f"  ID={row[0]}, headword='{row[1][:50] if row[1] else None}', version={row[2]}, status={row[3]}")
     
     # Check ZVS compliance status distribution
-    cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM entries GROUP BY zvs_compliance_status")
+    cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM dictionary GROUP BY zvs_compliance_status")
     status_counts = cur.fetchall()
     print(f"\nZVS compliance status distribution:")
     for status, count in status_counts:

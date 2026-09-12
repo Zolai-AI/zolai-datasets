@@ -30,7 +30,7 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 
 DATA     = Path("data/master/sources")
 COMBINED = Path("data/master/combined")
-DB_PATH  = Path("data/master_unified_dictionary.db")
+DB_PATH  = Path("data/zolai.db")
 OUT_VOCAB   = Path("data/processed/bible_vocab")
 PROGRESS    = Path("data/processed/bible_vocab_pipeline_progress.json")
 GAPS_OUT    = Path("data/processed/bible_vocab_still_missing.jsonl")
@@ -150,25 +150,24 @@ def stem(word: str, known: set[str]) -> str | None:
 
 def db_headwords(conn: sqlite3.Connection) -> set[str]:
     cur = conn.cursor()
-    cur.execute("SELECT LOWER(TRIM(headword)) FROM entries WHERE headword != ''")
+    cur.execute("SELECT LOWER(TRIM(zolai)) FROM dictionary WHERE zolai != ''")
     return {r[0] for r in cur.fetchall()}
 
 
 def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id FROM entries WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
     raw = json.dumps(entry, ensure_ascii=False)
-    cur.execute("INSERT INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+    cur.execute("INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
                 (hw, entry.get("pos", ""), entry.get("source", "crossref"), raw))
     eid = cur.lastrowid
     for t in (entry.get("english") or []):
         if isinstance(t, str) and t.strip():
             cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t))
     trans = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
-    cur.execute("INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
                 (eid, hw, trans, entry.get("explanation", "")))
     conn.commit()
     return True

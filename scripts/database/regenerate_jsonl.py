@@ -47,11 +47,11 @@ def extract_headword_from_raw_json(raw_json):
 
 async def regenerate_verified_dict():
     """Regenerate dict_zo_en_verified_v1.jsonl from database."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries with their fields
-    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM entries")
+    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary")
     all_entries = cur.fetchall()
     
     total = len(all_entries)
@@ -122,10 +122,10 @@ async def regenerate_verified_dict():
 
 async def regenerate_master_dict():
     """Regenerate dict_zo_en_master_v1.jsonl from database."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
-    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM entries")
+    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary")
     all_entries = cur.fetchall()
     
     total = len(all_entries)

@@ -2,7 +2,7 @@ import sqlite3
 
 
 class ZVSTranslator:
-    def __init__(self, db_path="data/dictionary/db/zvs_master_dictionary.db"):
+    def __init__(self, db_path="data/zolai.db"):
         self.db_path = db_path
 
     def get_zvs_translation(self, text, register="conversational"):
@@ -17,7 +17,7 @@ class ZVSTranslator:
         cursor = conn.cursor()
         
         # Search for headword or translation
-        query = "SELECT headword, pos, raw_json FROM entries WHERE headword LIKE ? OR translations LIKE ? LIMIT 1"
+        query = "SELECT headword, pos, raw_json FROM dictionary WHERE headword LIKE ? OR translations LIKE ? LIMIT 1"
         cursor.execute(query, ('%' + text + '%', '%' + text + '%'))
         row = cursor.fetchone()
         conn.close()
