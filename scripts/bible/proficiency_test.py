@@ -1,27 +1,21 @@
 #!/usr/bin/env python3
 """Zolai Proficiency Test — A1 to C2 levels.
 
-Generates multiple-choice questions from Bible corpus,
-vocabulary index, and dictionary data.
+Generates multiple-choice questions from SQLite database
+(vocab, dictionary, bible_verses) for real, high-frequency
+Zolai words and short Bible sentences.
 """
 import json
 import random
+import sqlite3
 import sys
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-CORPUS = (
-    WORKSPACE / "data" / "bible"
-    / "parallel_corpus_v1.jsonl"
-)
-VOCAB = (
-    WORKSPACE / "data" / "bible"
-    / "vocab_index_full.jsonl"
-)
-DICT_FILE = (
-    WORKSPACE / "data" / "dictionary" / "processed"
-    / "dict_zo_en_master_v1.jsonl"
-)
+DB_PATH = WORKSPACE / "data" / "zolai.db"
+
+# Minimum frequency for vocab to be used in questions
+MIN_FREQ = 100
 
 # Level configs: (vocab, sent, gram, neg, ctx, err, comp)
 LEVELS = {
@@ -69,101 +63,145 @@ GRAMMAR_PATTERNS = [
     ("ta", "Completive aspect"),
     ("lai", "Progressive aspect"),
     ("ki", "Reflexive marker"),
-    ("cu", "While / during"),
+    ("tua", "That (conjunction)"),
     ("si", "Negative imperative"),
     ("te", "Past tense"),
     ("ci", "Quotative (said)"),
 ]
 
 
-def load_corpus():
-    """Load parallel Bible verses."""
-    data = []
-    with open(CORPUS, encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
+def _open_db():
+    """Open a read-only connection to the SQLite database."""
+    conn = sqlite3.connect(
+        f"file:{DB_PATH}?mode=ro", uri=True
+    )
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
-def load_vocab():
-    """Load vocabulary index."""
-    data = []
-    with open(VOCAB, encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
+def load_high_freq_vocab():
+    """Load high-frequency vocab from DB (frequency > MIN_FREQ).
+
+    Returns list of (word, english, frequency) tuples,
+    sorted by frequency descending.
+    """
+    conn = _open_db()
+    try:
+        cur = conn.execute(
+            "SELECT headword, english, frequency "
+            "FROM vocab "
+            "WHERE frequency > ? "
+            "ORDER BY frequency DESC",
+            (MIN_FREQ,),
+        )
+        rows = cur.fetchall()
+        return [
+            (r["headword"], r["english"], r["frequency"])
+            for r in rows
+            if r["headword"] and r["english"]
+        ]
+    finally:
+        conn.close()
 
 
-def load_dict():
-    """Load Zolai→English dictionary."""
-    data = []
-    with open(DICT_FILE, encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
+def load_dict_pairs():
+    """Load Zolai→English pairs from dictionary DB.
+
+    Returns list of (zolai, english_clean) tuples.
+    """
+    conn = _open_db()
+    try:
+        cur = conn.execute(
+            "SELECT zolai, english_clean "
+            "FROM dictionary "
+            "WHERE english_clean IS NOT NULL "
+            "AND english_clean != ''"
+        )
+        rows = cur.fetchall()
+        return [
+            (r["zolai"], r["english_clean"])
+            for r in rows
+            if r["zolai"] and r["english_clean"]
+        ]
+    finally:
+        conn.close()
 
 
-def tokenize(text):
-    """Split text into word tokens."""
-    # Remove punctuation and split
-    clean = text.replace(";", "").replace(",", "")
-    clean = clean.replace(".", "").replace("'", "")
-    return [w for w in clean.split() if w]
+def load_short_verses():
+    """Load short Bible verses (3-12 words) from DB.
+
+    Returns list of dicts with zo_tdb77, en_kJV, ref.
+    """
+    conn = _open_db()
+    try:
+        cur = conn.execute(
+            "SELECT ref, zo_tdb77, en_kJV "
+            "FROM bible_verses "
+            "WHERE zo_tdb77 IS NOT NULL "
+            "AND en_kJV IS NOT NULL "
+            "AND zo_tdb77 != '' "
+            "AND en_kJV != '' "
+            "AND (length(zo_tdb77) "
+            "     - length(replace(zo_tdb77, ' ', '')) + 1) "
+            "BETWEEN 3 AND 12"
+        )
+        rows = cur.fetchall()
+        return [
+            {
+                "ref": r["ref"],
+                "zo_tdb77": r["zo_tdb77"],
+                "en_kJV": r["en_kJV"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
 
 
-def get_translation(word, dict_data):
-    """Look up English translation for a Zolai word."""
-    wl = word.lower()
-    for entry in dict_data:
-        if entry.get("zolai", "").lower() == wl:
-            eng = entry.get("english", [])
-            if isinstance(eng, list) and eng:
-                return str(eng[0])
-            elif eng:
-                return str(eng)
-    return None
-
-
-def get_vocab_translations(word, vocab_data):
-    """Get translation from vocab index."""
-    for entry in vocab_data:
-        if entry.get("word", "").lower() == word.lower():
-            trans = entry.get("translations", [])
-            if isinstance(trans, list) and trans:
-                return str(trans[0])
-    return None
+def load_all_verses():
+    """Load all Bible verses from DB for distractor generation."""
+    conn = _open_db()
+    try:
+        cur = conn.execute(
+            "SELECT ref, zo_tdb77, en_kJV "
+            "FROM bible_verses "
+            "WHERE en_kJV IS NOT NULL "
+            "AND en_kJV != ''"
+        )
+        rows = cur.fetchall()
+        return [
+            {
+                "ref": r["ref"],
+                "zo_tdb77": r["zo_tdb77"] or "",
+                "en_kJV": r["en_kJV"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
 
 
 def _is_zolai_word(word):
     """Check if a word looks like Zolai (not pure English).
 
-    Returns True if the word is likely a Zolai headword rather than
-    an English dictionary entry.  Rough heuristic: skip words that
-    are common English, have English-only morphology, or contain
-    only ASCII alphanumerics and spaces with no Zolai particle
-    patterns.
+    Returns True if the word is likely a Zolai headword
+    rather than an English dictionary entry.
     """
     if not word:
         return False
     wl = word.lower().strip()
-
-    # Skip entries that are clearly English dictionary markers / junk
     skip_prefixes = (
         "& ", "(", ")", '"', "'", "adv", "v.", "n.", "adj",
     )
     if any(wl.startswith(p) for p in skip_prefixes):
         return False
-
-    # Skip words with clearly English suffixes
     eng_suffixes = (
         "tion", "ment", "ness", "ity", "ous", "ive", "ing",
-        "ed", "ful", "less", "able", "ible", "tion", "ence",
-        "ance", "ism", "ist", "ize", "ise", "ly", "al",
+        "ed", "ful", "less", "able", "ible", "ence", "ance",
+        "ism", "ist", "ize", "ise", "ly", "al",
     )
     if any(wl.endswith(s) for s in eng_suffixes):
         return False
-
-    # Skip common English words
     common_english = {
         "the", "and", "for", "are", "but", "not", "you",
         "all", "can", "had", "her", "was", "one", "our",
@@ -178,18 +216,14 @@ def _is_zolai_word(word):
     }
     if wl in common_english:
         return False
-
-    # Skip if it's purely ASCII and contains no Zolai particles
-    if wl.isascii():
-        zolai_particles = (
-            "leh", "hi", "in ", " na", " ka", " a ", "tu ",
-            " ki", " hi.", " hiam", " kei", " ding", " lai",
-            " ta.", " zo.", " sung", " tawh", " ciang",
-        )
-        if not any(p in wl for p in zolai_particles):
-            return False
-
     return True
+
+
+def tokenize(text):
+    """Split text into word tokens."""
+    clean = text.replace(";", "").replace(",", "")
+    clean = clean.replace(".", "").replace("'", "")
+    return [w for w in clean.split() if w]
 
 
 class ProficiencyTest:
@@ -202,61 +236,45 @@ class ProficiencyTest:
             print("Valid: " + ", ".join(LEVELS.keys()))
             sys.exit(1)
         self.cfg = LEVELS[self.level]
-        self.corpus = []
-        self.vocab = []
-        self.dict_data = []
+        self.vocab_data = []
+        self.dict_pairs = []
+        self.short_verses = []
+        self.all_verses = []
         self._loaded = False
 
     def _ensure_loaded(self):
-        """Lazy-load data on first use."""
+        """Lazy-load data from DB on first use."""
         if self._loaded:
             return
-        print("Loading data...", file=sys.stderr)
-        self.corpus = load_corpus()
-        self.vocab = load_vocab()
-        self.dict_data = load_dict()
+        print("Loading data from database...", file=sys.stderr)
+        self.vocab_data = load_high_freq_vocab()
+        self.dict_pairs = load_dict_pairs()
+        self.short_verses = load_short_verses()
+        self.all_verses = load_all_verses()
         self._loaded = True
-        # Build vocab lookup  (vocab_index uses headword/english)
-        self.vocab_map = {}
-        for v in self.vocab:
-            w = v.get("headword", v.get("word", ""))
-            if w:
-                self.vocab_map[w.lower()] = v
-        # Build dict lookup
-        self.dict_map = {}
-        for d in self.dict_data:
-            w = d.get("zolai", "")
-            if w:
-                self.dict_map[w.lower()] = d
-        # Build list of (zolai_word, english_translation) pairs
-        # from vocab_index (canonical source — 20K+ real Zolai words)
+        # Build zolai_pairs from vocab table only
+        # (clean, high-frequency Zolai words)
         self.zolai_pairs = []
-        for v in self.vocab:
-            head = v.get("headword", v.get("word", ""))
-            eng = v.get("english", "")
-            if head and eng and _is_zolai_word(head):
-                self.zolai_pairs.append((head, str(eng)))
-        # Also pull from dict_zo_en_clean (filtered dict)
-        for d in self.dict_data:
-            zol = d.get("zolai", "")
-            eng = d.get("english_clean", "")
-            if zol and eng and _is_zolai_word(zol):
-                self.zolai_pairs.append((zol, eng))
-        # Deduplicate by Zolai word (keep first occurrence)
         seen = set()
-        deduped = []
-        for z, e in self.zolai_pairs:
-            key = z.lower().strip()
-            if key not in seen:
+        for word, eng, freq in self.vocab_data:
+            key = word.lower().strip()
+            if key not in seen and eng and len(str(eng)) > 1:
                 seen.add(key)
-                deduped.append((z, e))
-        self.zolai_pairs = deduped
+                self.zolai_pairs.append(
+                    (word, str(eng), freq)
+                )
+        print(
+            f"  Loaded: {len(self.vocab_data)} vocab "
+            f"(freq>{MIN_FREQ}), "
+            f"{len(self.short_verses)} short verses, "
+            f"{len(self.all_verses)} total verses",
+            file=sys.stderr,
+        )
 
     def _pick_random_vocab(self, n):
-        """Pick n random vocab entries with translations.
+        """Pick n random high-frequency vocab entries.
 
-        Uses self.zolai_pairs — already filtered to Zolai headwords
-        only (no English dictionary entries).
+        Returns tuples of (word, english, frequency).
         """
         self._ensure_loaded()
         if not self.zolai_pairs:
@@ -266,31 +284,27 @@ class ProficiencyTest:
         )
 
     def _pick_random_sentences(self, n):
-        """Pick n random Bible verses with translations."""
+        """Pick n random short Bible verses."""
         self._ensure_loaded()
-        # Filter to short/medium verses
-        good = []
-        for v in self.corpus:
-            zo = v.get("zo_tdb77", "")
-            en = v.get("en_kJV", "")
-            if not zo or not en:
-                continue
-            zo_words = tokenize(zo)
-            if 3 <= len(zo_words) <= 15:
-                good.append(v)
-        return random.sample(good, min(n, len(good)))
+        if not self.short_verses:
+            return []
+        return random.sample(
+            self.short_verses, min(n, len(self.short_verses))
+        )
 
     def vocab_questions(self, n):
         """Multiple choice: what does this Zolai word mean?"""
         items = self._pick_random_vocab(n)
         questions = []
-        for word, correct in items:
-            if not word or not correct or len(str(correct)) < 2:
+        for word_info in items:
+            if not isinstance(word_info, tuple):
                 continue
-            correct = str(correct)
+            word = word_info[0]
+            correct = str(word_info[1])
+            if not word or not correct:
+                continue
             if len(correct) > 60:
                 correct = correct[:57] + "..."
-            # Pick 3 wrong answers from zolai_pairs
             distractors = self._get_distractors_from_pairs(
                 word, correct, self.zolai_pairs
             )
@@ -317,17 +331,14 @@ class ProficiencyTest:
             zo = v.get("zo_tdb77", "")
             en = v.get("en_kJV", "")
             ref = v.get("ref", "?")
-            # Pick 3 wrong English translations
             distractors = self._get_sentence_distractors(
-                en, self.corpus
+                en, self.all_verses
             )
             options = [en] + distractors
             random.shuffle(options)
             questions.append({
                 "type": "sentence",
-                "question": (
-                    f"Translate: {zo}"
-                ),
+                "question": f"Translate: {zo}",
                 "context": ref,
                 "options": options,
                 "answer": options.index(en),
@@ -349,7 +360,6 @@ class ProficiencyTest:
             v = items[0]
             zo = v.get("zo_tdb77", "")
             ref = v.get("ref", "?")
-            # Pick a random pattern
             pat_idx = random.randint(
                 0, len(GRAMMAR_PATTERNS) - 1
             )
@@ -357,7 +367,6 @@ class ProficiencyTest:
                 continue
             used.add(pat_idx)
             pat_code, pat_desc = GRAMMAR_PATTERNS[pat_idx]
-            # Create 4 options: correct + 3 wrong
             all_pats = list(GRAMMAR_PATTERNS)
             random.shuffle(all_pats)
             options = [pat_desc]
@@ -451,7 +460,6 @@ class ProficiencyTest:
                 "a " + pos.split()[-3] + " ding hi.",
                 "ka " + pos.split()[-3] + " si hi.",
             ]
-            # Clean up distractors
             distractors = [
                 d.replace("ka a ", "a ") for d in distractors
             ]
@@ -471,7 +479,6 @@ class ProficiencyTest:
     def context_questions(self, n):
         """Same word, different meaning in context."""
         self._ensure_loaded()
-        # Words with multiple meanings
         polysemous = [
             ("hi", "declarative / to be", "He is tall."),
             ("in", "ergative / in", "He went in."),
@@ -504,7 +511,6 @@ class ProficiencyTest:
             distractors = [
                 p for p in parts[1:]
             ] + ["(no meaning)"]
-            # Pad to 4 options
             while len(distractors) < 3:
                 distractors.append("(unknown)")
             options = [correct] + distractors[:3]
@@ -625,9 +631,8 @@ class ProficiencyTest:
             zo = v.get("zo_tdb77", "")
             en = v.get("en_kJV", "")
             ref = v.get("ref", "?")
-            # Get distractors from other verses
             distractors = self._get_sentence_distractors(
-                en, self.corpus
+                en, self.all_verses
             )
             options = [en] + distractors[:3]
             random.shuffle(options)
@@ -644,48 +649,44 @@ class ProficiencyTest:
             })
         return questions
 
-    def _get_distractors(
-        self, correct, data, key="translations"
-    ):
-        """Pick 3 wrong answers from vocab data."""
-        candidates = []
-        for item in data:
-            trans = item.get(key, [])
-            if isinstance(trans, list):
-                t = str(trans[0]) if trans else ""
-            else:
-                t = str(trans)
-            if t and t != correct and len(t) > 2:
-                candidates.append(t)
-            if len(candidates) >= 20:
-                break
-        random.shuffle(candidates)
-        return candidates[:3]
-
     def _get_distractors_from_pairs(
-        self, correct_word, correct_translation, pairs, count=3
+        self, correct_word, correct_translation, pairs,
+        count=3,
     ):
-        """Pick 3 wrong translations from zolai_pairs (tuples)."""
+        """Pick 3 wrong translations from zolai_pairs.
+
+        Prefers entries with similar frequency to the
+        correct word (same tier).
+        """
+        # Find the frequency of the correct word
+        correct_freq = 0
+        for p in pairs:
+            if len(p) >= 3 and p[0] == correct_word:
+                correct_freq = p[2]
+                break
         candidates = []
-        for word, trans in pairs:
-            t = str(trans)
+        for p in pairs:
+            word = p[0]
+            trans = str(p[1])
+            freq = p[2] if len(p) >= 3 else 0
             if (
                 word != correct_word
-                and t != correct_translation
-                and len(t) > 2
+                and trans != correct_translation
+                and len(trans) > 2
             ):
-                candidates.append(t)
-            if len(candidates) >= 20:
-                break
-        random.shuffle(candidates)
-        return candidates[:count]
+                candidates.append((word, trans, freq))
+        # Sort by proximity to correct frequency
+        candidates.sort(
+            key=lambda x: abs(x[2] - correct_freq)
+        )
+        return [c[1] for c in candidates[:count]]
 
     def _get_sentence_distractors(self, correct, corpus):
         """Pick 3 wrong English sentences."""
         candidates = []
         for v in corpus:
             en = v.get("en_kJV", "")
-            if en and en != correct:
+            if en and en != correct and len(en) > 5:
                 candidates.append(en)
             if len(candidates) >= 30:
                 break
@@ -772,9 +773,13 @@ class ProficiencyTest:
         print("═══ Results ═══")
         print(f"Score: {score}/{total} ({pct:.0f}%)")
         if pct >= 90:
-            print(f"🏆 Excellent! Level {self.level} passed!")
+            print(
+                f"🏆 Excellent! Level {self.level} passed!"
+            )
         elif pct >= 70:
-            print(f"👍 Good. Level {self.level} passed!")
+            print(
+                f"👍 Good. Level {self.level} passed!"
+            )
         elif pct >= 50:
             print("📚 Keep practicing!")
         else:
@@ -861,23 +866,33 @@ def main():
         print()
         print(f"  Total across all levels: {total}")
         print()
-        # Data stats
-        print("═══ Data Sources ═══")
+        # Data stats from DB
+        print("═══ Data Sources (SQLite) ═══")
         try:
-            c = load_corpus()
-            print(f"  Bible verses: {len(c):,}")
-        except FileNotFoundError:
-            print("  Bible verses: NOT FOUND")
-        try:
-            v = load_vocab()
-            print(f"  Vocabulary: {len(v):,}")
-        except FileNotFoundError:
-            print("  Vocabulary: NOT FOUND")
-        try:
-            d = load_dict()
-            print(f"  Dictionary: {len(d):,}")
-        except FileNotFoundError:
-            print("  Dictionary: NOT FOUND")
+            conn = _open_db()
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM vocab "
+                f"WHERE frequency > {MIN_FREQ}"
+            )
+            print(
+                f"  High-freq vocab "
+                f"(>{MIN_FREQ}): {cur.fetchone()[0]:,}"
+            )
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM dictionary"
+            )
+            print(
+                f"  Dictionary: {cur.fetchone()[0]:,}"
+            )
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM bible_verses"
+            )
+            print(
+                f"  Bible verses: {cur.fetchone()[0]:,}"
+            )
+            conn.close()
+        except Exception as e:
+            print(f"  Database error: {e}")
         print()
         return
 
@@ -904,9 +919,7 @@ def main():
             f"for level {args.level}"
         )
         for i, q in enumerate(questions, 1):
-            print(
-                f"\nQ{i}: {q['question']}"
-            )
+            print(f"\nQ{i}: {q['question']}")
             if q.get("context"):
                 print(f"  ({q['context']})")
             for j, opt in enumerate(q["options"]):
