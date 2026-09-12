@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Analyze Zomi Worship Collective songs 41-60 — improved version."""
-import os
 import re
 from pathlib import Path
 
@@ -265,7 +264,7 @@ for i, song_file in enumerate(batch):
             violations.append(f"{song_file.name}: contains '{word}'")
 
 if violations:
-    print(f"\n⚠️  ZVS 2018 violations found:")
+    print("\n⚠️  ZVS 2018 violations found:")
     for v in violations:
         print(f"   - {v}")
 else:

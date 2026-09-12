@@ -17,10 +17,9 @@ Usage:
 import argparse
 import json
 import random
-import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 # Seed data (high-quality Zolai-English pairs)
 SEED_DATA = [
@@ -52,7 +51,7 @@ SEED_DATA = [
 ]
 
 
-def load_seed_data(seed_path: Optional[str] = None) -> List[Dict[str, Any]]:
+def load_seed_data(seed_path: str | None = None) -> list[dict[str, Any]]:
     """Load seed data from file or use built-in seeds."""
     if seed_path and Path(seed_path).exists():
         with open(seed_path, 'r', encoding='utf-8') as f:
@@ -60,7 +59,7 @@ def load_seed_data(seed_path: Optional[str] = None) -> List[Dict[str, Any]]:
     return SEED_DATA
 
 
-def generate_prompt(seed_pairs: List[Dict[str, Any]], task: str = "translation") -> str:
+def generate_prompt(seed_pairs: list[dict[str, Any]], task: str = "translation") -> str:
     """Generate prompt for LLM-based synthetic data generation."""
     
     seed_examples = "\n".join([
@@ -127,7 +126,7 @@ Generate 10 items now:"""
 
 
 def generate_synthetic_data(
-    seed_data: List[Dict[str, Any]],
+    seed_data: list[dict[str, Any]],
     count: int = 10,
     task: str = "translation",
     output_path: str = "synthetic_data.jsonl"
@@ -139,7 +138,7 @@ def generate_synthetic_data(
     # - HuggingFace API (Llama 3.1 405B)
     # - Local model (Ollama)
     
-    print(f"\n=== Synthetic Data Generation ===")
+    print("\n=== Synthetic Data Generation ===")
     print(f"Task: {task}")
     print(f"Seed pairs: {len(seed_data)}")
     print(f"Target count: {count}")
@@ -166,8 +165,7 @@ def generate_synthetic_data(
     
     # Write output
     with open(output_path, 'w', encoding='utf-8') as f:
-        for item in synthetic:
-            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+        f.writelines(json.dumps(item, ensure_ascii=False) + '\n' for item in synthetic)
     
     print(f"✅ Generated {len(synthetic)} synthetic pairs")
     print(f"Output: {output_path}")
@@ -177,7 +175,7 @@ def generate_synthetic_data(
 
 def validate_synthetic_data(file_path: str):
     """Validate synthetic data quality."""
-    print(f"\n=== Validating Synthetic Data ===")
+    print("\n=== Validating Synthetic Data ===")
     
     issues = []
     total = 0

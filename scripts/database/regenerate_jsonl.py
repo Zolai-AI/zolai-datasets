@@ -10,7 +10,6 @@ import sqlite3
 import json
 import sys
 import os
-import re
 
 # Add bible dir for gemini_cookies
 SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
@@ -18,7 +17,6 @@ BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
-from gemini_cookies import get_gemini_client
 import asyncio
 
 
@@ -96,7 +94,7 @@ async def regenerate_verified_dict():
                 if isinstance(rj, dict):
                     # Preserve any additional fields from original
                     for key in ['sources', 'raw_json', 'notes', 'etymology']:
-                        if key in rj and rj[key]:
+                        if rj.get(key):
                             entry_dict[key] = rj[key]
             except:
                 pass
@@ -111,8 +109,7 @@ async def regenerate_verified_dict():
     # Write the output JSONL file
     output_path = 'data/dictionary/processed/dict_zo_en_verified_v1.jsonl'
     with open(output_path, 'w', encoding='utf-8') as f:
-        for line in output_entries:
-            f.write(line + '\n')
+        f.writelines(line + '\n' for line in output_entries)
     
     print(f"\\n=== regenerated: {output_path} ===")
     print(f"Total entries: {total}")
@@ -180,8 +177,7 @@ async def regenerate_master_dict():
     
     output_path = 'data/dictionary/processed/dict_zo_en_master_v1.jsonl'
     with open(output_path, 'w', encoding='utf-8') as f:
-        for line in output_entries:
-            f.write(line + '\n')
+        f.writelines(line + '\n' for line in output_entries)
     
     print(f"\\n=== regenerated: {output_path} ===")
     print(f"Total entries: {total}")

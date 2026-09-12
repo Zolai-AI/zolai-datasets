@@ -16,7 +16,6 @@ import asyncio
 import argparse
 import json
 import re
-import sys
 import time
 from pathlib import Path
 from collections import defaultdict
@@ -61,8 +60,7 @@ def save_log(log_name, entries):
     """Save audit log as JSONL."""
     path = LOG_DIR / log_name
     with open(path, 'w') as f:
-        for e in entries:
-            f.write(json.dumps(e, ensure_ascii=False) + '\n')
+        f.writelines(json.dumps(e, ensure_ascii=False) + '\n' for e in entries)
     print(f"  Saved {len(entries)} entries to {path}")
 
 
@@ -424,12 +422,12 @@ def generate_report(all_discrepancies):
         by_phase[d['phase']].append(d)
     
     report_lines = [
-        f"# Zolai Data Audit Report",
+        "# Zolai Data Audit Report",
         f"## Generated: {time.strftime('%Y-%m-%d %H:%M')}",
-        f"",
-        f"### Summary",
-        f"| Phase | HIGH | MEDIUM | OK | Total |",
-        f"|-------|------|--------|-----|-------|",
+        "",
+        "### Summary",
+        "| Phase | HIGH | MEDIUM | OK | Total |",
+        "|-------|------|--------|-----|-------|",
     ]
     
     total_high = 0
@@ -463,7 +461,7 @@ def generate_report(all_discrepancies):
                 if d.get('gemini_response') and d['gemini_response'] != 'CONFIRMED':
                     report_lines.append(f"  → Gemini: {d['gemini_response'][:80]}")
     
-    report_lines.append(f"\n### Data Quality Assessment")
+    report_lines.append("\n### Data Quality Assessment")
     report_lines.append(f"- Dictionary: {total_high} wrong definitions need immediate fix")
     report_lines.append(f"- Grammar: {total_ok} rules verified by Gemini")
     report_lines.append(f"- Training: {total_med} training pairs need review")

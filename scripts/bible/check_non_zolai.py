@@ -2,7 +2,6 @@
 """Check dictionaries for non-Zolai (Hakha/Falam) words — comprehensive v2."""
 import json
 import os
-import re
 from pathlib import Path
 
 DATA = Path(os.environ.get("WORKSPACE", str(Path(__file__).resolve().parents[3]))) / "data"

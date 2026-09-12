@@ -3,14 +3,10 @@ Uses browser cookies to access Gemini web (bypasses geo-restriction).
 Pcore-brain routes Zolai translations through this when called.
 """
 
-import asyncio
 import sys
-import json
 import logging
-from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
 sys.path.insert(0, '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 

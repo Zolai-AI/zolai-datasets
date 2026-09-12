@@ -75,7 +75,7 @@ Return ONLY valid JSON:
             "zvs_violation": False,
             "zvs_correct_form": "",
             "compliance_status": "pending",
-            "remarks": f"Error: {str(e)}",
+            "remarks": f"Error: {e!s}",
             "description": ""
         }
 
@@ -161,7 +161,7 @@ async def process_jsonl_entries(batch_size=100):
     # Final summary
     cur.execute("SELECT * FROM dictionary GROUP BY zvs_compliance_status")
     final_status = cur.fetchall()
-    print(f"\n=== FINAL SUMMARY ===")
+    print("\n=== FINAL SUMMARY ===")
     print(f"Total JSONL entries: {total}")
     print(f"Updated in DB: {updated}")
     for status, count in final_status:

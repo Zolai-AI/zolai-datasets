@@ -10,7 +10,6 @@ Goal = ANY human can learn Zolai from scratch
 
 import json
 import random
-import sys
 from pathlib import Path
 
 DATA = Path("/home/peter/Documents/Projects/zolai-ai/data")
@@ -89,7 +88,7 @@ def run_lesson(lesson):
         input(f"{B}Press Enter to practice pronunciation...{NC}")
         for word, zolai, note in new_words:
             print(f"  Say: {G}{zolai}{NC}")
-            input(f"  (Press Enter after saying it)")
+            input("  (Press Enter after saying it)")
         print()
     
     # 2. GRAMMAR NOTE
@@ -118,7 +117,7 @@ def run_lesson(lesson):
                 print(f"  {G}✓ Completed{NC}\n")
                 score += 1
             else:
-                user_input = input(f"  Your answer: ").strip()
+                user_input = input("  Your answer: ").strip()
                 if user_input.lower() in answer.lower() or answer.lower() in user_input.lower():
                     print(f"  {G}✅ Correct!{NC}\n")
                     score += 1
@@ -149,7 +148,7 @@ def quiz_vocab(vocab, level=1, count=10):
     quiz_words = random.sample(words, min(count, len(words)))
     
     print(f"\n{Y}═══ VOCABULARY QUIZ — Level {level} ═══{NC}\n")
-    print(f"Translate Zolai → English\n")
+    print("Translate Zolai → English\n")
     
     score = 0
     for i, v in enumerate(quiz_words, 1):
@@ -219,7 +218,7 @@ def main():
             print(f"  {G}5{NC}) Grammar Reference")
             print(f"  {G}0{NC}) Exit")
             
-            choice = input(f"\n  Select: ").strip()
+            choice = input("\n  Select: ").strip()
             if choice == "0":
                 print(f"\n{G}Keep learning Zolai! See you next time!{NC}\n")
                 break
@@ -240,7 +239,7 @@ def main():
                         d = lesson.get("day", 0)
                         title = lesson.get("title", "")
                         print(f"    W{w}D{d}: {title}")
-                lesson_id = input(f"\n  Enter lesson (e.g., W5D3): ").strip()
+                lesson_id = input("\n  Enter lesson (e.g., W5D3): ").strip()
                 # Parse and run
                 try:
                     w = int(lesson_id[1:3])
@@ -271,10 +270,10 @@ def main():
         # Default: show overview and instructions
         show_course_overview(course)
         print(f"\n{C}Usage:{NC}")
-        print(f"  python3 zolai_learn.py --overview              # See full course")
-        print(f"  python3 zolai_learn.py --lesson W1D1           # Start a lesson")
-        print(f"  python3 zolai_learn.py --quiz 1                # Quiz vocabulary")
-        print(f"  python3 zolai_learn.py --interactive           # Interactive mode")
+        print("  python3 zolai_learn.py --overview              # See full course")
+        print("  python3 zolai_learn.py --lesson W1D1           # Start a lesson")
+        print("  python3 zolai_learn.py --quiz 1                # Quiz vocabulary")
+        print("  python3 zolai_learn.py --interactive           # Interactive mode")
 
 if __name__ == "__main__":
     main()

@@ -20,7 +20,6 @@ BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
-from gemini_cookies import get_gemini_client
 import asyncio
 
 
@@ -142,7 +141,7 @@ async def update_database_from_jsonl():
     
     conn.commit()
     
-    print(f"\n=== DONE ===")
+    print("\n=== DONE ===")
     print(f"Total entries: {total}")
     print(f"Updated: {updated}")
     print(f"Skipped: {skipped}")

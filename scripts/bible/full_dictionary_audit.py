@@ -104,7 +104,7 @@ def audit_dictionary():
     
     # Print stats
     print(f"\n{'='*60}")
-    print(f"DICTIONARY AUDIT RESULTS")
+    print("DICTIONARY AUDIT RESULTS")
     print(f"{'='*60}")
     for k, v in stats.items():
         print(f"  {k}: {v:,}")

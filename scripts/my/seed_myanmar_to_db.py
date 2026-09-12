@@ -105,7 +105,7 @@ def seed_database(entries: dict[str, str], dry_run: bool = False) -> None:
     after = cursor.fetchone()[0]
     conn.close()
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Entries loaded: {len(entries)}")
     print(f"  Matched in DB:  {matched}")
     print(f"  Updated:        {updated}")
@@ -113,7 +113,7 @@ def seed_database(entries: dict[str, str], dry_run: bool = False) -> None:
     print(f"  Myanmar rows after: {after}")
 
     if not_found:
-        print(f"\n  First 10 not found:")
+        print("\n  First 10 not found:")
         for w in not_found[:10]:
             print(f"    {w}")
 

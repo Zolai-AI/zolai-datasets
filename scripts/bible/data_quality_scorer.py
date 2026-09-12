@@ -26,10 +26,7 @@ import argparse
 import json
 import math
 import re
-import sys
 from collections import Counter
-from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Zolai stopwords (common function words)
 ZOLOI_STOPWORDS = set([
@@ -169,7 +166,7 @@ def flagged_words_ratio(text: str) -> float:
     return flagged / len(words)
 
 
-def compute_quality_features(text: str) -> Dict[str, float]:
+def compute_quality_features(text: str) -> dict[str, float]:
     """Compute all 8 quality features for a document."""
     return {
         'word_count': len(text.split()),
@@ -183,7 +180,7 @@ def compute_quality_features(text: str) -> Dict[str, float]:
     }
 
 
-def compute_quality_score(features: Dict[str, float]) -> float:
+def compute_quality_score(features: dict[str, float]) -> float:
     """
     Compute overall quality score from features.
     
@@ -258,7 +255,7 @@ def process_file(input_path: str, output_path: str, threshold: float = 0.5, stat
         # Sort by score descending
         results.sort(key=lambda x: x['score'], reverse=True)
         
-        print(f"\n=== Quality Score Statistics ===")
+        print("\n=== Quality Score Statistics ===")
         print(f"Total documents: {total}")
         
         if results:
@@ -273,7 +270,7 @@ def process_file(input_path: str, output_path: str, threshold: float = 0.5, stat
                 count = sum(1 for s in scores if bins[i] <= s < bins[i+1])
                 print(f"  {bins[i]:.1f}-{bins[i+1]:.1f}: {count} ({count/len(scores)*100:.1f}%)")
         
-        print(f"\n=== Top 10 Highest Quality ===")
+        print("\n=== Top 10 Highest Quality ===")
         for i, r in enumerate(results[:10]):
             print(f"{i+1}. Score: {r['score']:.4f}")
             print(f"   Text: {r['text'][:80]}...")
@@ -283,7 +280,7 @@ def process_file(input_path: str, output_path: str, threshold: float = 0.5, stat
             for entry in results:
                 f.write(json.dumps(entry, ensure_ascii=False) + '\n')
         
-        print(f"\n=== Quality Filtering Results ===")
+        print("\n=== Quality Filtering Results ===")
         print(f"Input: {input_path}")
         print(f"Output: {output_path}")
         print(f"Total: {total}")

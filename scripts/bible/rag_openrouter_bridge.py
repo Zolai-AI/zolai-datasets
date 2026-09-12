@@ -13,7 +13,6 @@ import os
 import sys
 import re
 from pathlib import Path
-from typing import Optional
 
 # Try to import requests
 try:
@@ -219,7 +218,7 @@ class RAGOpenRouterBridge:
                     zolai_words.extend(EN_ZO_MAP[w])
         return list(set(zolai_words))  # Remove duplicates
 
-    def lookup_vocab(self, word: str) -> Optional[dict]:
+    def lookup_vocab(self, word: str) -> dict | None:
         """Look up a word in the vocabulary."""
         self._ensure_loaded()
         return self.vocab.get(word)
@@ -387,7 +386,7 @@ class RAGOpenRouterBridge:
             return data["choices"][0]["message"]["content"]
 
         except Exception as e:
-            return f"ERROR: {str(e)}"
+            return f"ERROR: {e!s}"
 
     def test(self):
         """Run test queries."""
@@ -410,11 +409,11 @@ class RAGOpenRouterBridge:
 
             # Show RAG context
             rag_context = self.build_rag_context(query)
-            print(f"\nRAG Context (first 500 chars):")
+            print("\nRAG Context (first 500 chars):")
             print(rag_context[:500])
 
             # Query OpenRouter
-            print(f"\nAI Response:")
+            print("\nAI Response:")
             response = self.query_openrouter(query)
             print(response)
 

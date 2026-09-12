@@ -14,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -98,8 +97,7 @@ def main() -> int:
 
     # Write JSONL
     with open(OUTPUT_JSONL, "w", encoding="utf-8") as f:
-        for entry in entries:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in entries)
     print(f"  Written: {OUTPUT_JSONL}")
 
     # Write report
@@ -108,7 +106,7 @@ def main() -> int:
         json.dump(report, f, ensure_ascii=False, indent=2)
     print(f"  Written: {OUTPUT_REPORT}")
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Unique headwords with MY: {report['unique_headwords']}")
     print(f"  Total MY senses: {report['myanmar_senses_extracted']}")
     print(f"  POS distribution: {report['pos_distribution']}")

@@ -503,8 +503,7 @@ def main():
         vc = build_version_comparison(verses)
         out = KB_DIR / "version_comparison_v1.jsonl"
         with open(out, "w") as f:
-            for entry in vc:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in vc)
         print(f"✅ Written {len(vc)} entries to {out}")
         return
     
@@ -513,40 +512,35 @@ def main():
     gp = extract_grammar_patterns(verses, d)
     out = KB_DIR / "grammar_patterns_v2.jsonl"
     with open(out, "w") as f:
-        for entry in gp:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in gp)
     print(f"✅ Written {len(gp)} grammar patterns")
     
     print("\nBuilding verb database...")
     vb = build_verb_database(verses, d)
     out = KB_DIR / "verb_database_v1.jsonl"
     with open(out, "w") as f:
-        for entry in vb:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in vb)
     print(f"✅ Written {len(vb)} verbs")
     
     print("\nBuilding particle database...")
     pb = build_particle_database(verses, d)
     out = KB_DIR / "particle_database_v1.jsonl"
     with open(out, "w") as f:
-        for entry in pb:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in pb)
     print(f"✅ Written {len(pb)} particles")
     
     print("\nBuilding book summaries...")
     bs = build_book_summaries(verses, d)
     out = KB_DIR / "book_summaries_v1.jsonl"
     with open(out, "w") as f:
-        for entry in bs:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in bs)
     print(f"✅ Written {len(bs)} book summaries")
     
     print("\nBuilding version comparison...")
     vc = build_version_comparison(verses)
     out = KB_DIR / "version_comparison_v1.jsonl"
     with open(out, "w") as f:
-        for entry in vc:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in vc)
     print(f"✅ Written {len(vc)} version comparisons")
     
     print("\n" + "="*50)

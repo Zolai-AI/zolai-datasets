@@ -12,7 +12,6 @@ Usage: python3 gemini_zolai_all_models.py [--with-glossary] [--model MODEL]
 import asyncio
 import argparse
 import sys
-from pathlib import Path
 
 WEB_API_PATH = '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi'
 
