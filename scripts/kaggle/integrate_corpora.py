@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Phase 5: Corpus Ingestion — load tongsan articles and simbu dataset."""
+"""Phase 5: Corpus Ingestion — load articles and simbu dataset."""
 import json
 import sqlite3
 import sys
 
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
-TONGSAN_PATH = "/home/peter/Downloads/Kaggle/data/processed/tongsan_articles_standardized.jsonl"
+ARTICLES_PATH = "/home/peter/Downloads/Kaggle/data/processed/articles_standardized.jsonl"
 SIMBU_PATH = "/home/peter/Downloads/Kaggle/data/processed/zolai_simbu_dataset_clean.jsonl"
 
 
-def integrate_tongsan(conn: sqlite3.Connection, path: str) -> int:
+def integrate_articles(conn: sqlite3.Connection, path: str) -> int:
     cur = conn.cursor()
-    cur.execute("SELECT id FROM tongsan_articles")
+    cur.execute("SELECT id FROM articles")
     existing_ids = {r[0] for r in cur.fetchall()}
-    print(f"  Existing tongsan articles: {len(existing_ids)}")
+    print(f"  Existing articles: {len(existing_ids)}")
 
     inserted = 0
     with open(path) as f:
@@ -28,7 +28,7 @@ def integrate_tongsan(conn: sqlite3.Connection, path: str) -> int:
                 categories = ", ".join(str(c) for c in categories)
 
             cur.execute(
-                """INSERT INTO tongsan_articles
+                """INSERT INTO articles
                    (id, title, content, excerpt, categories, date, link, language)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 'zolai')""",
                 (
@@ -43,14 +43,14 @@ def integrate_tongsan(conn: sqlite3.Connection, path: str) -> int:
             )
             inserted += 1
 
-    print(f"  Tongsan articles: {inserted} inserted")
+    print(f"  Articles: {inserted} inserted")
     return inserted
 
 
 def integrate_simbu(conn: sqlite3.Connection, path: str) -> int:
-    """Add simbu dataset entries as educational articles in tongsan_articles."""
+    """Add simbu dataset entries as educational articles in articles."""
     cur = conn.cursor()
-    cur.execute("SELECT id FROM tongsan_articles")
+    cur.execute("SELECT id FROM articles")
     existing_ids = {r[0] for r in cur.fetchall()}
 
     inserted = 0
@@ -67,7 +67,7 @@ def integrate_simbu(conn: sqlite3.Connection, path: str) -> int:
                 continue
 
             cur.execute(
-                """INSERT INTO tongsan_articles
+                """INSERT INTO articles
                    (id, title, content, excerpt, categories, date, link, language)
                    VALUES (?, ?, ?, ?, ?, '', '', 'zolai_simbu')""",
                 (aid, row.get("source", "simbu"), text, text[:200], "educational"),
@@ -75,7 +75,7 @@ def integrate_simbu(conn: sqlite3.Connection, path: str) -> int:
             existing_ids.add(aid)
             inserted += 1
 
-    print(f"  Simbu dataset: {inserted} inserted into tongsan_articles")
+    print(f"  Simbu dataset: {inserted} inserted into articles")
     return inserted
 
 
@@ -84,7 +84,7 @@ def integrate(db_path: str) -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
 
-    tongsan_count = integrate_tongsan(conn, TONGSAN_PATH)
+    tongsan_count = integrate_articles(conn, ARTICLES_PATH)
     simbu_count = integrate_simbu(conn, SIMBU_PATH)
 
     # Audit
