@@ -69,6 +69,11 @@ DICT_CORRECTIONS = {
         "new_english": ["plural marker (3rd person verb suffix)"],
         "new_clean": "plural marker (3rd person verb suffix — NOT standalone 'they')",
     },
+    "lasak": {
+        "old": lambda e: "sing" in e.lower(),
+        "new_english": ["sing OR take something (polysemous)"],
+        "new_clean": "sing OR take something (polysemous)",
+    },
 }
 
 # Forbidden forms that must not appear in English definitions
