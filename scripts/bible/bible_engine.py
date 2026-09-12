@@ -2339,3 +2339,172 @@ Stats:
 
 if __name__ == "__main__":
     main()
+
+# ============================================================
+# DB LOADING FUNCTIONS (replaces JSONL loading)
+# ============================================================
+import sqlite3
+from pathlib import Path
+
+DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
+
+
+def get_db():
+    return sqlite3.connect(DB_PATH)
+
+
+def load_vocab_from_db() -> list[dict]:
+    """Load vocabulary from database (replaces vocab_index_full.jsonl)."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT headword, english, frequency, examples, books
+        FROM vocab
+        WHERE headword IS NOT NULL AND headword != ''
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"headword": r[0], "english": r[1], "frequency": r[2], "examples": r[3], "books": r[4]}
+        for r in rows
+    ]
+
+
+def load_grammar_patterns_from_db() -> list[dict]:
+    """Load grammar patterns from database (replaces grammar_patterns_v1.jsonl)."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT pattern_id, pattern, description, function, examples, frequency, myanmar
+        FROM grammar_patterns
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "pattern_id": r[0], "pattern": r[1], "description": r[2],
+            "function": r[3], "examples": r[4], "frequency": r[5], "myanmar": r[6]
+        }
+        for r in rows
+    ]
+
+
+def load_phrases_from_db() -> list[dict]:
+    """Load phrases from database (replaces phrases_v1.jsonl)."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT zo, english, frequency, examples, myanmar
+        FROM phrases
+        WHERE zo IS NOT NULL AND zo != ''
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"zo": r[0], "english": r[1], "frequency": r[2], "examples": r[3], "myanmar": r[4]}
+        for r in rows
+    ]
+
+
+def load_dictionary_from_db() -> list[dict]:
+    """Load Zolai→English dictionary from database."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT zolai, english, english_clean, source, pos, myanmar
+        FROM dictionary
+        WHERE zolai IS NOT NULL AND zolai != '' AND english_clean IS NOT NULL AND english_clean != ''
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"zolai": r[0], "english": r[1], "english_clean": r[2], "source": r[3], "pos": r[4], "myanmar": r[5]}
+        for r in rows
+    ]
+
+
+def load_bible_verses_from_db(limit: int = None) -> list[dict]:
+    """Load Bible verses from database."""
+    conn = get_db()
+    c = conn.cursor()
+    query = """
+        SELECT ref, book, chapter, verse, zo_tdb77, zo_tedim2010, en_kJV, myanmar
+        FROM bible_verses
+        WHERE zo_tdb77 IS NOT NULL AND en_kJV IS NOT NULL
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+    c.execute(query)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"ref": r[0], "book": r[1], "chapter": r[2], "verse": r[3], 
+         "zo_tdb77": r[4], "zo_tedim2010": r[5], "en_kJV": r[6], "myanmar": r[7]}
+        for r in rows
+    ]
+
+
+def load_word_alignments_from_db() -> list[dict]:
+    """Load word alignments from database."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT zolai_word, english_word, ref, book, chapter, verse, confidence
+        FROM word_alignments
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"zolai_word": r[0], "english_word": r[1], "ref": r[2], "book": r[3], 
+         "chapter": r[4], "verse": r[5], "confidence": r[6]}
+        for r in rows
+    ]
+
+
+def load_collocations_from_db() -> list[dict]:
+    """Load word collocations from database."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT word1, word2, frequency, pmi
+        FROM word_collocations
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"word1": r[0], "word2": r[1], "frequency": r[2], "pmi": r[3]}
+        for r in rows
+    ]
+
+
+# ============================================================
+# COMPATIBILITY: Keep old function names but use DB
+# ============================================================
+
+def load_vocab_index() -> list[dict]:
+    """Load vocab index - now from DB."""
+    return load_vocab_from_db()
+
+
+def load_grammar_patterns() -> list[dict]:
+    """Load grammar patterns - now from DB."""
+    return load_grammar_patterns_from_db()
+
+
+def load_phrases() -> list[dict]:
+    """Load phrases - now from DB."""
+    return load_phrases_from_db()
+
+
+def load_word_alignments() -> list[dict]:
+    """Load word alignments - now from DB."""
+    return load_word_alignments_from_db()
+
+
+def load_collocations() -> list[dict]:
+    """Load collocations - now from DB."""
+    return load_collocations_from_db()
+
+
+# Import os for DB_PATH
+import os

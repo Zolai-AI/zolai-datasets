@@ -1,57 +1,19 @@
+import os
 #!/usr/bin/env python3
 """
-Real Zolai Knowledge Test — ALL Gemini models with persistent chats.
-Reuses chat sessions, ZVS 2018 compliant, natural prompts.
+Real Zolai Knowledge Test — ALL Gemini models using local package.
 """
 import asyncio
 import sys
 import json
 import sqlite3
 import random
-from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / "Documents/Projects/pcore/pcore-webai/packages/gemini-webapi"))
-from gemini_webapi import GeminiClient
+sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
+from gemini.client import ZolaiGeminiClient
+from shared.zvs_context import get_compact_prompt
 
 DB = "data/zolai.db"
-
-# ALL available models
-MODELS = [
-    "gemini-3-flash",
-    "gemini-3-pro-plus",
-    "gemini-3-pro",
-    "gemini-3-flash-thinking",
-    "gemini-3-flash-plus",
-    "gemini-3-flash-thinking-plus",
-    "gemini-3-pro-advanced",
-    "gemini-3-flash-advanced",
-    "gemini-3-flash-thinking-advanced",
-]
-
-MAX_RETRIES = 2
-RATE_LIMIT = 1
-
-# Persistent clients per model
-_model_clients = {}
-
-
-async def get_model_client(model):
-    """Get or create persistent client for a model."""
-    if model not in _model_clients:
-        client = GeminiClient()
-        await client.init()
-        _model_clients[model] = client
-    return _model_clients[model]
-
-
-async def close_all_clients():
-    """Close all persistent clients."""
-    for model, client in _model_clients.items():
-        try:
-            await client.close()
-        except:
-            pass
-    _model_clients.clear()
 
 
 def get_db():
@@ -96,39 +58,27 @@ def fetch_test_cases():
     return dict_words, bible_verses, eng_words, grammar_sents
 
 
-async def call_model(model, prompt, retries=MAX_RETRIES):
-    """Call a model with persistent client."""
-    client = await get_model_client(model)
-    delay = 5
+def build_prompts(category, items):
+    if category == "dict":
+        return [f"{get_compact_prompt()}\n\nWhat does '{z}' mean in English? One word/phrase." for z, e in items]
+    elif category == "bible":
+        return [f"{get_compact_prompt()}\n\nTranslate this Zolai Bible verse to natural English:\n{z}" for _, z, _ in items]
+    elif category == "eng2zo":
+        return [f"{get_compact_prompt()}\n\nHow do you say this in Zolai? Just the Zolai word:\n{e}" for _, e, _ in items]
+    elif category == "grammar":
+        return [f"{get_compact_prompt()}\n\nGrammar patterns in this Zolai (SOV, ergative, negation, questions, agreement, tense):\n{z}" for _, z in items]
+    return []
+
+
+async def run_model(model, client, dict_prompts, bible_prompts, eng_prompts, grammar_prompts):
+    """Run all categories for one model."""
+    results = {}
     
-    for attempt in range(1, retries + 1):
-        try:
-            result = await client.generate_content(prompt=prompt, model=model)
-            text = result.text if hasattr(result, 'text') else str(result)
-            return {"model": model, "response": text, "error": None, "attempt": attempt}
-        except Exception as e:
-            err_str = str(e)
-            if "timeout" in err_str.lower() or "unavailable" in err_str.lower() or attempt < retries:
-                if attempt < retries:
-                    await asyncio.sleep(delay)
-                    delay *= 2
-                continue
-            return {"model": model, "response": None, "error": err_str[:80], "attempt": attempt}
-    return {"model": model, "response": None, "error": "max retries"}
-
-
-async def run_category(model, name, prompts):
-    """Run all prompts for one model sequentially (reusing chat)."""
-    results = []
-    for i, prompt in enumerate(prompts):
-        print(f"  [{model}] {name} {i+1}/{len(prompts)}...", end=" ", flush=True)
-        result = await call_model(model, prompt)
-        results.append(result)
-        if result["error"]:
-            print(f"ERR")
-        else:
-            print(f"OK")
-        await asyncio.sleep(RATE_LIMIT)
+    results["Dictionary"] = await client.ask_batch(model, dict_prompts)
+    results["Bible Translation"] = await client.ask_batch(model, bible_prompts)
+    results["English→Zolai"] = await client.ask_batch(model, eng_prompts)
+    results["Grammar Analysis"] = await client.ask_batch(model, grammar_prompts)
+    
     return results
 
 
@@ -160,34 +110,11 @@ def score_grammar(gemini_ans, zo_text):
     return min(sum(1 for p in patterns if p in gemini_ans.lower()), 5)
 
 
-def build_prompts(category, items):
-    """Build natural, ZVS 2018 compliant prompts."""
-    zvs_context = (
-        "You are a Zolai (Tedim Chin) language expert. "
-        "Use ZVS 2018 orthography: pasian (not pathian), gam (not ram), "
-        "tapa (not fapa), topa (not bawipa), kumpipa (not siangpahrang), "
-        "tua (not cu/cun), suahtakna (not suah), nuntakna (not nunnak). "
-        "Grammar: SOV order, ergative 'in', negation 'kei' (all persons), "
-        "question 'hiam', agreement 'a/ka/na'."
-    )
-    
-    if category == "dict":
-        return [f"{zvs_context}\n\nWhat does this Zolai word mean in English? Reply with just the meaning:\nWord: {z}" for z, e in items]
-    elif category == "bible":
-        return [f"{zvs_context}\n\nTranslate this Zolai Bible verse to natural English:\n{z}" for _, z, _ in items]
-    elif category == "eng2zo":
-        return [f"{zvs_context}\n\nHow do you say this in Zolai (Tedim Chin)? Reply with just the Zolai word:\n{e}" for _, e, _ in items]
-    elif category == "grammar":
-        return [f"{zvs_context}\n\nAnalyze the grammar in this Zolai sentence. List: SOV, ergative, negation, questions, agreement, tense/aspect, directionals:\n{z}" for _, z in items]
-    return []
-
-
 async def main():
-    print("═══ ZOLAI GEMINI KNOWLEDGE TEST — 9 MODELS (PERSISTENT CHATS) ═══")
-    print(f"Models: {', '.join(MODELS)}")
+    print("═══ ZOLAI GEMINI KNOWLEDGE TEST — LOCAL PACKAGE ═══")
     
     dict_words, bible_verses, eng_words, grammar_sents = fetch_test_cases()
-    print(f"\nTest cases: Dict={len(dict_words)}, Bible={len(bible_verses)}, Eng→Zo={len(eng_words)}, Grammar={len(grammar_sents)}")
+    print(f"Test cases: Dict={len(dict_words)}, Bible={len(bible_verses)}, Eng→Zo={len(eng_words)}, Grammar={len(grammar_sents)}")
     
     # Build prompts
     dict_prompts = build_prompts("dict", dict_words)
@@ -195,23 +122,17 @@ async def main():
     eng_prompts = build_prompts("eng2zo", eng_words)
     grammar_prompts = build_prompts("grammar", grammar_sents)
     
-    # Run each model through all categories (reusing chat)
+    client = ZolaiGeminiClient()
+    MODELS = client.MODELS
+    
     all_results = {}
     
     for model in MODELS:
-        print(f"\n{'='*60}")
-        print(f"MODEL: {model}")
-        print(f"{'='*60}")
-        
-        model_results = {}
-        model_results["Dictionary"] = await run_category(model, "Dict", dict_prompts)
-        model_results["Bible Translation"] = await run_category(model, "Bible", bible_prompts)
-        model_results["English→Zolai"] = await run_category(model, "Eng→Zo", eng_prompts)
-        model_results["Grammar Analysis"] = await run_category(model, "Gram", grammar_prompts)
-        
+        print(f"\n--- {model} ---")
+        model_results = await run_model(model, client, dict_prompts, bible_prompts, eng_prompts, grammar_prompts)
         all_results[model] = model_results
     
-    await close_all_clients()
+    await client.close()
     
     # Score and display
     print("\n" + "="*80)
@@ -225,42 +146,34 @@ async def main():
         "Grammar Analysis": grammar_sents
     }
     
-    # Transpose: category -> model -> results
-    by_category = {}
     for cat_name in ["Dictionary", "Bible Translation", "English→Zolai", "Grammar Analysis"]:
-        by_category[cat_name] = {}
-        for model in MODELS:
-            by_category[cat_name][model] = all_results[model][cat_name]
-    
-    for cat_name, cat_results in by_category.items():
         print(f"\n--- {cat_name} ---")
         data = test_data[cat_name]
         
         model_scores = {}
         for model in MODELS:
-            model_results = cat_results[model]
+            model_results = all_results[model][cat_name]
             if cat_name == "Dictionary":
-                scores = [score_dict_word(r["response"], data[i][1]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_dict_word(model_results[i], data[i][1]) for i in range(len(model_results))]
             elif cat_name == "Bible Translation":
-                scores = [score_translation(r["response"], data[i][2]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_translation(model_results[i], data[i][2]) for i in range(len(model_results))]
             elif cat_name == "English→Zolai":
-                scores = [score_eng_to_zolai(r["response"], data[i][0]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_eng_to_zolai(model_results[i], data[i][0]) for i in range(len(model_results))]
             else:
-                scores = [score_grammar(r["response"], data[i][1]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_grammar(model_results[i], data[i][1]) for i in range(len(model_results))]
             
             avg_score = sum(scores) / len(scores) if scores else 0
-            success = len([r for r in model_results if r["response"]]) / len(model_results) * 100
-            model_scores[model] = {"avg": avg_score, "success": success, "scores": scores}
+            model_scores[model] = {"avg": avg_score, "scores": scores}
         
         sorted_models = sorted(model_scores.items(), key=lambda x: x[1]["avg"], reverse=True)
-        print(f"\n{'Model':<35} {'Avg':>6} {'Succ%':>7}  Scores")
-        print("-" * 70)
+        print(f"\n{'Model':<35} {'Avg':>6}  Scores")
+        print("-" * 60)
         for model, stats in sorted_models:
-            detail = " ".join(f"{s:.1f}" for s in stats["scores"][:8])
-            print(f"{model:<35} {stats['avg']:>6.2f} {stats['success']:>6.1f}%  [{detail}]")
+            detail = " ".join(f"{s:.1f}" for s in stats["scores"])
+            print(f"{model:<35} {stats['avg']:>6.2f}  [{detail}]")
     
-    # Save
-    save_results(by_category, dict_words, bible_verses, eng_words, grammar_sents)
+    # Save to DB
+    save_results(all_results, dict_words, bible_verses, eng_words, grammar_sents)
     print("\n✅ Complete. Saved to training_runs.")
 
 
@@ -268,23 +181,21 @@ def save_results(results, dict_words, bible_verses, eng_words, grammar_sents):
     conn = get_db()
     c = conn.cursor()
     for cat_name, cat_results in results.items():
-        for model in MODELS:
+        for model in cat_results:
             model_results = cat_results[model]
-            successful = [r for r in model_results if r["response"]]
-            total = len(model_results)
             if cat_name == "Dictionary":
-                scores = [score_dict_word(r["response"], dict_words[i][1]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_dict_word(model_results[i], dict_words[i][1]) for i in range(len(model_results))]
             elif cat_name == "Bible Translation":
-                scores = [score_translation(r["response"], bible_verses[i][2]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_translation(model_results[i], bible_verses[i][2]) for i in range(len(model_results))]
             elif cat_name == "English→Zolai":
-                scores = [score_eng_to_zolai(r["response"], eng_words[i][0]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_eng_to_zolai(model_results[i], eng_words[i][0]) for i in range(len(model_results))]
             else:
-                scores = [score_grammar(r["response"], grammar_sents[i][1]) for i, r in enumerate(model_results) if r["response"]]
+                scores = [score_grammar(model_results[i], grammar_sents[i][1]) for i in range(len(model_results))]
             avg_score = sum(scores) / len(scores) if scores else 0
             c.execute("""
                 INSERT INTO training_runs (model_name, test_type, test_date, total_tests, passed_tests, score, details)
                 VALUES (?, ?, datetime('now'), ?, ?, ?, ?)
-            """, (model, cat_name, total, len(successful), avg_score, json.dumps({"scores": scores})))
+            """, (model, cat_name, len(model_results), len([s for s in scores if s > 0]), avg_score, json.dumps({"scores": scores})))
     conn.commit()
     conn.close()
 
