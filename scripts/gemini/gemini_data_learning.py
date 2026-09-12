@@ -1,44 +1,54 @@
 #!/usr/bin/env python3
-"""Gemini Data Enrichment Pipeline — Real Zolai Content.
+"""Gemini Data Enrichment Pipeline — Consensus Voting (9 Models).
 
-Uses Gemini to enrich the zolai.db database with:
-  Mode 1: Fill missing Myanmar translations (batch of 10)
-  Mode 2: Verify dictionary accuracy (high-freq words)
-  Mode 3: Identify/fix unknown words (bad English entries)
+Uses all 9 Gemini models with majority-vote consensus to:
+  Mode 1: Fill missing Myanmar translations (batch 50)
+  Mode 2: Verify dictionary accuracy (batch 30)
+  Mode 3: Identify/fix unknown words (batch 30)
 
 All results logged to training_runs table.
 Rate limited: 2s between calls, 3 retries with backoff.
 
 Usage:
   python3 gemini_data_learning.py --mode myanmar --limit 50
-  python3 gemini_data_learning.py --mode verify --limit 20
-  python3 gemini_data_learning.py --mode unknowns --limit 20
+  python3 gemini_data_learning.py --mode verify --limit 30
+  python3 gemini_data_learning.py --mode unknowns --limit 30
   python3 gemini_data_learning.py --mode all --limit 50
 """
-
 import asyncio
 import os
 import sqlite3
 import sys
 import time
+from collections import Counter
 
-# Add bible dir for gemini_cookies
+# ── Gemini client import ───────────────────────────────────
 BIBLE_DIR = os.path.join(
     "/home/peter/Documents/Projects/zolai-ai",
     "zolai-datasets/scripts/bible",
 )
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
-
 from gemini_cookies import get_gemini_client
 
 DB_PATH = os.path.join(
-    "/home/peter/Documents/Projects/zolai-ai",
-    "data/zolai.db",
+    "/home/peter/Documents/Projects/zolai-ai", "data/zolai.db"
 )
 MAX_RETRIES = 3
 RATE_LIMIT = 2  # seconds between calls
-BATCH_SIZE = 10  # words per Gemini request
+
+# ALL 9 models for consensus voting
+MODELS = [
+    "gemini-3-flash",
+    "gemini-3-pro-plus",
+    "gemini-3-pro",
+    "gemini-3-flash-thinking",
+    "gemini-3-flash-plus",
+    "gemini-3-flash-thinking-plus",
+    "gemini-3-pro-advanced",
+    "gemini-3-flash-advanced",
+    "gemini-3-flash-thinking-advanced",
+]
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -53,7 +63,7 @@ async def _call_gemini(
     client, prompt: str, model: str = "gemini-3-flash"
 ) -> tuple:
     """Call Gemini with retry + exponential backoff."""
-    delay = 5  # 5s, 10s, 20s
+    delay = 5
     last_err = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -99,11 +109,33 @@ def _log_run(
     conn.close()
 
 
-# ── Mode 1: Fill Myanmar Translations ─────────────────
+# ── Consensus voting helper ────────────────────────────────
+async def _consensus_translate(
+    client, prompt: str
+) -> tuple:
+    """All 9 models respond, return majority-voted answer."""
+    answers = []
+    for model in MODELS:
+        text, _ = await _call_gemini(client, prompt, model)
+        await asyncio.sleep(RATE_LIMIT)
+        if not text.startswith("ERROR") and text.strip():
+            first_line = text.strip().split("\n")[0].strip()
+            if first_line:
+                answers.append(first_line)
+
+    if not answers:
+        return None, 0
+
+    counter = Counter(answers)
+    most_common, count = counter.most_common(1)[0]
+    return most_common, count
+
+
+# ── Mode 1: Fill Myanmar Translations ─────────────────────
 async def _fill_myanmar(
     client, limit: int = 50
 ) -> dict:
-    """Batch-translate missing Myanmar entries."""
+    """Batch-translate missing Myanmar entries via consensus."""
     conn = _get_conn()
     cur = conn.execute(
         "SELECT id, zolai, english_clean "
@@ -120,83 +152,55 @@ async def _fill_myanmar(
     if not rows:
         return {
             "mode": "fill_myanmar",
-            "total": 0,
-            "updated": 0,
-            "errors": 0,
+            "total": 0, "updated": 0, "errors": 0,
         }
 
     updated = 0
     errors = 0
-    batch_size = BATCH_SIZE
 
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i : i + batch_size]
-        prompt_lines = [
-            "Translate each Zolai word to Burmese/Myanmar.",
-            "Reply with ONLY translations, one per line.",
-            "Format: zolai = myanmar",
-            "",
-        ]
-        for row in batch:
-            prompt_lines.append(
-                f"{row[1]} ({row[2]}) = ?"
-            )
-
-        prompt = "\n".join(prompt_lines)
-        text, _elapsed = await _call_gemini(
+    for i, row in enumerate(rows):
+        entry_id, zolai, english = row
+        prompt = (
+            f"Translate this Zolai word to Burmese/Myanmar.\n"
+            f"Word: {zolai} (English: {english})\n"
+            f"Reply with ONLY the Myanmar translation."
+        )
+        consensus, agreement = await _consensus_translate(
             client, prompt
         )
-        await asyncio.sleep(RATE_LIMIT)
 
-        if text.startswith("ERROR"):
-            errors += len(batch)
-            continue
-
-        # Parse answers
-        answers = {}
-        for line in text.split("\n"):
-            line = line.strip()
-            if "=" in line:
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    key = parts[0].strip().lower()
-                    val = parts[1].strip()
-                    if val and val != "?":
-                        answers[key] = val
-
-        # Update DB
-        conn = _get_conn()
-        for row in batch:
-            zolai_lower = row[1].lower()
-            if zolai_lower in answers:
-                myanmar = answers[zolai_lower]
-                conn.execute(
-                    "UPDATE dictionary "
-                    "SET myanmar = ?, updated_at = "
-                    "datetime('now') "
-                    "WHERE id = ?",
-                    (myanmar, row[0]),
-                )
-                updated += 1
-        conn.commit()
-        conn.close()
-
-        print(
-            f"    Batch {i // batch_size + 1}: "
-            f"{updated}/{i + len(batch)} updated"
-        )
+        if consensus and agreement >= 3:
+            conn = _get_conn()
+            conn.execute(
+                "UPDATE dictionary "
+                "SET myanmar = ?, updated_at = "
+                "datetime('now') WHERE id = ?",
+                (consensus, entry_id),
+            )
+            conn.commit()
+            conn.close()
+            updated += 1
+            print(
+                f"    [{i + 1}/{len(rows)}] "
+                f"{zolai} → {consensus} "
+                f"(agreement: {agreement}/9)"
+            )
+        else:
+            errors += 1
+            print(
+                f"    [{i + 1}/{len(rows)}] "
+                f"{zolai} — no consensus "
+                f"({agreement}/9)"
+            )
 
     metrics = {
         "total": len(rows),
         "updated": updated,
         "errors": errors,
+        "consensus_agreement": f"{updated}/{len(rows)}",
+        "models_used": len(MODELS),
     }
-    _log_run(
-        "gemini-3-flash",
-        "fill_myanmar",
-        updated,
-        metrics,
-    )
+    _log_run("consensus-9", "fill_myanmar", updated, metrics)
     return {
         "mode": "fill_myanmar",
         "total": len(rows),
@@ -205,21 +209,19 @@ async def _fill_myanmar(
     }
 
 
-# ── Mode 2: Verify Dictionary Accuracy ────────────────
+# ── Mode 2: Verify Dictionary Accuracy ────────────────────
 async def _verify_accuracy(
     client, limit: int = 30
 ) -> dict:
-    """Verify high-frequency word translations."""
+    """Verify high-frequency word translations via consensus."""
     conn = _get_conn()
     cur = conn.execute(
-        "SELECT d.id, d.zolai, d.english_clean, "
-        "v.frequency "
+        "SELECT d.id, d.zolai, d.english_clean, v.frequency "
         "FROM dictionary d "
         "JOIN vocab v ON v.headword = d.zolai "
         "WHERE d.english_clean IS NOT NULL "
         "AND v.frequency > 100 "
-        "ORDER BY v.frequency DESC "
-        "LIMIT ?",
+        "ORDER BY v.frequency DESC LIMIT ?",
         (limit,),
     )
     rows = cur.fetchall()
@@ -228,17 +230,15 @@ async def _verify_accuracy(
     if not rows:
         return {
             "mode": "verify_accuracy",
-            "total": 0,
-            "correct": 0,
-            "incorrect": 0,
+            "total": 0, "correct": 0, "incorrect": 0,
         }
 
     correct = 0
     incorrect = 0
     corrections = []
 
-    for row in rows:
-        entry_id, zolai, english, freq = row
+    for i, row in enumerate(rows):
+        entry_id, zolai, english, _freq = row
         prompt = (
             "You are a Zolai (Tedim Chin) language expert.\n"
             "Is this translation correct?\n\n"
@@ -249,35 +249,37 @@ async def _verify_accuracy(
             "Reply with ONLY one line: "
             "correct or incorrect: <translation>"
         )
-        text, _elapsed = await _call_gemini(
+        consensus, agreement = await _consensus_translate(
             client, prompt
         )
-        await asyncio.sleep(RATE_LIMIT)
 
-        if text.startswith("ERROR"):
+        if not consensus:
             continue
 
-        text_lower = text.lower().strip()
+        text_lower = consensus.lower().strip()
         if text_lower.startswith("correct"):
             correct += 1
-            print(f"    ✅ {zolai}: {english}")
+            print(
+                f"    [{i + 1}/{len(rows)}] "
+                f"✅ {zolai}: {english}"
+            )
         else:
             incorrect += 1
-            # Extract suggested correction
-            if ":" in text:
-                suggested = text.split(":", 1)[1].strip()
-            else:
-                suggested = text
+            suggested = (
+                consensus.split(":", 1)[1].strip()
+                if ":" in consensus else consensus
+            )
             corrections.append({
                 "id": entry_id,
                 "zolai": zolai,
                 "our_english": english,
-                "gemini_suggestion": suggested,
-                "frequency": freq,
+                "suggestion": suggested,
+                "agreement": agreement,
             })
             print(
-                f"    ❌ {zolai}: {english} "
-                f"→ suggested: {suggested}"
+                f"    [{i + 1}/{len(rows)}] "
+                f"❌ {zolai}: {english} → {suggested} "
+                f"(agreement: {agreement}/9)"
             )
 
     metrics = {
@@ -285,13 +287,9 @@ async def _verify_accuracy(
         "correct": correct,
         "incorrect": incorrect,
         "corrections": corrections[:10],
+        "models_used": len(MODELS),
     }
-    _log_run(
-        "gemini-3-flash",
-        "verify_accuracy",
-        len(rows),
-        metrics,
-    )
+    _log_run("consensus-9", "verify_accuracy", len(rows), metrics)
     return {
         "mode": "verify_accuracy",
         "total": len(rows),
@@ -301,11 +299,11 @@ async def _verify_accuracy(
     }
 
 
-# ── Mode 3: Identify Unknown Words ────────────────────
+# ── Mode 3: Identify Unknown Words ────────────────────────
 async def _identify_unknowns(
     client, limit: int = 30
 ) -> dict:
-    """Find entries with bad English and ask Gemini."""
+    """Find entries with bad English and ask all models."""
     conn = _get_conn()
     cur = conn.execute(
         "SELECT id, zolai, english_clean "
@@ -328,14 +326,13 @@ async def _identify_unknowns(
     if not rows:
         return {
             "mode": "identify_unknowns",
-            "total": 0,
-            "fixed": 0,
+            "total": 0, "fixed": 0,
         }
 
     fixed = 0
     fixes = []
 
-    for row in rows:
+    for i, row in enumerate(rows):
         entry_id, zolai, english = row
         prompt = (
             "What does this Zolai word mean in English?\n"
@@ -343,29 +340,22 @@ async def _identify_unknowns(
             "Context: This appears in Bible Zolai text.\n\n"
             "Reply with ONLY the English translation."
         )
-        text, _elapsed = await _call_gemini(
+        consensus, agreement = await _consensus_translate(
             client, prompt
         )
-        await asyncio.sleep(RATE_LIMIT)
 
-        if text.startswith("ERROR") or not text:
-            continue
-
-        # Clean the answer
-        gemini_en = text.strip().split("\n")[0].strip()
         if (
-            gemini_en
-            and gemini_en.lower() != zolai.lower()
-            and len(gemini_en) > 1
+            consensus
+            and consensus.lower() != zolai.lower()
+            and len(consensus) > 1
+            and agreement >= 3
         ):
-            # Update DB
             conn = _get_conn()
             conn.execute(
                 "UPDATE dictionary "
                 "SET english_clean = ?, updated_at = "
-                "datetime('now') "
-                "WHERE id = ?",
-                (gemini_en, entry_id),
+                "datetime('now') WHERE id = ?",
+                (consensus, entry_id),
             )
             conn.commit()
             conn.close()
@@ -373,24 +363,28 @@ async def _identify_unknowns(
             fixes.append({
                 "zolai": zolai,
                 "old_english": english,
-                "new_english": gemini_en,
+                "new_english": consensus,
+                "agreement": agreement,
             })
             print(
-                f"    ✅ {zolai}: {english} "
-                f"→ {gemini_en}"
+                f"    [{i + 1}/{len(rows)}] "
+                f"✅ {zolai}: {english} → {consensus} "
+                f"(agreement: {agreement}/9)"
+            )
+        else:
+            print(
+                f"    [{i + 1}/{len(rows)}] "
+                f"⚠️  {zolai} — no consensus "
+                f"({agreement}/9)"
             )
 
     metrics = {
         "total": len(rows),
         "fixed": fixed,
         "fixes": fixes[:10],
+        "models_used": len(MODELS),
     }
-    _log_run(
-        "gemini-3-flash",
-        "identify_unknowns",
-        fixed,
-        metrics,
-    )
+    _log_run("consensus-9", "identify_unknowns", fixed, metrics)
     return {
         "mode": "identify_unknowns",
         "total": len(rows),
@@ -399,13 +393,13 @@ async def _identify_unknowns(
     }
 
 
-# ── Main ───────────────────────────────────────────────
+# ── Main ───────────────────────────────────────────────────
 def main() -> None:
     """Run data enrichment pipeline."""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Gemini Data Enrichment Pipeline"
+        description="Gemini Data Enrichment — Consensus Voting"
     )
     parser.add_argument(
         "--mode",
@@ -421,52 +415,55 @@ def main() -> None:
 
     start = time.time()
     print("=" * 60)
-    print("  GEMINI DATA ENRICHMENT PIPELINE")
+    print("  GEMINI DATA ENRICHMENT — CONSENSUS VOTING")
     print("=" * 60)
-    print(f"  DB: {DB_PATH}")
-    print(f"  Mode: {args.mode}")
-    print(f"  Limit: {args.limit} per mode")
+    print(f"  DB:     {DB_PATH}")
+    print(f"  Mode:   {args.mode}")
+    print(f"  Limit:  {args.limit} per mode")
+    print(f"  Models: {len(MODELS)} (majority vote)")
     print("=" * 60)
 
     client = get_gemini_client()
 
-    # Persistent event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    if args.mode in ("myanmar", "all"):
-        print("\n── Mode 1: Fill Myanmar Translations ──")
-        r = loop.run_until_complete(
-            _fill_myanmar(client, args.limit)
-        )
-        print(
-            f"  Updated: {r['updated']}/{r['total']}"
-        )
+    try:
+        if args.mode in ("myanmar", "all"):
+            print("\n── Mode 1: Fill Myanmar (consensus) ──")
+            r = loop.run_until_complete(
+                _fill_myanmar(client, args.limit)
+            )
+            print(
+                f"  Updated: {r['updated']}/{r['total']}"
+            )
 
-    if args.mode in ("verify", "all"):
-        print("\n── Mode 2: Verify Dictionary Accuracy ──")
-        r = loop.run_until_complete(
-            _verify_accuracy(client, args.limit)
-        )
-        print(
-            f"  Correct: {r['correct']}/{r['total']}"
-        )
-        print(f"  Incorrect: {r['incorrect']}")
-        if r.get("corrections"):
-            print("  Top corrections:")
-            for c in r["corrections"][:5]:
-                print(
-                    f"    {c['zolai']}: "
-                    f"{c['our_english']} → "
-                    f"{c['gemini_suggestion']}"
-                )
+        if args.mode in ("verify", "all"):
+            print("\n── Mode 2: Verify Accuracy (consensus) ──")
+            r = loop.run_until_complete(
+                _verify_accuracy(client, args.limit)
+            )
+            print(
+                f"  Correct: {r['correct']}/{r['total']}"
+            )
+            print(f"  Incorrect: {r['incorrect']}")
+            if r.get("corrections"):
+                print("  Top corrections:")
+                for c in r["corrections"][:5]:
+                    print(
+                        f"    {c['zolai']}: "
+                        f"{c['our_english']} → "
+                        f"{c['suggestion']}"
+                    )
 
-    if args.mode in ("unknowns", "all"):
-        print("\n── Mode 3: Identify Unknown Words ──")
-        r = loop.run_until_complete(
-            _identify_unknowns(client, args.limit)
-        )
-        print(f"  Fixed: {r['fixed']}/{r['total']}")
+        if args.mode in ("unknowns", "all"):
+            print("\n── Mode 3: Identify Unknowns (consensus) ──")
+            r = loop.run_until_complete(
+                _identify_unknowns(client, args.limit)
+            )
+            print(f"  Fixed: {r['fixed']}/{r['total']}")
+    finally:
+        loop.close()
 
     elapsed = time.time() - start
     print(f"\n{'=' * 60}")
