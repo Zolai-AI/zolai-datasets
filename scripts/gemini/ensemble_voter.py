@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import re
+import sqlite3
 import sys
 import argparse
 from typing import Any, ClassVar
@@ -25,6 +26,36 @@ try:
     HAS_LOCAL = True
 except ImportError:
     HAS_LOCAL = False
+
+# ── DB Path ─────────────────────────────────────────────────────────────────
+DB_PATH = os.environ.get("ZOLAI_DB_PATH", "/home/peter/Documents/Projects/zolai-ai/data/zolai.db")
+
+
+def save_model_result(
+    task: str,
+    model: str,
+    input_text: str,
+    output_json: str,
+    confidence: float | None = None,
+    ensemble_agreement: float | None = None,
+    source: str | None = None,
+) -> None:
+    """Save Gemini model result to DB for history tracking."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO gemini_model_results 
+            (task, model, input_text, output_json, confidence, ensemble_agreement, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (task, model, input_text, output_json, confidence, ensemble_agreement, source),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"  WARN [DB]: Failed to save model result: {e}")
 
 
 # ── All 9 Gemini models ─────────────────────────────────────────────────────
@@ -133,7 +164,7 @@ class EnsembleVoter:
         if self.client and hasattr(self.client, "close"):
             await self.client.close()
 
-    async def vote(self, prompt: str) -> dict:
+    async def vote(self, prompt: str, task: str = "general") -> dict:
         """Query all models in strategy, return majority vote result."""
         if not self.client:
             await self.init()
@@ -147,6 +178,14 @@ class EnsembleVoter:
                 parsed = _extract_json(result)
                 if parsed is not None:
                     votes[model] = parsed
+                    # Save individual model result to DB
+                    save_model_result(
+                        task=task,
+                        model=model,
+                        input_text=prompt,
+                        output_json=json.dumps(parsed, ensure_ascii=False),
+                        source="ensemble_voter",
+                    )
             except Exception as exc:
                 print(f"  WARN [{model}]: {exc}")
             await asyncio.sleep(1)
@@ -163,6 +202,17 @@ class EnsembleVoter:
         parsed = list(votes.values())
         final = majority_vote(parsed)
         confidence = compute_confidence(parsed, final)
+
+        # Save ensemble result to DB
+        save_model_result(
+            task=task,
+            model="ensemble",
+            input_text=prompt,
+            output_json=json.dumps(final, ensure_ascii=False),
+            confidence=confidence,
+            ensemble_agreement=confidence,
+            source=f"ensemble_{self.strategy}",
+        )
 
         return {
             "result": final,
@@ -182,7 +232,7 @@ class EnsembleVoter:
             "Tags: NOUN, VERB, ADJ, ADV, PRON, DET, POST, CONJ, PART, NUM, INTJ\n"
             'Output JSON: {"pos": "NOUN"}'
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="pos")
 
     async def vote_pos_sentence(
         self, sentence: str
@@ -193,7 +243,7 @@ class EnsembleVoter:
             "Output JSON array of [word, tag] pairs.\n"
             f"Sentence: {sentence}"
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="pos_sentence")
 
     async def vote_morphology(
         self, word: str, syllables: str = ""
@@ -206,7 +256,7 @@ class EnsembleVoter:
             '{"root": "...", "prefix": "", "suffix": "", '
             '"morphemes": ["root"], "POS": "NOUN"}'
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="morphology")
 
     async def vote_similarity(
         self,
@@ -222,7 +272,7 @@ class EnsembleVoter:
             f"  Zolai 2: {w2} ({e2})\n"
             'Output JSON: {"similarity": 0.85}'
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="similarity")
 
     async def vote_translation(
         self, zo: str, context: str = ""
@@ -234,7 +284,7 @@ class EnsembleVoter:
             f"Zolai: {zo}\n"
             'Output JSON: {"translation": "..."}'
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="translation")
 
     async def vote_ner(self, sentence: str) -> dict:
         """Named entity recognition in Zolai."""
@@ -244,7 +294,7 @@ class EnsembleVoter:
             'Output JSON: {"entities": [{"text": "...", "type": "PER"}]}\n'
             f"Sentence: {sentence}"
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="ner")
 
     async def vote_classify(self, text: str) -> dict:
         """Classify topic of Zolai text."""
@@ -258,7 +308,7 @@ class EnsembleVoter:
             'Output JSON: {"topic": "...", "confidence": 0.9}\n'
             f"Text: {text}"
         )
-        return await self.vote(prompt)
+        return await self.vote(prompt, task="classify")
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
