@@ -133,6 +133,33 @@ def load_dictionary(fout, path: Path, word_key: str, en_key: str, expl_key: str 
             n += 1
     return n
 
+
+def load_dictionary_from_db(fout) -> int:
+    """Load dictionary entries from zolai.db (replaces missing JSONL source)."""
+    import sqlite3 as _sqlite3
+    db_path = ROOT / "data" / "zolai.db"
+    if not db_path.exists():
+        return 0
+    conn = _sqlite3.connect(str(db_path))
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT zolai, english, english_clean, pos "
+        "FROM dictionary WHERE zolai IS NOT NULL AND zolai != ''"
+    )
+    n = 0
+    for zolai, english, english_clean, pos in cur.fetchall():
+        word = zolai.strip()
+        en = english_clean or english or ""
+        if not word or not en:
+            continue
+        answer = f"{word}: {en}"
+        if not ok_text(answer):
+            continue
+        emit(fout, f"What does the Tedim Zolai word '{word}' mean?", answer)
+        n += 1
+    conn.close()
+    return n
+
 def load_semantic_dict(fout) -> int:
     """Rich semantic dictionary with examples."""
     n = 0
@@ -241,9 +268,8 @@ def main() -> int:
         ("dictionary combined 91k",
             lambda f: load_dictionary(f, ROOT/"data/master/combined/dictionary.jsonl",
                                       "headword", "translations", "explanations")),
-        ("master_unified_dict 152k",
-            lambda f: load_dictionary(f, ROOT/"data/master/sources/master_unified_dictionary.jsonl",
-                                      "headword", "translations", "explanations")),
+        ("dictionary from zolai.db",
+            lambda f: load_dictionary_from_db(f)),
         ("zomidictionary_export 33k",
             lambda f: load_zomidictionary(f)),
         ("semantic_dictionary 24k",
