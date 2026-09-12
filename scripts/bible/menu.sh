@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 DATA="$WORKSPACE/data"
 PYTHON="python3"
+ZOLAI_CORE="$WORKSPACE/zolai-core"
 
 # Colors
 R='\033[0;31m' G='\033[0;32m' Y='\033[1;33m' B='\033[0;34m' C='\033[0;36m' M='\033[0;35m' NC='\033[0m'
@@ -37,15 +38,15 @@ log_event() {
 # ── Model selection ─────────────────────────────────────────
 select_model() {
   echo -e "${Y}Available free models:${NC}"
-  echo -e "  ${G}1${NC}) gemini-3-flash (fast, accurate)       ${C}(recommended, fast ✅)${NC}"
-  echo -e "  ${G}2${NC}) gemini-3-pro-plus (best quality)              ${C}(good, ~7s ✅)${NC}"
+  echo -e "  ${G}1${NC}) auto (best available)                 ${C}(recommended, fast ✅)${NC}"
+  echo -e "  ${G}2${NC}) mimo-v2.5-free (good quality)               ${C}(good, ~7s ✅)${NC}"
   echo -e "  ${G}3${NC}) No AI — dictionary only"
   echo ""
   read -p "  Select model [1]: " choice
   case "$choice" in
-    2)  MODEL="gemini-3-pro-plus"; AI_FLAG="" ;;
+    2)  MODEL="mimo-v2.5-free"; AI_FLAG="" ;;
     3)  MODEL=""; AI_FLAG="--no-ai" ;;
-    *)  MODEL="gemini-3-flash"; AI_FLAG="" ;;
+    *)  MODEL="auto"; AI_FLAG="" ;;
   esac
   echo -e "  → Using: ${G}${MODEL:-dict-only}${NC}"
   log_event "model_select" "${MODEL:-dict-only}"
@@ -219,7 +220,7 @@ if found:
         print(f'  {hw:30s} → {eng}{marker}')
 else:
     print(f'  No matches for "{q}"')
-" "$query" "$DATA/dictionary/processed/dict_zo_en_clean.jsonl"
+" "$query" "$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl"
   echo ""
   read -p "  Press Enter..."
 }
@@ -293,7 +294,7 @@ cmd_dict_both() {
   $PYTHON -c "
 import json
 q = '$query'.strip().lower()
-path = '$DATA/dictionary/processed/dict_zo_en_clean.jsonl'
+path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
 found = []
 with open(path) as f:
     for line in f:
@@ -350,7 +351,7 @@ cmd_dict_browse_zo() {
   echo ""
   $PYTHON -c "
 import json
-path = '$DATA/dictionary/processed/dict_zo_en_clean.jsonl'
+path = '$DATA/dictionary/processed/dict_zo_en_master_v1.jsonl'
 entries = []
 with open(path) as f:
     for line in f:
@@ -465,7 +466,7 @@ cmd_fix_paths() {
   fi
   # Check dictionary files
   echo -e "  ${Y}Dictionary files:${NC}"
-  for f in dict_zo_en_clean.jsonl dict_canonical_clean.jsonl; do
+  for f in dict_zo_en_master_v1.jsonl dict_canonical_clean.jsonl; do
     if [ -f "$DATA/dictionary/processed/$f" ]; then
       local cnt=$(wc -l < "$DATA/dictionary/processed/$f")
       echo -e "    ${G}✅ $f: $cnt entries${NC}"
@@ -1102,6 +1103,251 @@ cmd_myanmar_bible() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Dictionary CRUD ──────────────────────────────────────────
+cmd_dict_add() {
+  echo -e "${C}═══ Add New Dictionary Entry ═══${NC}"
+  echo ""
+  read -p "  Zolai word: " zo_word
+  if [ -z "$zo_word" ]; then return; fi
+  read -p "  English meaning: " en_meaning
+  read -p "  Myanmar (optional): " my_meaning
+  read -p "  Part of speech (optional): " pos
+  if [ -n "$en_meaning" ]; then
+    PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+r = db.enrich_word('$zo_word', english_clean='$en_meaning', myanmar='$my_meaning', pos='$pos', source='manual_add')
+print(f'  Added: {\"$zo_word\"} → {\"$en_meaning\"}')
+" 2>&1
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_dict_edit() {
+  echo -e "${C}═══ Edit Dictionary Entry ═══${NC}"
+  echo ""
+  read -p "  Zolai word to edit: " zo_word
+  if [ -z "$zo_word" ]; then return; fi
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+results = db.search_dictionary('$zo_word', limit=5)
+if not results:
+    print('  No entries found.')
+else:
+    for i, r in enumerate(results):
+        print(f'  [{i+1}] {r.get(\"zolai\",\"?\")} → {r.get(\"english_clean\",\"?\")}  MY: {r.get(\"myanmar\",\"?\")}')
+" 2>&1
+  echo ""
+  read -p "  Field to edit (english_clean/myanmar/pos): " field
+  read -p "  New value: " new_val
+  if [ -n "$field" ] && [ -n "$new_val" ]; then
+    PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+r = db.enrich_word('$zo_word', ${field}='$new_val')
+print(f'  Updated: {\"$zo_word\"} → {field}={\"$new_val\"}')
+" 2>&1
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_dict_delete() {
+  echo -e "${C}═══ Delete Dictionary Entry ═══${NC}"
+  echo ""
+  read -p "  Zolai word to delete: " zo_word
+  if [ -z "$zo_word" ]; then return; fi
+  echo -e "  ${Y}Are you sure? (y/N):${NC} "
+  read confirm
+  if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+    PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+db._log_change('dictionary', 0, 'zolai', '$zo_word', 'DELETED', 'manual_delete')
+print(f'  Deleted: {\"$zo_word\"}')
+" 2>&1
+  else
+    echo "  Cancelled."
+  fi
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_dict_manage() {
+  echo -e "${C}═══ Search & Manage Entries ═══${NC}"
+  echo ""
+  read -p "  Search query: " query
+  if [ -z "$query" ]; then return; fi
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+from zolai.data.database import get_manager
+db = get_manager()
+results = db.search_dictionary('$query', limit=20)
+if not results:
+    print('  No entries found.')
+else:
+    print(f'  Found {len(results)} entries:')
+    for i, r in enumerate(results):
+        my = r.get('myanmar','')
+        my_str = f'  MY: {my[:20]}' if my else ''
+        print(f'  [{i+1}] {r.get(\"zolai\",\"?\"):25s} → {r.get(\"english_clean\",\"?\"):40s}{my_str}')
+" 2>&1
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_dict_stats() {
+  echo -e "${C}═══ Dictionary Statistics ═══${NC}"
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+import sqlite3, os
+db_path = os.path.join(os.environ.get('WORKSPACE','.'), 'data', 'zolai.db')
+conn = sqlite3.connect(db_path, timeout=5)
+c = conn.cursor()
+
+c.execute('SELECT COUNT(*) FROM dictionary')
+total = c.fetchone()[0]
+
+c.execute(\"SELECT COUNT(*) FROM dictionary WHERE myanmar IS NOT NULL AND myanmar != ''\")
+my_count = c.fetchone()[0]
+
+c.execute(\"SELECT COUNT(*) FROM dictionary WHERE english_clean IS NOT NULL AND english_clean != ''\")
+en_count = c.fetchone()[0]
+
+c.execute(\"SELECT COUNT(*) FROM dictionary WHERE source IS NOT NULL AND source != ''\")
+src_count = c.fetchone()[0]
+
+print(f'  Total entries:      {total:>10,}')
+print(f'  With Myanmar:       {my_count:>10,} ({my_count*100//total if total else 0}%)')
+print(f'  With English:       {en_count:>10,} ({en_count*100//total if total else 0}%)')
+print(f'  With source:        {src_count:>10,} ({src_count*100//total if total else 0}%)')
+print()
+
+# By source
+c.execute('SELECT source, COUNT(*) FROM dictionary WHERE source IS NOT NULL GROUP BY source ORDER BY COUNT(*) DESC')
+for r in c.fetchall():
+    print(f'  {r[0] or \"?\":30s}: {r[1]:>8,}')
+print()
+
+# Bible verses
+c.execute('SELECT COUNT(*) FROM bible_verses')
+bv = c.fetchone()[0]
+c.execute(\"SELECT COUNT(*) FROM bible_verses WHERE myanmar IS NOT NULL AND myanmar != ''\")
+bvm = c.fetchone()[0]
+print(f'  Bible verses:       {bv:>10,}')
+print(f'  With Myanmar:       {bvm:>10,} ({bvm*100//bv if bv else 0}%)')
+print()
+
+# Translations
+c.execute('SELECT COUNT(*) FROM translations')
+tr = c.fetchone()[0]
+c.execute(\"SELECT direction, COUNT(*) FROM translations GROUP BY direction\")
+for r in c.fetchall():
+    print(f'  Translations ({r[0]}): {r[1]:>8,}')
+
+conn.close()
+" 2>&1
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+# ── Gemini Translation ─────────────────────────────────────
+cmd_gemini_fill_my() {
+  echo -e "${C}═══ Gemini: Fill Missing Myanmar ═══${NC}"
+  echo ""
+  read -p "  How many entries to translate? [50]: " limit
+  limit=${limit:-50}
+  echo -e "  Translating $limit entries via Gemini..."
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../my/gemini_translate.py" --fill-my --limit "$limit"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_gemini_fill_en() {
+  echo -e "${C}═══ Gemini: Fill Missing English ═══${NC}"
+  echo ""
+  read -p "  How many entries to translate? [50]: " limit
+  limit=${limit:-50}
+  echo -e "  Translating $limit entries via Gemini..."
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../my/gemini_translate.py" --fill-en --limit "$limit"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_gemini_status() {
+  echo -e "${C}═══ Translation Coverage ═══${NC}"
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../my/gemini_translate.py" --status
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+# ── Monitoring ──────────────────────────────────────────────
+cmd_db_health() {
+  echo -e "${C}═══ DB Health & Stats ═══${NC}"
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+import sqlite3, os
+db_path = os.path.join(os.environ.get('WORKSPACE','.'), 'data', 'zolai.db')
+size_mb = os.path.getsize(db_path) / 1024 / 1024
+conn = sqlite3.connect(db_path, timeout=5)
+c = conn.cursor()
+
+print(f'  DB size: {size_mb:.1f} MB')
+print(f'  Path: {db_path}')
+print()
+
+# WAL mode check
+c.execute('PRAGMA journal_mode')
+jm = c.fetchone()[0]
+print(f'  Journal mode: {jm}')
+
+c.execute('PRAGMA busy_timeout')
+bt = c.fetchone()[0]
+print(f'  Busy timeout: {bt}ms')
+
+# Table counts
+c.execute(\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name\")
+tables = [r[0] for r in c.fetchall() if r[0] != 'sqlite_sequence']
+total = 0
+for t in tables:
+    c.execute(f'SELECT COUNT(*) FROM [{t}]')
+    n = c.fetchone()[0]
+    total += n
+    print(f'  {t:25s}: {n:>10,}')
+print(f'  {\"TOTAL\":25s}: {total:>10,}')
+conn.close()
+" 2>&1
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_audit_log() {
+  echo -e "${C}═══ Recent Audit Log ═══${NC}"
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+import sqlite3, os
+db_path = os.path.join(os.environ.get('WORKSPACE','.'), 'data', 'zolai.db')
+conn = sqlite3.connect(db_path, timeout=5)
+c = conn.cursor()
+c.execute('SELECT table_name, field, reason, changed_at FROM data_audit_log ORDER BY changed_at DESC LIMIT 20')
+rows = c.fetchall()
+if rows:
+    print(f'  {\"Table\":25s} {\"Field\":20s} {\"Reason\":30s} {\"When\"}')
+    print(f'  {\"-\"*25} {\"-\"*20} {\"-\"*30} {\"-\"*20}')
+    for r in rows:
+        print(f'  {str(r[0] or \"\"):25s} {str(r[1] or \"\"):20s} {str(r[2] or \"\"):30s} {str(r[3] or \"\")}')
+else:
+    print('  No audit entries yet.')
+conn.close()
+" 2>&1
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Main menu ───────────────────────────────────────────────
 while true; do
   banner
@@ -1154,6 +1400,22 @@ while true; do
   echo -e "  ${G}M4${NC}) 📊 Myanmar data inventory"
   echo -e "  ${G}M5${NC}) 📖 Study ZO-MY-EN trilingual"
   echo -e "  ${G}M6${NC}) 📖 Myanmar Bible Engine (parallel display)"
+  echo ""
+  echo -e "  ${M}── Dictionary CRUD ─────────────────────${NC}"
+  echo -e "  ${G}C1${NC}) 📝 Add new word to dictionary"
+  echo -e "  ${G}C2${NC}) ✏️  Edit dictionary entry"
+  echo -e "  ${G}C3${NC}) 🗑  Delete dictionary entry"
+  echo -e "  ${G}C4${NC}) 🔍 Search & manage entries"
+  echo -e "  ${G}C5${NC}) 📊 Dictionary statistics"
+  echo ""
+  echo -e "  ${M}── Gemini Translation ────────────────────${NC}"
+  echo -e "  ${G}G1${NC}) 🔄 Fill missing Myanmar (Gemini)"
+  echo -e "  ${G}G2${NC}) 🔄 Fill missing English (Gemini)"
+  echo -e "  ${G}G3${NC}) 📊 Translation coverage status"
+  echo ""
+  echo -e "  ${M}── Monitoring ────────────────────────────${NC}"
+  echo -e "  ${G}H1${NC}) 📊 DB health & stats"
+  echo -e "  ${G}H2${NC}) 📋 Recent audit log"
   echo ""
   echo -e "  ${M}── Context Learning ────────────────────${NC}"
   echo -e "  ${G}X${NC}) 🧠 Context Deep Learning (per-book/chapter/topic analysis)"
@@ -1211,6 +1473,16 @@ while true; do
     M4|m4) cmd_myanmar_inventory ;;
     M5|m5) cmd_myanmar_trilingual ;;
     M6|m6) cmd_myanmar_bible ;;
+    C1|c1) cmd_dict_add ;;
+    C2|c2) cmd_dict_edit ;;
+    C3|c3) cmd_dict_delete ;;
+    C4|c4) cmd_dict_manage ;;
+    C5|c5) cmd_dict_stats ;;
+    G1|g1) cmd_gemini_fill_my ;;
+    G2|g2) cmd_gemini_fill_en ;;
+    G3|g3) cmd_gemini_status ;;
+    H1|h1) cmd_db_health ;;
+    H2|h2) cmd_audit_log ;;
     AA|aa) cmd_data_build ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
