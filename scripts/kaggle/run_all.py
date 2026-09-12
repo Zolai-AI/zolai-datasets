@@ -14,6 +14,7 @@ SCRIPTS = [
     ("Phase 4: Dictionary Merge", "merge_dictionary.py"),
     ("Phase 5: Corpora", "integrate_corpora.py"),
     ("Phase 6: Songs", "integrate_songs.py"),
+    ("Phase 6.5: Convert Lesson PDFs", "convert_pdfs.py"),
     ("Phase 7: Validate", "validate_integration.py"),
 ]
 
