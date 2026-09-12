@@ -159,7 +159,7 @@ def validate(db_path: str) -> bool:
         pdf_converted = [
             f for f in md_files
             if f.startswith(("Zolai_Simbu_Tan_", "lesson_"))
-            or f == "Zolai_Standard_Format_kaggle.md"
+            or f == "Zolai_Standard_Format_online.md"
         ]
         print(f"  PDF-converted files: {len(pdf_converted)}")
         if len(pdf_converted) < 5:

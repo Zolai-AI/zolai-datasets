@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 1: Schema Migration — add new columns and tables for Kaggle data."""
+"""Phase 1: Schema Migration — add new columns and tables for Zolai AI online data."""
 import sqlite3
 import sys
 
@@ -64,7 +64,7 @@ def migrate(db_path: str) -> None:
     cur.execute(
         """INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value, changed_at, reason)
            VALUES ('schema', 0, 'migrate', '', ?, datetime('now'), ?)""",
-        ("", f"Applied {applied} migrations for Kaggle integration"),
+        ("", f"Applied {applied} migrations for Zolai AI online integration"),
     )
     conn.commit()
     conn.close()

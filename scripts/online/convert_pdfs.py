@@ -16,7 +16,7 @@ PDF_MAP = [
     ("zolai-simbu-tan-nih-sinna_compress.pdf", "Zolai_Simbu_Tan_nih_sinna.md"),
     ("zolai-simbu-tan-thum-sinna_compress.pdf", "Zolai_Simbu_Tan_thum_sinna.md"),
     # Lesson PDFs
-    ("Zolai_Standard_Format.pdf", "Zolai_Standard_Format_kaggle.md"),
+    ("Zolai_Standard_Format.pdf", "Zolai_Standard_Format_online.md"),
     ("2_Tone_Sandhi_in_Tedim_Zomi_Toponyms.pdf", "lesson_02_Tone_Sandhi_Tedim_Zomi_Toponyms.md"),
     ("6_Composite_Bibliography.pdf", "lesson_06_Composite_Bibliography.md"),
     ("8_We_Are_Zomis_Poem.pdf", "lesson_08_We_Are_Zomis_Poem.md"),

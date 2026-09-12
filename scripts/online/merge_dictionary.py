@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 4: Dictionary Merge — add new words from Kaggle unified vocabulary."""
+"""Phase 4: Dictionary Merge — add new words from Zolai AI online unified vocabulary."""
 import json
 import sqlite3
 import sys
@@ -21,7 +21,7 @@ def merge(db_path: str, vocab_path: str) -> None:
 
     with open(vocab_path) as f:
         vocab = json.load(f)
-    print(f"Kaggle unified vocabulary: {len(vocab)} entries")
+    print(f"Zolai AI online unified vocabulary: {len(vocab)} entries")
 
     inserted = 0
     skipped = 0
@@ -50,7 +50,7 @@ def merge(db_path: str, vocab_path: str) -> None:
 
         cur.execute(
             """INSERT INTO dictionary (zolai, english, source, pos, entry_version, updated_at)
-               VALUES (?, ?, 'kaggle_unified', '', 'kaggle_v1', datetime('now'))""",
+               VALUES (?, ?, 'online_unified', '', 'online_v1', datetime('now'))""",
             (headword, english[:500] if english else ""),
         )
         existing.add(headword)
@@ -62,8 +62,8 @@ def merge(db_path: str, vocab_path: str) -> None:
     # Audit
     cur.execute(
         """INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value, changed_at, reason)
-           VALUES ('dictionary', 0, 'merge_kaggle', '', ?, datetime('now'), ?)""",
-        ("", f"Kaggle vocab: {inserted} inserted, {skipped} skipped (existing/invalid)"),
+           VALUES ('dictionary', 0, 'merge_online', '', ?, datetime('now'), ?)""",
+        ("", f"Zolai AI online vocab: {inserted} inserted, {skipped} skipped (existing/invalid)"),
     )
     conn.commit()
     conn.close()
