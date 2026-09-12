@@ -131,19 +131,22 @@ def call_pcore_brain_ai(words: list[str], context: str = "",
 Grammar rules:
 - SOV word order (Subject-Object-Verb)
 - Ergative marker: 'in' marks the agent of transitive verbs
-- Tense: -sak (past), -nak (gerund/progressive), -ah (present), -hen (future)
-- Negation: 'si' before verb
-- Question marker: 'hiam' (not 'ze')
-- Conjunction: 'leh' (and/but)
+- Tense: ta (completive/realized), khin (past simple/experiential), ding (future)
+- Aspect: lai (progressive), zo (completive)
+- Negation: 'kei' for ALL persons (kei hi = don't)
+- Question marker: 'hiam' (yes/no), 'bang hang' (content questions)
+- Pronouns: a (agreement before verb), amah (emphasis standalone)
+- Conjunction: 'leh' (and), 'tua' (that, conjunction)
 
 Forbidden forms (use modern ZVS 2018):
 - pathian → pasian (God)
 - ram → gam (earth/ground)
-- fapa → tapa (like/as)
+- fapa → tapa (life/son)
 - bawipa → topa (lord/master)
-- siangpahrang → kumpipa (devil)
+- siangpahrang → kumpipa (Savior)
+- cu/cun → tua (that, conjunction)
 
-Common words: pasian=God, topa=Lord, gam=earth, vantung=heaven, tui=water, mi=person, numei=woman, sing=tree, nek=eat, hiam=question marker, a=possessive
+Common words: pasian=God, topa=Lord, gam=earth, vantung=heaven, leitung=earth, tui=water, mi=person, numei=woman, sing=tree, nek=eat, hiam=question marker, a=agreement marker, tapa=life/son, suahtakna=holiness, nuntakna=life
 
 Words to translate: {word_list}
 Reply ONLY as JSON with single-word translations: {{"word": "meaning"}}
@@ -300,13 +303,21 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
     output_file = STUDY_DIR / f"{book_code.lower()}_study.jsonl"
     results = []
     
-    for verse in book_verses:
+    total_v = len(book_verses)
+    for vi, verse in enumerate(book_verses, 1):
         ref = verse.get("ref", "")
         zo = verse.get("zo_tedim2010") or verse.get("zo_tdb77") or ""
         en = verse.get("en_kJV") or ""
         
         if not zo:
             continue
+        
+        # Verse-level progress (every 50 verses or first/last)
+        if vi == 1 or vi == total_v or vi % 50 == 0:
+            words_so_far = sum(len(r["glosses"]) for r in results)
+            hits_so_far = sum(1 for r in results for g in r["glosses"] if g["source"] in ("dict_zo_en", "ai_cache"))
+            rate = (hits_so_far / words_so_far * 100) if words_so_far else 0
+            print(f"    [{vi}/{total_v}] {ref} — {len(results)} verses, {rate:.0f}% covered", flush=True)
         
         # Gloss the verse
         glosses = engine.gloss_verse(zo)
@@ -339,6 +350,10 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
     
     dict_rate = (dict_hits / total_words * 100) if total_words else 0
     ai_rate = (ai_hits / total_words * 100) if total_words else 0
+    miss_count = total_words - dict_hits - ai_hits
+    
+    print(f"    {book_code} done: {len(results)} verses, {total_words} words "
+          f"({dict_rate:.0f}% dict, {ai_rate:.0f}% ai, {miss_count} misses)", flush=True)
     
     log_event("book_done", book=book_code, verses=len(results),
              dict_rate=f"{dict_rate:.1f}%", ai_rate=f"{ai_rate:.1f}%")
