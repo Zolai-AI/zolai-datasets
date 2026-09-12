@@ -48,8 +48,8 @@ async def analyze_dictionary_gaps():
       "analysis_type": "gap_filling|error_correction|pattern_analysis|vocabulary_expansion",
       "entries_suggested": [
         {{
-          "original_headword": "current headword in database",
-          "suggested_headword": "suggested correction or new entry",
+          "original_zolai": "current zolai in database",
+          "suggested_zolai": "suggested correction or new entry",
           "suggested_english": ["translations"],
           "suggested_pos": "noun|verb|adj|adv|particle|number",
           "suggested_remarks": "ZVS compliance note or reason for change",
@@ -77,7 +77,7 @@ async def analyze_dictionary_gaps():
     # Build summary of entries for Gemini
     summary_parts = []
     for entry in entries:
-        zolai = entry.get('zolai', '') or entry.get('headword', '') or ''
+        zolai = entry.get('zolai', '') or entry.get('zolai', '') or ''
         english = entry.get('english', []) or []
         # Clean
         zolai_clean = zolai.strip().strip('"').strip("'").strip()
@@ -148,7 +148,7 @@ async def flag_zvs_issues():
     
     For each entry, return JSON:
     {{
-      "headword": "the word",
+      "zolai": "the word",
       "zvs_violation": true/false,
       "violating_form": "which forbidden form exists",
       "correct_form": "the ZVS 2018 correct form",
@@ -160,15 +160,15 @@ async def flag_zvs_issues():
     
     # Get entries with known issues or sample randomly
     import sqlite3
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
-    cur.execute("SELECT id, headword, raw_json FROM entries LIMIT 50")
+    cur.execute("SELECT id, zolai, raw_json FROM dictionary LIMIT 50")
     entries = cur.fetchall()
     conn.close()
     
     results = []
-    for entry_id, headword, raw_json in entries:
-        hw = headword.strip().strip('"').strip("'").strip() if headword else ''
+    for entry_id, zolai, raw_json in entries:
+        hw = zolai.strip().strip('"').strip("'").strip() if zolai else ''
         if not hw:
             continue
         
@@ -187,7 +187,7 @@ async def flag_zvs_issues():
             else:
                 results.append({
                     "entry_id": entry_id,
-                    "headword": hw,
+                    "zolai": hw,
                     "zvs_violation": False,
                     "violating_form": "",
                     "correct_form": "",
@@ -198,7 +198,7 @@ async def flag_zvs_issues():
         except Exception as e:
             results.append({
                 "entry_id": entry_id,
-                "headword": hw,
+                "zolai": hw,
                 "zvs_violation": False,
                 "violating_form": "",
                 "correct_form": "",
@@ -227,7 +227,7 @@ async def main():
     print(f"   entries checked: {len(zvs_results)}")
     print(f"   ZVS violations found: {len(violations)}")
     for v in violations[:5]:  # Show first 5
-        print(f"     ID={v.get('entry_id')}: {v.get('headword')} → {v.get('correct_form')}")
+        print(f"     ID={v.get('entry_id')}: {v.get('zolai')} → {v.get('correct_form')}")
     
     print(f"\n3. Summary:")
     print(f"   Analysis: {analysis.get('overall_assessment', 'N/A')[:100]}")

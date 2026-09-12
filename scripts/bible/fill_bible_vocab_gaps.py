@@ -23,7 +23,7 @@ from pathlib import Path
 
 DATA = Path("data/master/sources")
 SEMANTIC_DICT = Path("data/processed/master_dictionary_semantic.jsonl")
-DB_PATH = Path("data/master_unified_dictionary.db")
+DB_PATH = Path("data/zolai.db")
 OUT_VOCAB = Path("data/processed/bible_vocab")
 NEW_ENTRIES_LOG = Path("data/processed/bible_vocab_new_entries.jsonl")
 
@@ -48,7 +48,7 @@ def load_dict_jsonl() -> dict[str, dict]:
 def load_db_headwords() -> set[str]:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT LOWER(headword) FROM entries WHERE headword != ''")
+    cur.execute("SELECT LOWER(zolai) FROM dictionary WHERE zolai != ''")
     result = {r[0].strip() for r in cur.fetchall()}
     conn.close()
     return result
@@ -150,13 +150,13 @@ def insert_to_db(entries: list[dict], conn: sqlite3.Connection) -> int:
         hw = e.get("zolai", e.get("word", "")).strip()
         if not hw:
             continue
-        cur.execute("SELECT id FROM entries WHERE LOWER(headword)=?", (hw.lower(),))
+        cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
         if cur.fetchone():
             continue  # already exists
         raw = json.dumps(e, ensure_ascii=False)
         pos = e.get("pos", "")
         cur.execute(
-            "INSERT INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
             (hw, pos, "gemini_bible_vocab", raw),
         )
         entry_id = cur.lastrowid
@@ -165,7 +165,6 @@ def insert_to_db(entries: list[dict], conn: sqlite3.Connection) -> int:
         # FTS
         trans_text = " ".join(e.get("english", []))
         cur.execute(
-            "INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
             (entry_id, hw, trans_text, e.get("explanation", "")),
         )
         inserted += 1

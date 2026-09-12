@@ -31,7 +31,7 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 DATA    = Path("data/master/sources")
 COMBINED = Path("data/master/combined")
 BIBLE   = Path("resources/Chin-Bible")
-DB_PATH = Path("data/master_unified_dictionary.db")
+DB_PATH = Path("data/zolai.db")
 GAPS    = Path("data/processed/bible_vocab_real_gaps.jsonl")
 OUT_RESOLVED = Path("data/processed/bible_vocab_resolved.jsonl")
 OUT_STILL_MISSING = Path("data/processed/bible_vocab_still_missing.jsonl")
@@ -144,12 +144,12 @@ def build_tbr17_parallel(tbr17: dict[str, str], kjv: dict[str, str]) -> int:
 def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id FROM entries WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(headword)=?", (hw.lower(),))
     if cur.fetchone():
         return False
     raw = json.dumps(entry, ensure_ascii=False)
     cur.execute(
-        "INSERT INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+        "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
         (hw, entry.get("pos", ""), entry.get("source", "crossref"), raw),
     )
     eid = cur.lastrowid
@@ -168,15 +168,15 @@ def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
 def db_update_number(entry: dict, conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id, raw_json FROM entries WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id, raw_json FROM dictionary WHERE LOWER(headword)=?", (hw.lower(),))
     row = cur.fetchone()
     raw = json.dumps({**entry, "dialect": "tedim", "source": "number_fix"}, ensure_ascii=False)
     if row:
-        cur.execute("UPDATE entries SET raw_json=?, pos=? WHERE id=?",
+        cur.execute("UPDATE dictionary SET raw_json=?, pos=? WHERE id=?",
                     (raw, entry.get("pos", "numeral"), row[0]))
     else:
         cur.execute(
-            "INSERT INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
             (hw, "numeral", "number_fix", raw),
         )
         eid = cur.lastrowid

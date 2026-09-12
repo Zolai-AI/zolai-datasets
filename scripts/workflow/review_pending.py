@@ -25,10 +25,10 @@ import readline  # for better input handling
 
 def get_pending_entries(limit=50):
     """Get entries pending human review."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, headword, entry_version, update_remarks, update_description, zvs_compliance_status FROM entries WHERE zvs_compliance_status='pending' LIMIT ?",
+        "SELECT id, headword, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?",
         (limit,)
     )
     entries = cur.fetchall()
@@ -38,11 +38,11 @@ def get_pending_entries(limit=50):
 
 def update_entry_status(entry_id, new_status, remarks=None, description=None):
     """Update entry status in database."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get current version and bump it
-    cur.execute("SELECT entry_version FROM entries WHERE id=?", (entry_id,))
+    cur.execute("SELECT entry_version FROM dictionary WHERE id=?", (entry_id,))
     row = cur.fetchone()
     current_version = row[0] if row else "v1.0"
     
@@ -59,7 +59,7 @@ def update_entry_status(entry_id, new_status, remarks=None, description=None):
         description = ""
     
     cur.execute(
-        "UPDATE entries SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+        "UPDATE dictionary SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
         (new_version, remarks, description, new_status, entry_id)
     )
     conn.commit()
@@ -69,11 +69,11 @@ def update_entry_status(entry_id, new_status, remarks=None, description=None):
 
 def regenerate_jsonl_from_approved():
     """Regenerate JSONL files from entries with status='approved'."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all approved entries
-    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM entries WHERE zvs_compliance_status='approved'")
+    cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='approved'")
     approved = cur.fetchall()
     
     total = len(approved)

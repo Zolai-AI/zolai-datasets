@@ -3,7 +3,7 @@ import json
 import sys
 import os
 
-DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/dictionary/db/master_unified_dictionary.db"
+DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 
 # ZVS 2018 forbidden forms (local rules)
 FORBIDDEN_FORMS = {
@@ -78,7 +78,7 @@ def process_batch(batch_size=500, mode="local"):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     
-    cur.execute("SELECT id, headword FROM entries WHERE zvs_compliance_status='pending' LIMIT ?", (batch_size,))
+    cur.execute("SELECT * FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?", (batch_size,))
     rows = cur.fetchall()
     
     if not rows:
@@ -116,7 +116,7 @@ def process_batch(batch_size=500, mode="local"):
             result = check_zvs_local(headword_clean)
         
         cur.execute(
-            "UPDATE entries SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+            "UPDATE dictionary SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
             ('v1.0',
              result.get('remarks', ''),
              result.get('description', ''),

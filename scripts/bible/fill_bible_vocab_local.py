@@ -35,7 +35,7 @@ SEMANTIC = Path("data/processed/master_dictionary_semantic.jsonl")
 ENRICHED = Path("data/processed/master_dictionary_enriched.jsonl")
 ZOMIDICT = Path("data/dictionary/raw/zomidictionary_export.jsonl")
 PARALLEL = Path("data/master/sources/bible_parallel_tdb77.jsonl")
-DB_PATH = Path("data/master_unified_dictionary.db")
+DB_PATH = Path("data/zolai.db")
 OUT_VOCAB = Path("data/processed/bible_vocab")
 GAPS_LOG = Path("data/processed/bible_vocab_gaps.jsonl")
 
@@ -165,20 +165,20 @@ def stem(word: str, known: set[str]) -> str | None:
 
 def db_headwords(conn: sqlite3.Connection) -> set[str]:
     cur = conn.cursor()
-    cur.execute("SELECT LOWER(TRIM(headword)) FROM entries WHERE headword != ''")
+    cur.execute("SELECT LOWER(TRIM(zolai)) FROM dictionary WHERE zolai != ''")
     return {r[0] for r in cur.fetchall()}
 
 
 def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id FROM entries WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     existing = cur.fetchone()
 
     raw = json.dumps(entry, ensure_ascii=False)
     if existing:
         # Update raw_json to fill missing fields
-        cur.execute("SELECT raw_json FROM entries WHERE id=?", (existing[0],))
+        cur.execute("SELECT raw_json FROM dictionary WHERE id=?", (existing[0],))
         old_raw = cur.fetchone()[0] or "{}"
         old = json.loads(old_raw)
         updated = False
@@ -188,13 +188,13 @@ def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
                 old[field] = entry[field]
                 updated = True
         if updated:
-            cur.execute("UPDATE entries SET raw_json=?, pos=? WHERE id=?",
+            cur.execute("UPDATE dictionary SET raw_json=?, pos=? WHERE id=?",
                         (json.dumps(old, ensure_ascii=False), entry.get("pos", old.get("pos", "")), existing[0]))
             conn.commit()
         return False  # not new, just updated
     else:
         cur.execute(
-            "INSERT INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
+            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
             (hw, entry.get("pos", ""), entry.get("source", "local"), raw),
         )
         eid = cur.lastrowid
@@ -203,7 +203,6 @@ def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
                 cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t.strip()))
         trans_text = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
         cur.execute(
-            "INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
             (eid, hw, trans_text, entry.get("explanation", "")),
         )
         conn.commit()

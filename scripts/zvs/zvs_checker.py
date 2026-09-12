@@ -121,11 +121,11 @@ Return ONLY valid JSON, no code blocks, no explanations:
 
 async def process_all_entries(batch_size=100):
     """Process all entries in the dictionary database for ZVS compliance."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries that need processing
-    cur.execute("SELECT id, headword, raw_json FROM entries WHERE zvs_compliance_status='pending'")
+    cur.execute("SELECT * FROM dictionary WHERE zvs_compliance_status='pending'")
     all_rows = cur.fetchall()
     
     total = len(all_rows)
@@ -133,7 +133,7 @@ async def process_all_entries(batch_size=100):
     
     if total == 0:
         # Check distribution
-        cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM entries GROUP BY zvs_compliance_status")
+        cur.execute("SELECT * FROM dictionary GROUP BY zvs_compliance_status")
         rows = cur.fetchall()
         print("Status distribution:")
         for status, count in rows:
@@ -182,7 +182,7 @@ async def process_all_entries(batch_size=100):
         # Only update if we got a meaningful result
         if zvs_status in ['passed', 'failed']:
             cur.execute(
-                "UPDATE entries SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+                "UPDATE dictionary SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
                 (result.get('entry_version', 'v1.0'),
                  update_remarks,
                  update_description,
@@ -213,7 +213,7 @@ async def process_all_entries(batch_size=100):
     conn.commit()
     
     # Print final summary
-    cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM entries GROUP BY zvs_compliance_status")
+    cur.execute("SELECT * FROM dictionary GROUP BY zvs_compliance_status")
     final_status = cur.fetchall()
     print(f"\n=== FINAL SUMMARY ===")
     print(f"Total entries: {total}")
@@ -229,9 +229,9 @@ async def process_all_entries(batch_size=100):
 async def main():
     # First, let's test with a few known entries
     print("=== TESTING WITH SAMPLE ENTRIES ===")
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
-    cur.execute("SELECT id, headword, raw_json FROM entries LIMIT 5")
+    cur.execute("SELECT * FROM dictionary LIMIT 5")
     test_rows = cur.fetchall()
     conn.close()
     

@@ -137,6 +137,33 @@ def _get_loop():
     return _gemini_loop
 
 
+def _reset_gemini_client():
+    """Reset Gemini client + event loop (prevents 120s idle timeout)."""
+    global _gemini_client, _gemini_loop
+    _gemini_client = None
+    if _gemini_loop and not _gemini_loop.is_closed():
+        try:
+            _gemini_loop.close()
+        except Exception:
+            pass
+    _gemini_loop = None
+
+def _reset_gemini_client():
+    """Clear Gemini client + event loop, forcing re-init on next call.
+
+    Called every 150 verses to prevent the 120s idle timeout on large
+    books like GEN (1533 verses) and PSA (2460 verses).
+    """
+    global _gemini_client, _gemini_loop
+    _gemini_client = None
+    if _gemini_loop is not None and not _gemini_loop.is_closed():
+        try:
+            _gemini_loop.close()
+        except Exception:
+            pass
+    _gemini_loop = None
+
+
 def call_pcore_brain_ai(words: list[str], context: str = "", model_name: str = "auto",
                         known_words: dict | None = None) -> dict[str, str]:
     """Use Gemini's own knowledge to translate Zolai words. No dict injection."""
@@ -310,25 +337,32 @@ class GlossingEngine:
 # ══════════════════════════════════════════════════════════════════════
 # STUDY ENGINE
 # ══════════════════════════════════════════════════════════════════════
-def study_book(book_code: str, verses: list, engine: GlossingEngine, 
+def study_book(book_code: str, verses: list, engine: GlossingEngine,
                ai_flag: str = "") -> dict:
     """Study a single book and output results."""
     book_verses = [v for v in verses if v.get("book") == book_code]
     if not book_verses:
         return {"book": book_code, "verses": 0, "dict_rate": 0, "ai_rate": 0}
-    
+
     output_file = STUDY_DIR / f"{book_code.lower()}_study.jsonl"
     results = []
-    
+
     total_v = len(book_verses)
     for vi, verse in enumerate(book_verses, 1):
+        # Reset Gemini client every 150 verses to prevent idle timeout
+        if vi > 1 and vi % 150 == 0:
+            _reset_gemini_client()
         ref = verse.get("ref", "")
         zo = verse.get("zo_tedim2010") or verse.get("zo_tdb77") or ""
         en = verse.get("en_kJV") or ""
-        
+
         if not zo:
             continue
-        
+
+        # Reset Gemini client every 150 verses to prevent 120s idle timeout
+        if vi % 150 == 0 and engine.use_ai:
+            _reset_gemini_client()
+
         # Verse-level progress (every 50 verses or first/last)
         if vi == 1 or vi == total_v or vi % 100 == 0:
             words_so_far = sum(len(r["glosses"]) for r in results)
@@ -359,6 +393,35 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
     # Write study file
     with open(output_file, "w") as f:
         f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in results)
+    
+    # Save to master database
+    try:
+        import sqlite3 as _sqlite3
+        _db = _sqlite3.connect(str(DATA_ROOT.parent / "zolai.db"))
+        _now = datetime.now().isoformat()
+        _ai_words = []
+        for r in results:
+            for g in r.get("glosses", []):
+                if g.get("source") in ("ai_pending", "ai_cache"):
+                    _ai_words.append((g["word"], g.get("gloss", ""), ref))
+        # Batch update dictionary entries that were AI-translated
+        for word, meaning, ref in _ai_words[:200]:
+            _db.execute(
+                "UPDATE dictionary SET "
+                "english = CASE WHEN english IS NULL OR english = '' "
+                "  THEN ? ELSE english END, "
+                "entry_version = CASE WHEN entry_version IS NULL "
+                "  THEN 'study_v1' ELSE entry_version END, "
+                "update_remarks = CASE WHEN update_remarks IS NULL OR update_remarks = '' "
+                "  THEN ? ELSE update_remarks END, "
+                "updated_at = ? "
+                "WHERE zolai = ?",
+                (meaning, f"Study: {book_code} {ref}", _now, word),
+            )
+        _db.commit()
+        _db.close()
+    except Exception as _e:
+        print(f"    DB save note: {_e}", flush=True)
     
     # Calculate stats
     total_words = sum(len(r["glosses"]) for r in results)

@@ -11,7 +11,7 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 
 # File paths
 JSONL_PATH = 'data/dictionary/processed/dict_canonical_v1.jsonl'
-DB_PATH = 'data/dictionary/db/zvs_master_dictionary.db'
+DB_PATH = 'data/zolai.db'
 
 def setup_db(conn):
     c = conn.cursor()
@@ -82,12 +82,12 @@ def migrate():
                 src = ','.join(data.get('sources', []))
 
                 # Insert Entry
-                c.execute('INSERT OR IGNORE INTO entries (headword, pos, sources, raw_json) VALUES (?,?,?,?)',
+                c.execute('INSERT OR IGNORE INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)',
                           (hw, pos, src, line))
                 entry_id = c.lastrowid
 
                 if not entry_id: # If ignored, find the existing ID
-                    c.execute('SELECT id FROM entries WHERE headword = ?', (hw,))
+                    c.execute('SELECT id FROM dictionary WHERE headword = ?', (hw,))
                     res = c.fetchone()
                     if res: entry_id = res[0]
 

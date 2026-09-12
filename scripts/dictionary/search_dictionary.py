@@ -9,7 +9,7 @@ _REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
 os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 
 
-DB_PATH = 'data/master_unified_dictionary.db'
+DB_PATH = 'data/zolai.db'
 
 def search(query):
     if not os.path.exists(DB_PATH):
@@ -24,7 +24,7 @@ def search(query):
     results = []
 
     # 1. Exact Headword Match (Highest Priority)
-    c.execute('SELECT raw_json FROM entries WHERE headword = ?', (query,))
+    c.execute('SELECT raw_json FROM dictionary WHERE headword = ?', (query,))
     for row in c.fetchall():
         results.append(json.loads(row[0]))
 

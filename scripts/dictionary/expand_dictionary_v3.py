@@ -243,14 +243,14 @@ def save_to_db(conn: sqlite3.Connection, en_zo: dict, zo_en: dict) -> None:
     cursor = conn.cursor()
     
     # Clear existing
-    cursor.execute("DELETE FROM entries")
+    cursor.execute("DELETE FROM dictionary")
     cursor.execute("DELETE FROM zo_en")
     
     # Insert EN→ZO
     for en, entry in en_zo.items():
         entry_id = hashlib.md5(f"{en}:{entry.get('zo', '')}".encode()).hexdigest()
         cursor.execute("""
-            INSERT OR REPLACE INTO entries 
+            INSERT OR REPLACE INTO dictionary 
             (id, en, zo, pos, confidence, source, topic, synonyms, examples, related, frequency, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (

@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sqlite3
 import time
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -39,6 +40,7 @@ ALIGN_PATH = DATA_ROOT / "bible" / "word_alignments_v1.jsonl"
 PHRASES_PATH = DATA_ROOT / "bible" / "phrases_v1.jsonl"
 CORPUS_PATH = DATA_ROOT / "corpus" / "corpus_unified_v1.jsonl"
 LOG_DIR = DATA_ROOT / "audit_logs"
+DB_PATH = DATA_ROOT / "zolai.db"
 CORPUS_SAMPLE_LIMIT = 100_000  # first N lines of corpus_unified
 
 
@@ -98,8 +100,227 @@ def save_md(lines: list[str], path: Path) -> None:
 
 
 # =====================================================================
-# 1. DICTIONARY ACCURACY AUDITOR
+# AUDIT DB WRITER
 # =====================================================================
+
+class AuditDBWriter:
+    """Batch-write audit findings into the unified zolai.db database.
+    
+    Uses the dictionary table (93K entries) and audit_findings table
+    for tracking all data quality improvements.
+    """
+
+    BATCH_SIZE = 1000
+
+    def __init__(self, db_path: Path | None = None) -> None:
+        self.db_path = db_path or DB_PATH
+        self._conn: sqlite3.Connection | None = None
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._conn is None:
+            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._ensure_tables()
+        return self._conn
+
+    def _ensure_tables(self) -> None:
+        conn = self._conn
+        assert conn is not None
+        # Audit findings log
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS audit_findings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                finding_type TEXT NOT NULL,
+                word TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT,
+                source TEXT,
+                confidence TEXT,
+                created_at TEXT,
+                verified_by TEXT DEFAULT 'system',
+                entry_id INTEGER,
+                FOREIGN KEY (entry_id) REFERENCES dictionary(id)
+            )
+        """)
+        # Wiki lessons tracking
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS wiki_lessons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lesson_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content_summary TEXT,
+                word_count INTEGER,
+                grammar_patterns TEXT,
+                vocabulary_list TEXT,
+                source_file TEXT,
+                entry_version TEXT DEFAULT 'v1.0',
+                update_remarks TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Training data tracking
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS training_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_name TEXT,
+                dataset_name TEXT,
+                entry_count INTEGER,
+                entry_version TEXT DEFAULT 'v1.0',
+                update_remarks TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Create indexes
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_dict_zolai ON dictionary(zolai)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_word ON audit_findings(word)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_findings(finding_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_wiki_type ON wiki_lessons(lesson_type)")
+        conn.commit()
+
+    # ── batch insert findings ────────────────────────────────────────
+    def save_findings(self, findings: list[dict[str, Any]]) -> None:
+        if not findings:
+            return
+        conn = self._connect()
+        total = len(findings)
+        print(f"  Writing {total:,} findings to database...")
+        now = datetime.now().isoformat()
+        batch: list[tuple] = []
+        for f in findings:
+            batch.append((
+                f.get("finding_type", ""),
+                f.get("word", ""),
+                f.get("old_value", ""),
+                f.get("new_value", ""),
+                f.get("source", ""),
+                f.get("confidence", ""),
+                f.get("created_at", now),
+                f.get("verified_by", ""),
+                f.get("entry_id"),
+            ))
+            if len(batch) >= self.BATCH_SIZE:
+                conn.executemany(
+                    "INSERT INTO audit_findings "
+                    "(finding_type, word, old_value, new_value, source, "
+                    "confidence, created_at, verified_by, entry_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    batch,
+                )
+                conn.commit()
+                print(f"    Committed {len(batch):,} rows (total so far)", flush=True)
+                batch = []
+        if batch:
+            conn.executemany(
+                "INSERT INTO audit_findings "
+                "(finding_type, word, old_value, new_value, source, "
+                "confidence, created_at, verified_by, entry_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                batch,
+            )
+            conn.commit()
+            print(f"    Final commit: {len(batch):,} rows", flush=True)
+        print(f"  ✅ {total:,} findings saved to {self.db_path.name}")
+
+    # ── update dictionary entry ──────────────────────────────────────
+    def update_entry_remarks(self, entry_id: int, remarks: str) -> None:
+        """Set update_remarks on a dictionary row."""
+        conn = self._connect()
+        conn.execute(
+            "UPDATE dictionary SET update_remarks = ?, "
+            "updated_at = ? WHERE id = ?",
+            (remarks, datetime.now().isoformat(), entry_id),
+        )
+
+    def update_entry_english(self, entry_id: int, english: str,
+                             version: str, remarks: str) -> None:
+        """Update english + entry_version + update_remarks."""
+        conn = self._connect()
+        conn.execute(
+            "UPDATE dictionary SET english = ?, entry_version = ?, "
+            "update_remarks = ?, update_description = ?, "
+            "updated_at = ? WHERE id = ?",
+            (english, version, remarks, f"Audit corrected: {remarks}",
+             datetime.now().isoformat(), entry_id),
+        )
+
+    def update_zvs_status(self, entry_id: int, status: str, remarks: str) -> None:
+        """Update zvs_compliance_status."""
+        conn = self._connect()
+        conn.execute(
+            "UPDATE dictionary SET zvs_compliance_status = ?, "
+            "update_remarks = ?, updated_at = ? WHERE id = ?",
+            (status, remarks, datetime.now().isoformat(), entry_id),
+        )
+
+    # ── insert new unknown word ──────────────────────────────────────
+    def insert_unknown_word(self, headword: str, english: str,
+                            entry_version: str = "audit_v1",
+                            remarks: str = "", source: str = "audit") -> None:
+        """INSERT OR IGNORE — never overwrite existing entries."""
+        conn = self._connect()
+        now = datetime.now().isoformat()
+        conn.execute(
+            "INSERT OR IGNORE INTO dictionary "
+            "(zolai, english, source, entry_version, update_remarks, "
+            "update_description, zvs_compliance_status, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (headword, english, source, entry_version, remarks,
+             f"Auto-inserted by audit: {headword}", "pending", now),
+        )
+
+    def save_wiki_lesson(self, lesson_type: str, title: str,
+                         content_summary: str, word_count: int,
+                         grammar_patterns: str = "",
+                         vocabulary_list: str = "",
+                         source_file: str = "") -> None:
+        """Save a wiki lesson to tracking table."""
+        conn = self._connect()
+        now = datetime.now().isoformat()
+        conn.execute(
+            "INSERT INTO wiki_lessons "
+            "(lesson_type, title, content_summary, word_count, "
+            "grammar_patterns, vocabulary_list, source_file, "
+            "created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (lesson_type, title, content_summary, word_count,
+             grammar_patterns, vocabulary_list, source_file, now, now),
+        )
+
+    def save_training_run(self, model_name: str, dataset_name: str,
+                          entry_count: int, remarks: str = "") -> None:
+        """Log a training run."""
+        conn = self._connect()
+        now = datetime.now().isoformat()
+        conn.execute(
+            "INSERT INTO training_runs "
+            "(model_name, dataset_name, entry_count, "
+            "update_remarks, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (model_name, dataset_name, entry_count, remarks, now, now),
+        )
+
+    # ── flush + close ────────────────────────────────────────────────
+    def flush(self) -> None:
+        if self._conn:
+            self._conn.commit()
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.commit()
+            self._conn.close()
+            self._conn = None
+
+    # ── stats ────────────────────────────────────────────────────────
+    def stats(self) -> dict[str, Any]:
+        conn = self._connect()
+        result: dict[str, Any] = {}
+        for table in ["dictionary", "audit_findings", "wiki_lessons",
+                       "training_runs"]:
+            c = conn.execute(f"SELECT COUNT(*) FROM {table}")
+            result[table] = c.fetchone()[0]
+        return result
 
 class DictionaryAccuracyAuditor:
     """Compare dict headword EN translations against Bible word alignments.
@@ -905,6 +1126,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--real-world", action="store_true", help="Real-world vs Bible audit")
     p.add_argument("--unknown-words", action="store_true", help="Unknown word detection")
     p.add_argument("--gemini-check", action="store_true", help="Gemini batch verification")
+    p.add_argument("--save-db", action="store_true", help="Write findings to SQLite DB")
     return p.parse_args()
 
 
@@ -917,6 +1139,7 @@ def main() -> None:
 
     log_dir = ensure_log_dir()
     results: list[dict[str, Any]] = []
+    db_writer: AuditDBWriter | None = None
 
     t0 = time.time()
 
@@ -938,6 +1161,153 @@ def main() -> None:
     if run_all or args.gemini_check:
         results.append(GeminiCrossChecker().run())
 
+    # ── Write findings to SQLite DB ──────────────────────────────────
+    if args.save_db:
+        try:
+            db_writer = AuditDBWriter()
+            findings: list[dict[str, Any]] = []
+
+            # 1. DictionaryAccuracyAuditor → update_remarks on entries
+            for r in results:
+                if r.get("audit") == "dict_accuracy":
+                    for m in r.get("mismatch_details", []):
+                        zo = m.get("zolai", "")
+                        dict_en = m.get("dict_en", "")
+                        bible_top = m.get("bible_top", [])
+                        new_val = bible_top[0]["en"] if bible_top else ""
+                        findings.append({
+                            "finding_type": "dict_mismatch",
+                            "word": zo,
+                            "old_value": dict_en[:200],
+                            "new_value": new_val[:200],
+                            "source": "dict_accuracy_audit",
+                            "confidence": m.get("severity", "MEDIUM"),
+                        })
+
+            # 2. UnknownWordDetector → insert new entries + update dict
+            for r in results:
+                if r.get("audit") == "unknown_words":
+                    for u in r.get("unknown_details", []):
+                        word = u.get("word", "")
+                        freq = u.get("total_freq", 0)
+                        if not word:
+                            continue
+                        # Insert into audit_findings
+                        findings.append({
+                            "finding_type": "unknown_word",
+                            "word": word,
+                            "old_value": "",
+                            "new_value": "",
+                            "source": "unknown_word_audit",
+                            "confidence": "HIGH" if freq >= 100 else "MEDIUM",
+                        })
+                        # Also insert into dictionary as new entry
+                        db_writer.insert_unknown_word(
+                            headword=word,
+                            english="",
+                            entry_version="audit_v1",
+                            remarks=f"Unknown word, freq={freq}",
+                        )
+
+            # 3. VocabularyGapAuditor → insert Bible words missing from dict
+            for r in results:
+                if r.get("audit") == "vocab_gaps":
+                    for g in r.get("gap_details", [])[:500]:
+                        word = g.get("word", "")
+                        freq = g.get("frequency", 0)
+                        if not word:
+                            continue
+                        db_writer.insert_unknown_word(
+                            headword=word,
+                            english="",
+                            entry_version="bible_gap_v1",
+                            remarks=f"Bible word not in dictionary, freq={freq}",
+                            source="bible_corpus",
+                        )
+
+            # 4. PhraseCoverageAuditor → log unattested phrases
+            for r in results:
+                if r.get("audit") == "phrase_coverage":
+                    for p in r.get("zero_attested_phrases", [])[:200]:
+                        phrase = p.get("phrase", "")
+                        if not phrase:
+                            continue
+                        findings.append({
+                            "finding_type": "unattested_phrase",
+                            "word": phrase,
+                            "old_value": p.get("english", ""),
+                            "new_value": "",
+                            "source": "phrase_coverage_audit",
+                            "confidence": "LOW",
+                        })
+
+            # 3. GeminiCrossChecker → update english + entry_version
+            for r in results:
+                if r.get("audit") == "gemini_check":
+                    for d in r.get("discrepancies", []):
+                        word = d.get("word", "")
+                        correction = d.get("gemini_correction", "")
+                        if not word or not correction:
+                            continue
+                        findings.append({
+                            "finding_type": "gemini_correction",
+                            "word": word,
+                            "old_value": d.get("our_definition", "")[:200],
+                            "new_value": correction[:200],
+                            "source": "gemini_cross_check",
+                            "confidence": "HIGH",
+                        })
+
+            # Batch insert all findings to audit_findings table
+            if findings:
+                db_writer.save_findings(findings)
+
+            # Also update dictionary entries directly for high-confidence findings
+            conn = db_writer._connect()
+            updated = 0
+            for f in findings:
+                if f["finding_type"] == "dict_mismatch" and f["word"]:
+                    conn.execute(
+                        "UPDATE dictionary SET "
+                        "update_remarks = ?, "
+                        "update_description = ?, "
+                        "updated_at = ? "
+                        "WHERE zolai = ? AND (update_remarks IS NULL OR update_remarks = '')",
+                        (f"Dict-Bible mismatch: {f['old_value'][:80]} vs {f['new_value'][:80]}",
+                         "Audit: dictionary accuracy check",
+                         datetime.now().isoformat(),
+                         f["word"]),
+                    )
+                    updated += 1
+                elif f["finding_type"] == "gemini_correction" and f["word"]:
+                    conn.execute(
+                        "UPDATE dictionary SET "
+                        "english = ?, "
+                        "entry_version = 'gemini_v1', "
+                        "update_remarks = ?, "
+                        "update_description = ?, "
+                        "updated_at = ? "
+                        "WHERE zolai = ?",
+                        (f["new_value"],
+                         f"Gemini corrected: {f['old_value'][:80]} → {f['new_value'][:80]}",
+                         "Gemini AI cross-verification",
+                         datetime.now().isoformat(),
+                         f["word"]),
+                    )
+                    updated += 1
+            conn.commit()
+            if updated:
+                print(f"  ✅ Updated {updated} dictionary entries directly")
+            print(f"  Total findings logged: {len(findings)}")
+
+        except Exception as exc:
+            print(f"  ⚠️  DB write error: {exc}")
+            if db_writer:
+                db_writer.close()
+        else:
+            if db_writer:
+                db_writer.close()
+
     elapsed = time.time() - t0
 
     # Generate reports
@@ -947,6 +1317,8 @@ def main() -> None:
     print(f"AUDIT COMPLETE — {elapsed:.1f}s")
     print(f"  JSON report: {json_path}")
     print(f"  MD report:   {md_path}")
+    if args.save_db:
+        print(f"  DB path:     {DB_PATH}")
     print(f"{'='*60}")
 
 

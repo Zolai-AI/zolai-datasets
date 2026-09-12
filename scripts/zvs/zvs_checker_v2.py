@@ -82,7 +82,7 @@ Return ONLY valid JSON:
 
 async def process_jsonl_entries(batch_size=100):
     """Process entries from dict_zo_en_verified_v1.jsonl and update database."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries from JSONL
@@ -97,7 +97,7 @@ async def process_jsonl_entries(batch_size=100):
     print(f"Total entries from JSONL: {total}")
     
     # Get pending entries from DB
-    cur.execute("SELECT id, headword FROM entries WHERE zvs_compliance_status='pending'")
+    cur.execute("SELECT * FROM dictionary WHERE zvs_compliance_status='pending'")
     pending_ids = set(row[0] for row in cur.fetchall())
     
     # Filter to only entries we can update in DB
@@ -127,14 +127,14 @@ async def process_jsonl_entries(batch_size=100):
         zvs_status = result.get('compliance_status', 'pending')
         
         # Find the DB entry by headword
-        cur.execute("SELECT id FROM entries WHERE headword=?", (hw,))
+        cur.execute("SELECT * FROM dictionary WHERE headword=?", (hw,))
         db_row = cur.fetchone()
         
         if db_row:
             db_id = db_row[0]
             # Update the database
             cur.execute(
-                "UPDATE entries SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+                "UPDATE dictionary SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
                 (result.get('entry_version', 'v1.0'),
                  result.get('remarks', ''),
                  result.get('description', ''),
@@ -159,7 +159,7 @@ async def process_jsonl_entries(batch_size=100):
     conn.commit()
     
     # Final summary
-    cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM entries GROUP BY zvs_compliance_status")
+    cur.execute("SELECT * FROM dictionary GROUP BY zvs_compliance_status")
     final_status = cur.fetchall()
     print(f"\n=== FINAL SUMMARY ===")
     print(f"Total JSONL entries: {total}")

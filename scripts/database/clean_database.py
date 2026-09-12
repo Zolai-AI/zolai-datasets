@@ -57,7 +57,7 @@ def extract_clean_headword(zolai_text):
 
 async def update_database_from_jsonl():
     """Update the database with clean headwords from JSONL."""
-    conn = sqlite3.connect('data/dictionary/db/master_unified_dictionary.db')
+    conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     
     # Load all entries from JSONL
@@ -97,7 +97,7 @@ async def update_database_from_jsonl():
         if entry_id and entry_id.isdigit():
             try:
                 cur.execute(
-                    "UPDATE entries SET headword=?, entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+                    "UPDATE dictionary SET zolai=?, entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
                     (clean_headword, 
                      entry.get('entry_version', 'v1.0'),
                      entry.get('update_remarks', ''),
@@ -114,12 +114,12 @@ async def update_database_from_jsonl():
             # or where headword is empty/needs updating
             try:
                 # Search for entries where headword is empty or matches pattern
-                cur.execute("SELECT id FROM entries WHERE headword=? OR headword=''", (zolai.strip().strip('"').strip("'").strip()[:50],))
+                cur.execute("SELECT id FROM dictionary WHERE zolai=? OR headword=''", (zolai.strip().strip('"').strip("'").strip()[:50],))
                 matches = cur.fetchall()
                 if matches:
                     db_id = matches[0][0]
                     cur.execute(
-                        "UPDATE entries SET headword=?, entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
+                        "UPDATE dictionary SET zolai=?, entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
                         (clean_headword, 
                          entry.get('entry_version', 'v1.0'),
                          entry.get('update_remarks', ''),
@@ -148,7 +148,7 @@ async def update_database_from_jsonl():
     print(f"Skipped: {skipped}")
     
     # Verify - check first 5 headwords
-    cur.execute("SELECT id, headword FROM entries LIMIT 5")
+    cur.execute("SELECT id, headword FROM dictionary LIMIT 5")
     rows = cur.fetchall()
     print("\nVerified - first 5 entries:")
     for row in rows:
