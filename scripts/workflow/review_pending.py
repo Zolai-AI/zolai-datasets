@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""
 import asyncio
+"""
 Interactive Human Review Workflow for Gemini-Generated Dictionary Updates.
 
 Reviews entries with zvs_compliance_status='pending' from the database.
@@ -20,7 +20,6 @@ BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
-import readline  # for better input handling
 
 
 def get_pending_entries(limit=50):
@@ -120,8 +119,7 @@ def regenerate_jsonl_from_approved():
     # Write output
     verified_path = 'data/dictionary/processed/dict_zo_en_verified_v1.jsonl'
     with open(verified_path, 'w', encoding='utf-8') as f:
-        for line in verified_entries:
-            f.write(line + '\n')
+        f.writelines(line + '\n' for line in verified_entries)
     
     # Regenerate master dict (includes id and raw_json)
     master_entries = []
@@ -162,8 +160,7 @@ def regenerate_jsonl_from_approved():
     
     master_path = 'data/dictionary/processed/dict_zo_en_master_v1.jsonl'
     with open(master_path, 'w', encoding='utf-8') as f:
-        for line in master_entries:
-            f.write(line + '\n')
+        f.writelines(line + '\n' for line in master_entries)
     
     print(f"Regenerated: {verified_path} ({len(verified_entries)} entries)")
     print(f"Regenerated: {master_path} ({len(master_entries)} entries)")
@@ -243,7 +240,7 @@ async def main():
         
         elif action == 's':
             # Skip - leave as pending, just move to next
-            print(f"  ⏭️  SKIPPED → remains pending")
+            print("  ⏭️  SKIPPED → remains pending")
             idx += 1
         
         else:
