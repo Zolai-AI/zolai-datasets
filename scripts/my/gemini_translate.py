@@ -33,7 +33,7 @@ PCORE_BRAIN_URL = os.environ.get(
 )
 PCORE_BRAIN_KEY = os.environ.get(
     "PCORE_BRAIN_KEY",
-    "REPLACED",
+    "",
 )
 TRANSLATION_MODEL = "auto"
 
