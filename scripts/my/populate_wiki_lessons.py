@@ -75,6 +75,23 @@ def now_iso() -> str:
 # ---------------------------------------------------------------------------
 # SQL
 # ---------------------------------------------------------------------------
+CREATE_TABLE_LESSONS = """
+CREATE TABLE IF NOT EXISTS wiki_lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_type TEXT,
+    title TEXT,
+    content_summary TEXT,
+    word_count INTEGER,
+    grammar_patterns TEXT,
+    vocabulary_list TEXT,
+    source_file TEXT UNIQUE,
+    entry_version TEXT DEFAULT 'v1.0',
+    update_remarks TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 INSERT_LESSON = """
 INSERT OR IGNORE INTO wiki_lessons
     (lesson_type, title, content_summary, word_count,
@@ -106,6 +123,10 @@ def main() -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA synchronous=NORMAL")
+
+    # Create table if it doesn't exist
+    conn.executescript(CREATE_TABLE_LESSONS)
+    conn.commit()
 
     if args.stats:
         total = conn.execute(

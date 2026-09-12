@@ -70,6 +70,13 @@ INSERT OR IGNORE INTO wiki_content
 VALUES (?, ?, ?, ?, ?, ?, ?);
 """
 
+REPLACE_CONTENT = """
+INSERT OR REPLACE INTO wiki_content
+    (wiki_category, source_path, title, content, word_count,
+     section_count, content_hash)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+"""
+
 INSERT_AUDIT = """
 INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value,
                            changed_at, reason)
@@ -253,8 +260,9 @@ def main() -> None:
             continue
 
         try:
+            sql = REPLACE_CONTENT if args.force else INSERT_CONTENT
             cur = conn.execute(
-                INSERT_CONTENT,
+                sql,
                 (category, source_path, title, content, wc, sc, ch),
             )
             if cur.rowcount > 0:
@@ -265,16 +273,6 @@ def main() -> None:
                      existing.get(source_path, ""), ch, now_iso(),
                      f"ingest_wiki_content: {source_path}"),
                 )
-        except sqlite3.IntegrityError:
-            # Duplicate source_path — update hash if force
-            if args.force:
-                conn.execute(
-                    "UPDATE wiki_content SET content_hash=?, "
-                    "content=?, word_count=?, section_count=?, "
-                    "title=?, updated_at=? WHERE source_path=?",
-                    (ch, content, wc, sc, title, now_iso(), source_path),
-                )
-                inserted += 1
         except Exception as e:
             print(f"  ERROR {source_path}: {e}")
             errors += 1
