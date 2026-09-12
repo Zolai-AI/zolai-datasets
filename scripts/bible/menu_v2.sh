@@ -18,7 +18,7 @@ banner() {
   clear
   echo -e "${C}╔══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${C}║${NC}  ${M}ZOLAI LANGUAGE LEARNING${NC} — Bible Tools Menu V2        ${C}║${NC}"
-  echo -e "${C}║${NC}  ${B}31,102 Sentences • 93,931 Dict Entries • AI Tools   ${C}║${NC}"
+  echo -e "${C}║${NC}  ${B}31,102 Sentences • 93,931 Dict • 7,840 ZO-MY  ${C}║${NC}"
   echo -e "${C}║${NC}  ${B}ZVS 2018 • SOV • Ergative 'in' • 'hiam' = question  ${C}║${NC}"
   echo -e "${C}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
@@ -1112,6 +1112,201 @@ for l in sys.stdin:
   read -p "Press Enter to return to menu..."
 }
 
+# ── Myanmar / Burmese commands ─────────────────────────────
+cmd_extract_myanmar() {
+  echo -e "${C}═══ Extract Myanmar from Dalsuum ═══${NC}"
+  echo ""
+  echo -e "  Extracting ZO→MY pairs from dalsuum dictionary..."
+  cd "$WORKSPACE"
+  PYTHONPATH="$WORKSPACE/zolai-core" $PYTHON zolai-datasets/scripts/my/extract_myanmar.py 2>&1 | tail -5
+  echo ""
+  echo -e "  ${G}Done!${NC} Output: data/processed/my/dict_zo_my_dalsuum.jsonl"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_process_judson() {
+  echo -e "${C}═══ Process Judson Bible (MY) ═══${NC}"
+  echo ""
+  echo -e "  Processing 30,770 Burmese Bible verses..."
+  cd "$WORKSPACE"
+  PYTHONPATH="$WORKSPACE/zolai-core" $PYTHON zolai-datasets/scripts/my/process_judson_bible.py 2>&1 | tail -5
+  echo ""
+  echo -e "  ${G}Done!${NC} Output: data/processed/my/bible_judson_v1.jsonl"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_search_myanmar_dict() {
+  echo -e "${C}═══ Search Myanmar Dictionary ═══${NC}"
+  echo ""
+  local dict_file="$DATA/processed/my/dict_zo_my_v1.jsonl"
+  local en_my_file="$DATA/raw/my/my_dictionary.jsonl"
+  
+  if [ ! -f "$dict_file" ] && [ ! -f "$en_my_file" ]; then
+    echo -e "  ${R}No Myanmar dictionary found.${NC}"
+    echo -e "  Run M1 first to extract from dalsuum."
+    read -p "Press Enter to return to menu..."
+    return
+  fi
+  
+  echo -e "  ${Y}Search options:${NC}"
+  echo -e "  ${G}1${NC}) Search Zolai → Myanmar"
+  echo -e "  ${G}2${NC}) Search Myanmar → Zolai"
+  echo -e "  ${G}3${NC}) Search English → Myanmar"
+  echo -e "  ${G}4${NC}) Browse common Zolai words"
+  echo -e "  ${G}0${NC}) Back"
+  echo ""
+  read -p "  Select: " choice
+  
+  case "$choice" in
+    1)
+      read -p "  Zolai word: " word
+      echo ""
+      if [ -f "$dict_file" ]; then
+        grep -i "\"zolai\":\"$word\"" "$dict_file" 2>/dev/null | head -5 | while read line; do
+          echo "$line" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(f\"  {d['zolai']} → MY: {d['myanmar']}\")"
+        done
+      fi
+      ;;
+    2)
+      read -p "  Myanmar word: " word
+      echo ""
+      rev_file="$DATA/processed/my/dict_my_zo_v1.jsonl"
+      if [ -f "$rev_file" ]; then
+        grep "$word" "$rev_file" 2>/dev/null | head -5 | while read line; do
+          echo "$line" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(f\"  {d['myanmar']} → ZO: {d['zolai']}\")"
+        done
+      fi
+      ;;
+    3)
+      read -p "  English word: " word
+      echo ""
+      tri_file="$DATA/processed/my/dict_trilingual_v1.jsonl"
+      if [ -f "$tri_file" ]; then
+        grep -i "$word" "$tri_file" 2>/dev/null | head -5 | while read line; do
+          echo "$line" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(f\"  EN: {d.get('english','')} → ZO: {d['zolai']} → MY: {d['myanmar']}\")"
+        done
+      fi
+      ;;
+    4)
+      echo -e "  ${Y}Top 20 Zolai words with Myanmar:${NC}"
+      if [ -f "$dict_file" ]; then
+        head -20 "$dict_file" | $PYTHON -c "
+import sys, json
+for line in sys.stdin:
+    d = json.loads(line)
+    print(f\"  {d['zolai']:15s} → MY: {d['myanmar']}\")
+"
+      fi
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_myanmar_inventory() {
+  echo -e "${C}═══ Myanmar Data Inventory ═══${NC}"
+  echo ""
+  echo -e "  ${Y}Processed data:${NC}"
+  for f in "$DATA/processed/my/"*.jsonl; do
+    if [ -f "$f" ]; then
+      cnt=$(wc -l < "$f")
+      name=$(basename "$f")
+      echo -e "    ${G}✓${NC} $name: $cnt entries"
+    fi
+  done
+  echo ""
+  echo -e "  ${Y}Raw EN↔MY data:${NC}"
+  for f in "$DATA/raw/my/"*.jsonl; do
+    if [ -f "$f" ]; then
+      cnt=$(wc -l < "$f")
+      name=$(basename "$f")
+      echo -e "    ${G}✓${NC} $name: $cnt entries"
+    fi
+  done
+  echo ""
+  echo -e "  ${Y}Database:${NC}"
+  $PYTHON -c "
+import sqlite3
+db = sqlite3.connect('$DATA/zolai.db')
+c = db.cursor()
+c.execute('SELECT COUNT(*) FROM dictionary WHERE myanmar IS NOT NULL')
+my = c.fetchone()[0]
+c.execute('SELECT COUNT(*) FROM dictionary')
+total = c.fetchone()[0]
+print(f'    Dictionary with Myanmar: {my}/{total} ({my*100//total}%)')
+db.close()
+" 2>/dev/null || echo -e "    ${R}DB not available${NC}"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_study_trilingual() {
+  echo -e "${C}═══ Study ZO↔MY↔EN Trilingual ═══${NC}"
+  echo ""
+  tri_file="$DATA/processed/my/dict_trilingual_v1.jsonl"
+  if [ ! -f "$tri_file" ]; then
+    echo -e "  ${R}No trilingual data found.${NC}"
+    echo -e "  Run M1 first to extract from dalsuum."
+    read -p "Press Enter to return to menu..."
+    return
+  fi
+  
+  echo -e "  ${Y}Trilingual entries:${NC} $(wc -l < "$tri_file")"
+  echo ""
+  echo -e "  ${G}Sample (first 15):${NC}"
+  head -15 "$tri_file" | $PYTHON -c "
+import sys, json
+for i, line in enumerate(sys.stdin, 1):
+    d = json.loads(line)
+    en = d.get('english', d.get('en', ''))
+    print(f\"  {i:2d}. ZO: {d['zolai']:15s} MY: {d['myanmar']:20s} EN: {en}\")
+"
+  echo ""
+  echo -e "  ${Y}Random samples:${NC}"
+  shuf -n 10 "$tri_file" | $PYTHON -c "
+import sys, json
+for i, line in enumerate(sys.stdin, 1):
+    d = json.loads(line)
+    en = d.get('english', d.get('en', ''))
+    print(f\"  {i:2d}. ZO: {d['zolai']:15s} MY: {d['myanmar']:20s} EN: {en}\")
+"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+cmd_show_en_my_datasets() {
+  echo -e "${C}═══ EN↔MY Datasets ═══${NC}"
+  echo ""
+  echo -e "  ${Y}Available EN↔MY datasets:${NC}"
+  echo ""
+  
+  echo -e "  ${G}1. EN→MY Parallel (archx64):${NC}"
+  f="$DATA/raw/my/en_my_parallel.jsonl"
+  [ -f "$f" ] && echo -e "     $(wc -l < "$f") pairs" || echo -e "     ${R}Not downloaded${NC}"
+  
+  echo -e "  ${G}2. EN→MY News (chuuhtetnaing):${NC}"
+  f="$DATA/raw/my/en_my_news.jsonl"
+  [ -f "$f" ] && echo -e "     $(wc -l < "$f") pairs (total)" || echo -e "     ${R}Not downloaded${NC}"
+  f="$DATA/raw/my/en_my_news_clean.jsonl"
+  [ -f "$f" ] && echo -e "     $(wc -l < "$f") pairs (clean, no political)" || true
+  f="$DATA/raw/my/en_my_news_tagged.jsonl"
+  [ -f "$f" ] && echo -e "     $(wc -l < "$f") pairs (tagged political, study only)" || true
+  
+  echo -e "  ${G}3. Burmese Dictionary (Rickaym):${NC}"
+  f="$DATA/raw/my/my_dictionary.jsonl"
+  [ -f "$f" ] && echo -e "     $(wc -l < "$f") entries" || echo -e "     ${R}Not downloaded${NC}"
+  
+  echo ""
+  echo -e "  ${Y}Usage notes:${NC}"
+  echo -e "    • Clean datasets: safe for all training"
+  echo -e "    • Tagged political: labeled 'study_only', not for training"
+  echo -e "    • All data: for Zolai language learning support"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ═══════════════════════════════════════════════════════════════
 #  MAIN MENU
 # ═══════════════════════════════════════════════════════════════
@@ -1162,6 +1357,14 @@ while true; do
   echo -e "  ${G}X${NC}) 🤖 Generate synthetic training data"
   echo -e "  ${G}Y${NC}) 📊 Kaggle setup guide"
   echo ""
+  echo -e "  ${M}── Myanmar / Burmese ────────────────────${NC}"
+  echo -e "  ${G}M1${NC}) 📖 Extract Myanmar from dalsuum dict"
+  echo -e "  ${G}M2${NC}) 📖 Process Judson Bible (MY)"
+  echo -e "  ${G}M3${NC}) 🔍 Search Myanmar dictionary"
+  echo -e "  ${G}M4${NC}) 📊 Myanmar data inventory"
+  echo -e "  ${G}M5${NC}) 📖 Study ZO↔MY↔EN trilingual"
+  echo -e "  ${G}M6${NC}) 📊 Show EN↔MY datasets"
+  echo ""
   echo -e "  ${G}6${NC}) 🛠  Check/fix paths"
   echo -e "  ${G}7${NC}) 📜 View recent AI log"
   echo ""
@@ -1200,6 +1403,12 @@ while true; do
     X|x) cmd_generate_synthetic ;;
     Y|y) cmd_kaggle_guide ;;
     Z|z) cmd_training_pipeline ;;
+    M1|m1) cmd_extract_myanmar ;;
+    M2|m2) cmd_process_judson ;;
+    M3|m3) cmd_search_myanmar_dict ;;
+    M4|m4) cmd_myanmar_inventory ;;
+    M5|m5) cmd_study_trilingual ;;
+    M6|m6) cmd_show_en_my_datasets ;;
     0) echo -e "${G}Goodbye!${NC}"; exit 0 ;;
     *) echo -e "${R}Invalid choice${NC}"; sleep 1 ;;
   esac
