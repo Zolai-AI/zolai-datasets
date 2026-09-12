@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Gemini POS Gold Dataset — Generate gold-standard POS tags from Bible verses.
-Uses local AI package with fallback to requests.
+Uses Gemini directly with multi-model ensemble voting (3 models).
 """
 import asyncio
 import json
@@ -26,11 +26,6 @@ try:
     HAS_LOCAL = True
 except ImportError:
     HAS_LOCAL = False
-
-try:
-    import requests
-except ImportError:
-    requests = None  # type: ignore[assignment]
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 POS_TAGS = (
@@ -63,47 +58,6 @@ def ensure_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-# ── Fallback requests client ──────────────────────────────────────────────────
-class RequestsGeminiClient:
-    """Minimal synchronous Gemini client using requests."""
-
-    API_URL = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        "models/gemini-2.0-flash:generateContent"
-    )
-
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-    async def ask(self, _model: str, prompt: str, **_kw: object) -> str:
-        if requests is None:
-            raise RuntimeError("requests library not installed")
-        resp = requests.post(
-            self.API_URL,
-            params={"key": self.api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2},
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def _build_client() -> object:
-    if HAS_LOCAL:
-        client = ZolaiGeminiOpenAIClient(use_zvs_context=True)
-        return client
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "No Gemini client available. "
-            "Install zolai-ai-local or set GEMINI_API_KEY."
-        )
-    return RequestsGeminiClient(api_key)
-
-
 def _extract_json(text: str) -> list:
     """Extract JSON array from Gemini response."""
     match = re.search(r"\[[\s\S]*?\]", text)
@@ -112,46 +66,81 @@ def _extract_json(text: str) -> list:
     return []
 
 
+# ── Multi-model ensemble voting ────────────────────────────────────────────────
+ENSEMBLE_MODELS = [
+    "gemini-3-flash",
+    "gemini-3-pro-plus",
+    "gemini-3-pro",
+]
+
+
+def majority_vote(votes: dict[str, list]) -> list:
+    """Return the most common response across models (majority vote)."""
+    counts: dict[str, int] = {}
+    for resp in votes.values():
+        key = json.dumps(resp, sort_keys=True, ensure_ascii=False)
+        counts[key] = counts.get(key, 0) + 1
+    best_key = max(counts, key=lambda k: counts[k])
+    return json.loads(best_key)
+
+
+async def _build_client() -> ZolaiGeminiOpenAIClient:
+    """Build Gemini client — requires zolai-ai-local package."""
+    if not HAS_LOCAL:
+        raise RuntimeError(
+            "zolai-ai-local package not found. "
+            "Install or set ZOLAI_AI_LOCAL env var."
+        )
+    return ZolaiGeminiOpenAIClient(use_zvs_context=True)
+
+
 async def pos_tag_verse(
-    client: object,
+    client: ZolaiGeminiOpenAIClient,
     sentence: str,
     ref: str,
-) -> dict | None:
+) -> tuple[dict, float] | None:
+    """POS tag a sentence using 3-model ensemble voting."""
     prompt = (
         "Task: POS Tag this Zolai sentence word by word.\n"
         f"Rules: {POS_TAGS}\n"
         "Output format: JSON array of [word, tag] pairs.\n"
         f"Sentence: {sentence}"
     )
-    try:
-        if HAS_LOCAL and hasattr(client, "ask"):
-            result = await client.ask("gemini-3-flash", prompt, use_system_prompt=True)
-        else:
-            result = await client.ask("gemini-2.0-flash", prompt)
-    except Exception as exc:
-        print(f"  ERROR ({ref}): {exc}")
+    votes = {}
+    for model in ENSEMBLE_MODELS:
+        try:
+            result = await client.ask(model, prompt, use_system_prompt=True)
+            parsed = _extract_json(result)
+            if parsed:
+                votes[model] = parsed
+        except Exception as exc:
+            print(f"  WARN ({ref}) {model}: {exc}")
+        await asyncio.sleep(1)
+
+    if not votes:
+        print(f"  ERROR ({ref}): no models returned valid response")
         return None
 
-    pairs = _extract_json(result)
-    if not pairs:
-        print(f"  WARN ({ref}): no JSON pairs in response")
-        return None
+    final_tags = majority_vote(votes)
+    confidence = len({json.dumps(v, sort_keys=True) for v in votes.values()}) / len(ENSEMBLE_MODELS)
+    confidence = 1.0 - confidence  # More agreement = higher confidence
 
+    pairs = final_tags
     tokens = [p[0] for p in pairs if isinstance(p, list) and len(p) >= 2]
     tags = [p[1] for p in pairs if isinstance(p, list) and len(p) >= 2]
+
     return {
         "sentence": sentence,
         "tokens": json.dumps(tokens, ensure_ascii=False),
         "tags": json.dumps(tags, ensure_ascii=False),
         "source_verse": ref,
-    }
+    }, confidence
 
 
 async def run(args: argparse.Namespace) -> None:
     conn = get_db()
     ensure_table(conn)
 
-    # Check if we already have data for dedup
     existing = {
         row[0]
         for row in conn.execute(
@@ -159,7 +148,6 @@ async def run(args: argparse.Namespace) -> None:
         ).fetchall()
     }
 
-    # Fetch verses
     rows = conn.execute(
         "SELECT ref, zo_tdb77 FROM bible_verses "
         "WHERE zo_tdb77 IS NOT NULL AND zo_tdb77 != '' "
@@ -169,7 +157,10 @@ async def run(args: argparse.Namespace) -> None:
     conn.close()
 
     print(f"Fetched {len(rows)} verses, {len(existing)} already tagged.")
-    client = _build_client()
+
+    client = await _build_client()
+    await client.init()
+
     tagged = 0
 
     for ref, zo in rows:
@@ -182,17 +173,28 @@ async def run(args: argparse.Namespace) -> None:
 
         result = await pos_tag_verse(client, zo, ref)
         if result:
+            data, conf = result
             conn = get_db()
             conn.execute(
-                "INSERT INTO pos_gold (sentence, tokens, tags, source_verse) "
-                "VALUES (?, ?, ?, ?)",
-                (result["sentence"], result["tokens"], result["tags"], result["source_verse"]),
+                "INSERT INTO pos_gold "
+                "(sentence, tokens, tags, source_verse, source) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    data["sentence"],
+                    data["tokens"],
+                    data["tags"],
+                    data["source_verse"],
+                    f"gemini-ensemble({conf:.2f})",
+                ),
             )
             conn.commit()
             conn.close()
             tagged += 1
-            tokens = json.loads(result["tokens"])
-            print(f"  {ref}: {len(tokens)} tokens tagged")
+            tokens = json.loads(data["tokens"])
+            print(
+                f"  {ref}: {len(tokens)} tokens "
+                f"tagged (confidence={conf:.2f})"
+            )
         await asyncio.sleep(1)
 
     print(f"\n✅ Done. Tagged {tagged} verses.")
