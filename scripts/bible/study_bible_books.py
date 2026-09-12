@@ -112,7 +112,7 @@ def load_ai_cache() -> dict:
 # P-CORE BRAIN API INTEGRATION
 # ══════════════════════════════════════════════════════════════════════
 PCORE_BRAIN_URL = os.environ.get("PCORE_BRAIN_URL", "https://pcore-brain.peterlianpi.site")
-PCORE_BRAIN_API_KEY = os.environ.get("PCORE_BRAIN_API_KEY", "REPLACED")
+PCORE_BRAIN_API_KEY = os.environ.get("PCORE_BRAIN_API_KEY", "")
 
 
 # Gemini client (lazy init + persistent event loop)
