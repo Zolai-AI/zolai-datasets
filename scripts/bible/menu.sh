@@ -1116,8 +1116,11 @@ cmd_dict_add() {
     PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
 from zolai.data.database import get_manager
 db = get_manager()
-r = db.enrich_word('$zo_word', english_clean='$en_meaning', myanmar='$my_meaning', pos='$pos', source='manual_add')
-print(f'  Added: {\"$zo_word\"} → {\"$en_meaning\"}')
+r = db.add_word('$zo_word', english='$en_meaning', myanmar='$my_meaning', pos='$pos', source='manual_add')
+if r:
+    print(f'  Added: {\"$zo_word\"} → {\"$en_meaning\"}')
+else:
+    print(f'  Word already exists: {\"$zo_word\"}')
 " 2>&1
   fi
   echo ""
@@ -1132,11 +1135,11 @@ cmd_dict_edit() {
   PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
 from zolai.data.database import get_manager
 db = get_manager()
-results = db.search_dictionary('$zo_word', limit=5)
+results = db.lookup_word('$zo_word')
 if not results:
     print('  No entries found.')
 else:
-    for i, r in enumerate(results):
+    for i, r in enumerate(results[:5]):
         print(f'  [{i+1}] {r.get(\"zolai\",\"?\")} → {r.get(\"english_clean\",\"?\")}  MY: {r.get(\"myanmar\",\"?\")}')
 " 2>&1
   echo ""
@@ -1165,8 +1168,11 @@ cmd_dict_delete() {
     PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
 from zolai.data.database import get_manager
 db = get_manager()
-db._log_change('dictionary', 0, 'zolai', '$zo_word', 'DELETED', 'manual_delete')
-print(f'  Deleted: {\"$zo_word\"}')
+r = db.delete_word('$zo_word')
+if r:
+    print(f'  Deleted: {\"$zo_word\"}')
+else:
+    print(f'  Word not found: {\"$zo_word\"}')
 " 2>&1
   else
     echo "  Cancelled."
@@ -1183,12 +1189,12 @@ cmd_dict_manage() {
   PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
 from zolai.data.database import get_manager
 db = get_manager()
-results = db.search_dictionary('$query', limit=20)
+results = db.lookup_word('$query')
 if not results:
     print('  No entries found.')
 else:
     print(f'  Found {len(results)} entries:')
-    for i, r in enumerate(results):
+    for i, r in enumerate(results[:20]):
         my = r.get('myanmar','')
         my_str = f'  MY: {my[:20]}' if my else ''
         print(f'  [{i+1}] {r.get(\"zolai\",\"?\"):25s} → {r.get(\"english_clean\",\"?\"):40s}{my_str}')
