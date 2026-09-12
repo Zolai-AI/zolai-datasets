@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 6: Song Collections — parse all Kaggle song collections into zolai_songs.
+"""Phase 6: Song Collections — parse all Zolai AI online song collections into zolai_songs.
 
 Idempotent: skips songs where (title, collection) already exists in DB.
 """
@@ -11,7 +11,7 @@ import sys
 
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 SONGS_DIR = "/home/peter/Downloads/Kaggle/Linguistics/Zolai/Literature/Tedim Labu"
-KAGGLE_ALL_ZOLAI = (
+ONLINE_ALL_ZOLAI = (
     "/home/peter/Downloads/Kaggle/resources/agent_knowledge/full_sources/all_zolai"
 )
 
@@ -116,7 +116,7 @@ def integrate_tedim_labu(
         if not text:
             continue
         if _insert_if_new(cur, seen, "Tedim Labu", num, title, text,
-                          "kaggle_tedim_labu"):
+                          "online_tedim_labu"):
             inserted += 1
     return inserted
 
@@ -147,7 +147,7 @@ def integrate_khanlawnna_late(
         m = re.search(r"Title:\s*(.+)", text)
         title = m.group(1).strip() if m else title_from_dir
         if _insert_if_new(cur, seen, "Khanlawnna Late", num, title, text,
-                          "kaggle_khanlawnna_late"):
+                          "online_khanlawnna_late"):
             inserted += 1
     return inserted
 
@@ -177,7 +177,7 @@ def integrate_zomi_worship(
         m = re.search(r"Title:\s*(.+)", text)
         title = m.group(1).strip() if m else title_from_dir
         if _insert_if_new(cur, seen, "Zomi Worship Collective", i, title, text,
-                          "kaggle_zomi_worship"):
+                          "online_zomi_worship"):
             inserted += 1
     return inserted
 
@@ -208,7 +208,7 @@ def integrate_gospel(
         m = re.search(r"Title:\s*(.+)", text)
         title = m.group(1).strip() if m else title_from_dir
         if _insert_if_new(cur, seen, "Gospel", num, title, text,
-                          "kaggle_gospel"):
+                          "online_gospel"):
             inserted += 1
     return inserted
 
@@ -230,11 +230,11 @@ def integrate(db_path: str, songs_dir: str) -> None:
     counts.append(("Tedim Labu",
                     integrate_tedim_labu(conn, songs_dir, seen)))
     counts.append(("Khanlawnna Late",
-                    integrate_khanlawnna_late(conn, KAGGLE_ALL_ZOLAI, seen)))
+                    integrate_khanlawnna_late(conn, ONLINE_ALL_ZOLAI, seen)))
     counts.append(("Zomi Worship Collective",
-                    integrate_zomi_worship(conn, KAGGLE_ALL_ZOLAI, seen)))
+                    integrate_zomi_worship(conn, ONLINE_ALL_ZOLAI, seen)))
     counts.append(("Gospel",
-                    integrate_gospel(conn, KAGGLE_ALL_ZOLAI, seen)))
+                    integrate_gospel(conn, ONLINE_ALL_ZOLAI, seen)))
 
     for coll, cnt in counts:
         if cnt > 0:
@@ -242,7 +242,7 @@ def integrate(db_path: str, songs_dir: str) -> None:
                 """INSERT INTO data_audit_log
                    (table_name, row_id, field, old_value, new_value,
                     changed_at, reason)
-                   VALUES ('zolai_songs', 0, 'integrate_kaggle', '',
+                   VALUES ('zolai_songs', 0, 'integrate_online', '',
                            ?, datetime('now'), ?)""",
                 ("", f"{coll}: {cnt} songs inserted"),
             )

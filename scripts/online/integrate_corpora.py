@@ -91,7 +91,7 @@ def integrate(db_path: str) -> None:
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value, changed_at, reason)
-           VALUES ('corpora', 0, 'integrate_kaggle', '', ?, datetime('now'), ?)""",
+           VALUES ('corpora', 0, 'integrate_online', '', ?, datetime('now'), ?)""",
         ("", f"Tongsan: {tongsan_count}, Simbu: {simbu_count}"),
     )
     conn.commit()

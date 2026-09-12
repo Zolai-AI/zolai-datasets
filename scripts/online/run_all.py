@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 8: Run All — execute the full Kaggle integration pipeline."""
+"""Phase 8: Run All — execute the full Zolai AI online integration pipeline."""
 import os
 import subprocess
 import sys
@@ -22,7 +22,7 @@ SCRIPTS = [
 def main() -> None:
     start = time.time()
     print("=" * 60)
-    print("Kaggle Data Integration Pipeline")
+    print("Zolai AI Online Data Integration Pipeline")
     print("=" * 60)
 
     failed = []
