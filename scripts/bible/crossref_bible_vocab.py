@@ -144,22 +144,13 @@ def build_tbr17_parallel(tbr17: dict[str, str], kjv: dict[str, str]) -> int:
 def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id FROM dictionary WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
-    raw = json.dumps(entry, ensure_ascii=False)
     cur.execute(
-        "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
-        (hw, entry.get("pos", ""), entry.get("source", "crossref"), raw),
-    )
-    eid = cur.lastrowid
-    for t in (entry.get("english") or []):
-        if isinstance(t, str) and t.strip():
-            cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t))
-    trans_text = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
-    cur.execute(
-        "INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
-        (eid, hw, trans_text, entry.get("explanation", "")),
+        "INSERT INTO dictionary (zolai, english, source, pos) VALUES (?,?,?,?)",
+        (hw, ", ".join(t for t in (entry.get("english") or []) if isinstance(t, str)),
+         entry.get("source", "crossref"), entry.get("pos", "")),
     )
     conn.commit()
     return True
@@ -168,24 +159,17 @@ def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
 def db_update_number(entry: dict, conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     hw = entry["zolai"].strip()
-    cur.execute("SELECT id, raw_json FROM dictionary WHERE LOWER(headword)=?", (hw.lower(),))
+    cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     row = cur.fetchone()
     raw = json.dumps({**entry, "dialect": "tedim", "source": "number_fix"}, ensure_ascii=False)
     if row:
-        cur.execute("UPDATE dictionary SET raw_json=?, pos=? WHERE id=?",
-                    (raw, entry.get("pos", "numeral"), row[0]))
+        cur.execute("UPDATE dictionary SET pos=?, update_remarks=? WHERE id=?",
+                    (entry.get("pos", "numeral"), raw, row[0]))
     else:
+        english_str = ", ".join(entry.get("english", []))
         cur.execute(
-            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
-            (hw, "numeral", "number_fix", raw),
-        )
-        eid = cur.lastrowid
-        for t in entry.get("english", []):
-            cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t))
-        trans_text = " ".join(entry.get("english", []))
-        cur.execute(
-            "INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
-            (eid, hw, trans_text, entry.get("explanation", "")),
+            "INSERT INTO dictionary (zolai, english, source, pos) VALUES (?,?,?,?)",
+            (hw, english_str, "number_fix", "numeral"),
         )
     conn.commit()
 
