@@ -1291,6 +1291,91 @@ cmd_gemini_status() {
   read -p "Press Enter to return to menu..."
 }
 
+# ── Gemini Knowledge Test (4 categories, 2 models) ──────────
+cmd_gemini_test() {
+  echo -e "${C}═══ Gemini Knowledge Test (Real Zolai Data) ═══${NC}"
+  echo ""
+  echo -e "  Tests Gemini on 4 categories using real DB data:"
+  echo -e "    A) Dictionary Verification (10 words)"
+  echo -e "    B) Bible Translation ZO→EN (5 verses)"
+  echo -e "    C) English→Zolai (5 words)"
+  echo -e "    D) Grammar Recognition (3 sentences)"
+  echo -e "  Models: gemini-3-flash vs gemini-3-pro-plus"
+  echo ""
+  PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../gemini/test_all_gemini.py"
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
+# ── Gemini Data Audit (3 modes) ─────────────────────────────
+cmd_gemini_audit() {
+  echo -e "${C}═══ Gemini Data Audit Pipeline ═══${NC}"
+  echo ""
+  echo -e "  ${G}Options:${NC}"
+  echo -e "    1) Fill Myanmar translations (batch of 50)"
+  echo -e "    2) Verify high-freq words (batch of 20)"
+  echo -e "    3) Identify unknown words (batch of 20)"
+  echo -e "    4) Run all modes (batch of 50)"
+  echo -e "    5) Show progress/stats"
+  echo ""
+  read -p "  Select [1]: " audit_choice
+  audit_choice=${audit_choice:-1}
+
+  case "$audit_choice" in
+    1)
+      echo -e "  Filling Myanmar translations..."
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../gemini/gemini_data_learning.py" --mode myanmar --limit 50
+      ;;
+    2)
+      echo -e "  Verifying high-frequency words..."
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../gemini/gemini_data_learning.py" --mode verify --limit 20
+      ;;
+    3)
+      echo -e "  Identifying unknown words..."
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../gemini/gemini_data_learning.py" --mode unknowns --limit 20
+      ;;
+    4)
+      echo -e "  Running all modes..."
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 "$SCRIPT_DIR/../gemini/gemini_data_learning.py" --mode all --limit 50
+      ;;
+    5)
+      echo -e "  Gemini audit progress:"
+      PYTHONPATH="$ZOLAI_CORE:$PYTHONPATH" python3 -c "
+import sqlite3, os, json
+db = os.path.join(os.environ.get('WORKSPACE','.'), 'data', 'zolai.db')
+conn = sqlite3.connect(db)
+c = conn.cursor()
+c.execute('SELECT model_name, dataset_name, entry_count, status, created_at FROM training_runs WHERE dataset_name LIKE \"%Gemini%\" OR dataset_name LIKE \"%fill%\" OR dataset_name LIKE \"%verify%\" OR dataset_name LIKE \"%unknown%\" ORDER BY created_at DESC LIMIT 20')
+rows = c.fetchall()
+if rows:
+    print(f'  {\"Model\":<20s} {\"Dataset\":<25s} {\"Count\":<8s} {\"Status\":<12s} {\"When\"}')
+    print(f'  {\"-\"*20} {\"-\"*25} {\"-\"*8} {\"-\"*12} {\"-\"*20}')
+    for r in rows:
+        print(f'  {str(r[0] or \"\"):20s} {str(r[1] or \"\"):25s} {str(r[2] or \"\"):>6s}  {str(r[3] or \"\"):12s} {str(r[4] or \"\")}')
+else:
+    print('  No Gemini audit runs yet.')
+
+# Show coverage stats
+c.execute('SELECT COUNT(*) FROM dictionary WHERE myanmar IS NOT NULL AND myanmar != \"\"')
+my_count = c.fetchone()[0]
+c.execute('SELECT COUNT(*) FROM dictionary')
+total = c.fetchone()[0]
+print(f'\n  Myanmar coverage: {my_count:,} / {total:,} ({my_count*100//total if total else 0}%)')
+
+c.execute('SELECT COUNT(*) FROM dictionary WHERE english_clean IS NOT NULL AND (english_clean LIKE \"%[%\" OR LENGTH(english_clean) < 2 OR zolai = english_clean)')
+bad = c.fetchone()[0]
+print(f'  Unknown/bad English: {bad:,} / {total:,} ({bad*100//total if total else 0}%)')
+conn.close()
+" 2>&1
+      ;;
+    *)
+      echo -e "${R}Invalid choice${NC}"
+      ;;
+  esac
+  echo ""
+  read -p "Press Enter to return to menu..."
+}
+
 # ── Monitoring ──────────────────────────────────────────────
 cmd_db_health() {
   echo -e "${C}═══ DB Health & Stats ═══${NC}"
@@ -1418,6 +1503,8 @@ while true; do
   echo -e "  ${G}G1${NC}) 🔄 Fill missing Myanmar (Gemini)"
   echo -e "  ${G}G2${NC}) 🔄 Fill missing English (Gemini)"
   echo -e "  ${G}G3${NC}) 📊 Translation coverage status"
+  echo -e "  ${G}G4${NC}) 🧪 Gemini Knowledge Test (4 categories, 2 models)"
+  echo -e "  ${G}G5${NC}) 🔍 Gemini Data Audit (fill/verify/identify)"
   echo ""
   echo -e "  ${M}── Monitoring ────────────────────────────${NC}"
   echo -e "  ${G}H1${NC}) 📊 DB health & stats"
@@ -1487,6 +1574,8 @@ while true; do
     G1|g1) cmd_gemini_fill_my ;;
     G2|g2) cmd_gemini_fill_en ;;
     G3|g3) cmd_gemini_status ;;
+    G4|g4) cmd_gemini_test ;;
+    G5|g5) cmd_gemini_audit ;;
     H1|h1) cmd_db_health ;;
     H2|h2) cmd_audit_log ;;
     AA|aa) cmd_data_build ;;
