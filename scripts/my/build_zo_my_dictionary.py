@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import sys
-from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -86,21 +85,19 @@ def build_outputs(
 
     # 1. ZO→MY (deduplicated)
     with open(ZO_MY_OUT, "w", encoding="utf-8") as f:
-        for zw, my in sorted(zo_my.items()):
-            f.write(json.dumps({
+        f.writelines(json.dumps({
                 "zolai": zw,
                 "myanmar": my,
                 "source": "dalsuum",
-            }, ensure_ascii=False) + "\n")
+            }, ensure_ascii=False) + "\n" for zw, my in sorted(zo_my.items()))
 
     # 2. MY→ZO (reverse)
     with open(MY_ZO_OUT, "w", encoding="utf-8") as f:
-        for zw, my in sorted(zo_my.items()):
-            f.write(json.dumps({
+        f.writelines(json.dumps({
                 "myanmar": my,
                 "zolai": zw,
                 "source": "dalsuum",
-            }, ensure_ascii=False) + "\n")
+            }, ensure_ascii=False) + "\n" for zw, my in sorted(zo_my.items()))
 
     # 3. Trilingual ZO→MY→EN
     matched = 0
@@ -128,7 +125,7 @@ def main() -> int:
     print(f"  ZO→EN headwords loaded: {len(zo_en)}")
 
     matched = build_outputs(zo_my, zo_en)
-    print(f"\nOutputs written:")
+    print("\nOutputs written:")
     print(f"  {ZO_MY_OUT}  ({len(zo_my)} entries)")
     print(f"  {MY_ZO_OUT}  ({len(zo_my)} entries)")
     print(f"  {TRILINGUAL_OUT}  ({len(zo_my)} entries, {matched} with EN)")
@@ -136,7 +133,7 @@ def main() -> int:
     # Stats
     my_only = len(zo_my) - matched
     coverage_pct = matched / len(zo_my) * 100 if zo_my else 0
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Trilingual coverage: {matched}/{len(zo_my)} ({coverage_pct:.1f}%)")
     print(f"  ZO+MY only (no EN): {my_only}")
 

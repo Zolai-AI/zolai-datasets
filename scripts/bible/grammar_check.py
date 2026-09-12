@@ -5,7 +5,6 @@ Checks negation patterns, question forms, and verb usage
 """
 
 import sys
-import re
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -119,7 +118,7 @@ def main():
     
     if args.interactive:
         print(f"{C}═══ Zolai Grammar Checker ═══{NC}")
-        print(f"Enter a Zolai sentence to check (Ctrl+D to exit):\n")
+        print("Enter a Zolai sentence to check (Ctrl+D to exit):\n")
         try:
             while True:
                 sentence = input("> ").strip()

@@ -3,7 +3,6 @@
 Runs on port 4080. Uses Chrome browser cookies (no API key).
 """
 
-import asyncio
 import sys
 import os
 
@@ -19,7 +18,6 @@ for p in [SCRIPT_DIR, BIBLE_DIR, WEB_API]:
 from gemini_cookies import get_gemini_client
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
 app = FastAPI(title="Gemini Zolai Provider", version="2.0.0")
 

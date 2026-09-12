@@ -10,7 +10,6 @@ Usage:
 """
 import os
 import sqlite3
-import sys
 
 WORKSPACE = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

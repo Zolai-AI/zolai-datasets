@@ -114,7 +114,7 @@ Return ONLY valid JSON, no code blocks, no explanations:
             "zvs_violation": False,
             "zvs_correct_form": "",
             "compliance_status": "pending",
-            "remarks": f"Gemini API error: {str(e)}",
+            "remarks": f"Gemini API error: {e!s}",
             "description": ""
         }
 
@@ -215,7 +215,7 @@ async def process_all_entries(batch_size=100):
     # Print final summary
     cur.execute("SELECT * FROM dictionary GROUP BY zvs_compliance_status")
     final_status = cur.fetchall()
-    print(f"\n=== FINAL SUMMARY ===")
+    print("\n=== FINAL SUMMARY ===")
     print(f"Total entries: {total}")
     for status, count in final_status:
         print(f"  {status}: {count}")
@@ -242,7 +242,7 @@ async def main():
         print(f"Entry {row_id}: headword='{headword[:30] if headword else ''}'... extracted='{hw}'")
     
     # Now process all entries
-    print(f"\n=== PROCESSING ALL ENTRIES ===")
+    print("\n=== PROCESSING ALL ENTRIES ===")
     await process_all_entries(batch_size=100)
 
 

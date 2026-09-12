@@ -17,7 +17,6 @@ import re
 import sys
 import time
 import urllib.request
-from dataclasses import dataclass, field
 from pathlib import Path
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -236,7 +235,7 @@ def cmd_quick(model_filter: str | None = None):
 
     test_q = "Say I dont go in Zolai."
     print(f"Quick test: \"{test_q}\"")
-    print(f"Expected: Ka pai kei hi.")
+    print("Expected: Ka pai kei hi.")
     print(f"Models: {len(models)} | Delay: {DELAY}s between requests")
     print()
     print(f"{'S':<4} {'Model':<42} {'Time':>7}  Answer")
@@ -276,7 +275,7 @@ def cmd_full(model_filter: str | None = None, category: str | None = None):
     total_requests = len(models) * total_q
     est_time = total_requests * (DELAY + 5) / 60  # minutes
 
-    print(f"Full Zolai Grammar Test")
+    print("Full Zolai Grammar Test")
     print(f"Models: {len(models)} | Questions per model: {total_q} | Total requests: {total_requests}")
     print(f"Estimated time: {est_time:.0f} minutes")
     print(f"Delay: {DELAY}s between requests")
@@ -285,7 +284,7 @@ def cmd_full(model_filter: str | None = None, category: str | None = None):
     # Check daily quota
     if total_requests > 180:
         print(f"⚠️  WARNING: {total_requests} requests exceeds 180/day free quota!")
-        print(f"   Consider: --model <specific_model> or --category <specific_category>")
+        print("   Consider: --model <specific_model> or --category <specific_category>")
         print()
 
     all_results = []
@@ -331,7 +330,7 @@ def cmd_full(model_filter: str | None = None, category: str | None = None):
 
     # Summary
     print(f"\n{'='*80}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*80}")
     by_model = {}
     for r in all_results:
@@ -361,7 +360,7 @@ def cmd_external(model_filter: str | None = None):
     if model_filter:
         models = [m for m in models if model_filter in m["id"]]
 
-    print(f"External Knowledge Test (NOT Zolai-specific)")
+    print("External Knowledge Test (NOT Zolai-specific)")
     print(f"Models: {len(models)} | Questions: {len(EXTERNAL_TESTS)} | Delay: {DELAY}s")
     print()
 

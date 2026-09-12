@@ -1,4 +1,3 @@
-import re
 
 path = "/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai_provider.py"
 with open(path) as f:

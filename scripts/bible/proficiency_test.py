@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: E501
 """Zolai Proficiency Test — A1 to C2 levels.
 
 Generates multiple-choice questions from Bible corpus,

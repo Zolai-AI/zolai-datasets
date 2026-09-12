@@ -1013,8 +1013,7 @@ class ContextDeepLearner:
     def _export_jsonl(self, path: Path, data: list[dict[str, Any]]) -> None:
         """Export data to JSONL file."""
         with open(path, "w", encoding="utf-8") as f:
-            for record in data:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(record, ensure_ascii=False) + "\n" for record in data)
 
     def lookup(self, word: str, book: str) -> dict[str, Any]:
         """Context lookup: word meaning in a specific book."""

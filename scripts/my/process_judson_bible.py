@@ -65,7 +65,7 @@ def main() -> int:
 
     # Print summary
     book_counts = Counter(v.get("book", "") for v in verses)
-    print(f"\nBook distribution (top 10):")
+    print("\nBook distribution (top 10):")
     for book, count in book_counts.most_common(10):
         print(f"  {book}: {count} verses")
 

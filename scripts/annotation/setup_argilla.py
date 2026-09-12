@@ -16,9 +16,6 @@ Usage:
 
 import argparse
 import json
-import sys
-from pathlib import Path
-from typing import List, Dict, Any
 
 try:
     import argilla as rg

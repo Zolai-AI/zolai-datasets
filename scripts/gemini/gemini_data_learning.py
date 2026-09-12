@@ -122,7 +122,7 @@ async def analyze_dictionary_gaps():
         return {
             "analysis_type": "error",
             "entries_suggested": [],
-            "overall_assessment": f"Error: {str(e)}",
+            "overall_assessment": f"Error: {e!s}",
             "total_issues": 0,
             "critical_fixes": 0
         }
@@ -159,7 +159,6 @@ async def flag_zvs_issues():
     """
     
     # Get entries with known issues or sample randomly
-    import sqlite3
     conn = sqlite3.connect('data/zolai.db')
     cur = conn.cursor()
     cur.execute("SELECT id, zolai, raw_json FROM dictionary LIMIT 50")
@@ -203,7 +202,7 @@ async def flag_zvs_issues():
                 "violating_form": "",
                 "correct_form": "",
                 "compliance_status": "pending",
-                "remarks": f"Gemini error: {str(e)}",
+                "remarks": f"Gemini error: {e!s}",
                 "description": ""
             })
     
@@ -221,7 +220,7 @@ async def main():
     print(f"   Critical fixes: {analysis.get('critical_fixes', 0)}")
     print(f"   Entries suggested: {len(analysis.get('entries_suggested', []))}")
     
-    print(f"\n2. Flagging ZVS 2018 compliance issues...")
+    print("\n2. Flagging ZVS 2018 compliance issues...")
     zvs_results = await flag_zvs_issues()
     violations = [r for r in zvs_results if r.get('zvs_violation')]
     print(f"   entries checked: {len(zvs_results)}")
@@ -229,10 +228,10 @@ async def main():
     for v in violations[:5]:  # Show first 5
         print(f"     ID={v.get('entry_id')}: {v.get('zolai')} → {v.get('correct_form')}")
     
-    print(f"\n3. Summary:")
+    print("\n3. Summary:")
     print(f"   Analysis: {analysis.get('overall_assessment', 'N/A')[:100]}")
-    print(f"   Gemini-suggested entries ready for human review")
-    print(f"\n=== PIPELINE COMPLETE ===")
+    print("   Gemini-suggested entries ready for human review")
+    print("\n=== PIPELINE COMPLETE ===")
     print("Next: Human reviews pending entries, approves/rejects, database updated")
 
 

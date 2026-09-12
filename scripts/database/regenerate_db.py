@@ -22,7 +22,6 @@ BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
-from gemini_cookies import get_gemini_client
 import asyncio
 
 
@@ -211,7 +210,7 @@ async def rebuild_database():
     cur.execute("SELECT COUNT(*) FROM dictionary")
     final_count = cur.fetchone()[0]
     
-    print(f"\n=== DATABASE REBUILD SUMMARY ===")
+    print("\n=== DATABASE REBUILD SUMMARY ===")
     print(f"Total entries from JSONL: {total}")
     print(f"Successfully inserted: {updated}")
     print(f"Duplicates skipped: {duplicate_count}")
@@ -221,14 +220,14 @@ async def rebuild_database():
     # Verify some entries
     cur.execute("SELECT id, headword, entry_version, zvs_compliance_status FROM dictionary LIMIT 10")
     rows = cur.fetchall()
-    print(f"\nVerified - first 10 entries:")
+    print("\nVerified - first 10 entries:")
     for row in rows:
         print(f"  ID={row[0]}, headword='{row[1][:50] if row[1] else None}', version={row[2]}, status={row[3]}")
     
     # Check ZVS compliance status distribution
     cur.execute("SELECT zvs_compliance_status, COUNT(*) FROM dictionary GROUP BY zvs_compliance_status")
     status_counts = cur.fetchall()
-    print(f"\nZVS compliance status distribution:")
+    print("\nZVS compliance status distribution:")
     for status, count in status_counts:
         print(f"  {status}: {count}")
     

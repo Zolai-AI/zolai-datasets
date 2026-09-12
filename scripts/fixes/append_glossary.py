@@ -1,4 +1,3 @@
-import os
 path = "/home/ubuntu/pcore/pcore-brain/context/zolai_glossary.txt"
 append = """
 # SOV PATTERNS — Agreement BEFORE verb

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sqlite3
 import sys
 import time
@@ -505,7 +504,7 @@ class DataIngester:
                 if not rec:
                     continue
                 en_text = rec.get("en", "")
-                if en_text.strip() and en_text != f"[emphasis particle]":
+                if en_text.strip() and en_text != "[emphasis particle]":
                     my_updates3.append((en_text.strip(), row_id))
                     self._audit("dictionary", row_id, "myanmar",
                                 "", en_text, "zomidaily_expanded")
@@ -830,7 +829,7 @@ class DataIngester:
         if not self.dry_run:
             cur.execute("DELETE FROM training_exercises")
             self.conn.commit()
-        print(f"  Cleared old exercises")
+        print("  Cleared old exercises")
 
         for name, source_key, ex_type, difficulty, _ in exercise_configs:
             print(f"\n  [3] {name}_exercises.jsonl → training_exercises")
@@ -1117,7 +1116,7 @@ class DataIngester:
              now_iso(), summary),
         )
         self.conn.commit()
-        print(f"  Provenance summary recorded")
+        print("  Provenance summary recorded")
 
     # ===================================================================
     # SUMMARY
