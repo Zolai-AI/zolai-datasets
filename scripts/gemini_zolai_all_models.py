@@ -1,3 +1,9 @@
+# Path setup for gemini_cookies import
+import os
+import sys
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BIBLE_DIR = os.path.join(SCRIPT_DIR, "bible")
+if BIBLE_DIR not in sys.path: sys.path.insert(0, BIBLE_DIR)
 #!/usr/bin/env python3
 """Test all Gemini models for Zolai translation quality.
 Usage: python3 gemini_zolai_all_models.py [--with-glossary] [--model MODEL]
@@ -9,9 +15,9 @@ import sys
 from pathlib import Path
 
 WEB_API_PATH = '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi'
-sys.path.insert(0, WEB_API_PATH)
 
-from gemini_webapi import GeminiClient
+
+from bible.gemini_cookies import get_gemini_client
 
 GLOSSARY = """Tedim Zolai (ZVS 2018) Translation Rules:
 
@@ -76,7 +82,7 @@ Reply ONLY with numbered translations, no explanations:
 
 async def test_model(model, with_glossary=False):
     try:
-        client = GeminiClient()
+        client = get_gemini_client()
         prompt = f"{GLOSSARY}\n\n{PROMPT}" if with_glossary else PROMPT
         output = await client.generate_content(prompt=prompt, model=model)
         text = output.text or ""
