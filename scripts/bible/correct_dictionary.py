@@ -80,6 +80,12 @@ CORRECTIONS = {
         "new_english_clean": "plural marker (3rd person verb suffix — NOT standalone 'they')",
         "reason": "Native speaker: uh = plural marker only; they = hihte/amaute/huate",
     },
+    "lasak": {
+        "old_english": ["sing (verb)"],
+        "new_english": ["sing OR take something (polysemous)"],
+        "new_english_clean": "sing OR take something (polysemous)",
+        "reason": "Native speaker: lasak = sing (verb) OR take something (context-dependent)",
+    },
     # Additional corrections (8-20)
     "nasep": {
         "old_english": ["deed"],
@@ -245,7 +251,7 @@ def apply_corrections(records, corpus):
                 "in", "leh", "nek", "kammal", "sing", "siam", "uh",
                 "nasep", "na", "kei", "tawh", "ahi", "ci", "lo",
                 "u", "nau", "hihte", "huate", "mankhin", "kiman",
-                "khin", "ta",
+                "khin", "ta", "lasak",
             }
             if zolai in always_correct_words:
                 should_correct = True
