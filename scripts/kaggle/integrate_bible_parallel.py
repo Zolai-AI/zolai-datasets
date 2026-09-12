@@ -7,9 +7,35 @@ import sys
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 PARALLEL_PATH = "/home/peter/Downloads/Kaggle/data/zolai_bible_dataset/bible_parallel.jsonl"
 
+BOOK_NAMES = {
+    "GEN": "Genesis", "EXO": "Exodus", "LEV": "Leviticus",
+    "NUM": "Numbers", "DEU": "Deuteronomy", "JOS": "Joshua",
+    "JDG": "Judges", "RUT": "Ruth", "1SA": "1 Samuel",
+    "2SA": "2 Samuel", "1KI": "1 Kings", "2KI": "2 Kings",
+    "1CH": "1 Chronicles", "2CH": "2 Chronicles", "EZR": "Ezra",
+    "NEH": "Nehemiah", "EST": "Esther", "JOB": "Job",
+    "PSA": "Psalms", "PRO": "Proverbs", "ECC": "Ecclesiastes",
+    "SNG": "Song of Solomon", "ISA": "Isaiah", "JER": "Jeremiah",
+    "LAM": "Lamentations", "EZK": "Ezekiel", "DAN": "Daniel",
+    "HOS": "Hosea", "AMO": "Amos", "OBA": "Obadiah",
+    "JON": "Jonah", "MIC": "Micah", "NAM": "Nahum",
+    "HAB": "Habakkuk", "ZEP": "Zephaniah", "HAG": "Haggai",
+    "ZEC": "Zechariah", "MAL": "Malachi", "MAT": "Matthew",
+    "MRK": "Mark", "LUK": "Luke", "JHN": "John", "ACT": "Acts",
+    "ROM": "Romans", "1CO": "1 Corinthians", "2CO": "2 Corinthians",
+    "GAL": "Galatians", "EPH": "Ephesians", "PHP": "Philippians",
+    "COL": "Colossians", "1TH": "1 Thessalonians",
+    "2TH": "2 Thessalonians", "1TI": "1 Timothy",
+    "2TI": "2 Timothy", "TIT": "Titus", "PHM": "Philemon",
+    "HEB": "Hebrews", "JAS": "James", "1PE": "1 Peter",
+    "2PE": "2 Peter", "1JN": "1 John", "2JN": "2 John",
+    "3JN": "3 John", "JUD": "Jude", "REV": "Revelation",
+    "JOL": "Joel",
+}
+
 
 def verse_id_to_ref(verse_id: str) -> str:
-    """GEN.1.1 → GEN 1:1"""
+    """GEN.1.1 -> GEN 1:1"""
     parts = verse_id.split(".")
     if len(parts) == 3:
         return f"{parts[0]} {parts[1]}:{parts[2]}"
@@ -22,7 +48,6 @@ def integrate(db_path: str, parallel_path: str) -> None:
     conn.execute("PRAGMA busy_timeout=30000")
     cur = conn.cursor()
 
-    # Get existing refs
     cur.execute("SELECT ref FROM bible_verses")
     existing_refs = {r[0] for r in cur.fetchall()}
     print(f"Existing bible_verses: {len(existing_refs)} rows")
@@ -38,6 +63,7 @@ def integrate(db_path: str, parallel_path: str) -> None:
             book = row["book"]
             chapter = int(row["chapter"])
             verse = int(row["verse"])
+            book_name = BOOK_NAMES.get(book, "")
 
             tedim1932 = row.get("tedim1932") or None
             kjv = row.get("kjv") or None
@@ -46,46 +72,47 @@ def integrate(db_path: str, parallel_path: str) -> None:
             fcl = row.get("fcl") or None
 
             if ref in existing_refs:
-                # UPDATE — only fill NULL columns
                 cur.execute(
                     """UPDATE bible_verses SET
                        zo_tedim1932 = COALESCE(zo_tedim1932, ?),
                        en_kJV = COALESCE(en_kJV, ?),
                        myanmar_judson = COALESCE(myanmar_judson, ?),
                        zo_hcl06 = COALESCE(zo_hcl06, ?),
-                       zo_fcl = COALESCE(zo_fcl, ?)
+                       zo_fcl = COALESCE(zo_fcl, ?),
+                       book_name = COALESCE(book_name, ?)
                        WHERE ref = ?""",
-                    (tedim1932, kjv, judson, hcl06, fcl, ref),
+                    (tedim1932, kjv, judson, hcl06, fcl, book_name, ref),
                 )
                 if cur.rowcount > 0:
                     updated += 1
             else:
-                # INSERT new row
                 cur.execute(
                     """INSERT INTO bible_verses
-                       (ref, book, chapter, verse, zo_tdb77, zo_tedim2010,
-                        en_kJV, myanmar, zo_tedim1932, zo_hcl06, zo_fcl, myanmar_judson)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (ref, book, chapter, verse,
-                     row.get("tdb77"), None,
-                     kjv, None,
+                       (ref, book, chapter, verse, book_name,
+                        zo_tdb77, zo_tedim2010, en_kJV, myanmar,
+                        zo_tedim1932, zo_hcl06, zo_fcl, myanmar_judson)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (ref, book, chapter, verse, book_name,
+                     row.get("tdb77"), None, kjv, None,
                      tedim1932, hcl06, fcl, judson),
                 )
                 existing_refs.add(ref)
                 inserted += 1
 
             if (i + 1) % 5000 == 0:
-                print(f"  Processed {i + 1}... (updated={updated}, inserted={inserted})")
+                print(f"  Processed {i + 1}... (upd={updated}, ins={inserted})")
 
-    # Audit log
     cur.execute(
-        """INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value, changed_at, reason)
-           VALUES ('bible_verses', 0, 'integrate_parallel', '', ?, datetime('now'), ?)""",
-        ("", f"Parallel Bible: {updated} updated, {inserted} inserted, {skipped} skipped"),
+        """INSERT INTO data_audit_log
+           (table_name, row_id, field, old_value, new_value,
+            changed_at, reason)
+           VALUES ('bible_verses', 0, 'integrate_parallel', '',
+                   ?, datetime('now'), ?)""",
+        ("", f"Parallel Bible: {updated} updated, {inserted} inserted"),
     )
     conn.commit()
     conn.close()
-    print(f"Bible parallel integration done: {updated} updated, {inserted} inserted")
+    print(f"Done: {updated} updated, {inserted} inserted")
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ def validate(db_path: str) -> bool:
 
     # 1. Row counts
     tables = [
-        "bible_verses", "dictionary", "tongsan_articles",
+        "bible_verses", "dictionary", "articles",
         "zolai_songs", "translations",
     ]
     print("=== Row Counts ===")
@@ -93,12 +93,12 @@ def validate(db_path: str) -> bool:
     else:
         print(f"  Total violations in sample: {violations}")
 
-    # 6. Tongsan articles check
-    print("\n=== Tongsan Articles ===")
+    # 6. Articles check
+    print("\n=== Articles Articles ===")
     try:
-        cur.execute("SELECT count(*) FROM tongsan_articles WHERE content != ''")
+        cur.execute("SELECT count(*) FROM articles WHERE content != ''")
         with_content = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM tongsan_articles")
+        cur.execute("SELECT count(*) FROM articles")
         total = cur.fetchone()[0]
         print(f"  Total: {total}, with content: {with_content}")
     except sqlite3.OperationalError:

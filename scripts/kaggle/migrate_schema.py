@@ -11,8 +11,9 @@ MIGRATIONS = [
     ("ALTER TABLE bible_verses ADD COLUMN zo_hcl06 TEXT", "bible_verses zo_hcl06"),
     ("ALTER TABLE bible_verses ADD COLUMN zo_fcl TEXT", "bible_verses zo_fcl"),
     ("ALTER TABLE bible_verses ADD COLUMN myanmar_judson TEXT", "bible_verses myanmar_judson"),
+    ("ALTER TABLE bible_verses ADD COLUMN book_name TEXT", "bible_verses book_name"),
     # New tables
-    ("""CREATE TABLE IF NOT EXISTS tongsan_articles (
+    ("""CREATE TABLE IF NOT EXISTS articles (
         id INTEGER PRIMARY KEY,
         title TEXT,
         content TEXT,
@@ -21,7 +22,7 @@ MIGRATIONS = [
         date TEXT,
         link TEXT,
         language TEXT DEFAULT 'zolai'
-    )""", "tongsan_articles table"),
+    )""", "articles table"),
     ("""CREATE TABLE IF NOT EXISTS zolai_songs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         collection TEXT,
