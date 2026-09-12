@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
@@ -114,66 +115,66 @@ PCORE_BRAIN_URL = os.environ.get("PCORE_BRAIN_URL", "https://pcore-brain.peterli
 PCORE_BRAIN_API_KEY = os.environ.get("PCORE_BRAIN_API_KEY", "REPLACED")
 
 
-def call_pcore_brain_ai(words: list[str], context: str = "",
+# Gemini client (lazy init + persistent event loop)
+_gemini_client = None
+_gemini_loop = None
+
+def _get_gemini():
+    """Lazy-init Gemini client via Chrome cookies."""
+    global _gemini_client
+    if _gemini_client is None:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from gemini_cookies import get_gemini_client
+        _gemini_client = get_gemini_client()
+    return _gemini_client
+
+def _get_loop():
+    """Get or create persistent event loop for Gemini."""
+    global _gemini_loop
+    if _gemini_loop is None or _gemini_loop.is_closed():
+        _gemini_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_gemini_loop)
+    return _gemini_loop
+
+
+def call_pcore_brain_ai(words: list[str], context: str = "", model_name: str = "auto",
                         known_words: dict | None = None) -> dict[str, str]:
-    """Call pcore-brain API to translate Zolai words. Returns {word: meaning}."""
+    """Use Gemini's own knowledge to translate Zolai words. No dict injection."""
     if not words:
         return {}
 
     word_list = ", ".join(words[:20])
-    known_ctx = ""
-    if known_words:
-        pairs = [f"{k}={v}" for k, v in list(known_words.items())[:15]]
-        known_ctx = f"\nKnown words in verse: {', '.join(pairs)}"
 
-    prompt = f"""Translate these Zolai/Tedim words to English. Use Bible context.
-{known_ctx}
-Grammar rules:
-- SOV word order (Subject-Object-Verb)
-- Ergative marker: 'in' marks the agent of transitive verbs
-- Tense: ta (completive/realized), khin (past simple/experiential), ding (future)
-- Aspect: lai (progressive), zo (completive)
-- Negation: 'kei' for ALL persons (kei hi = don't)
-- Question marker: 'hiam' (yes/no), 'bang hang' (content questions)
-- Pronouns: a (agreement before verb), amah (emphasis standalone)
-- Conjunction: 'leh' (and), 'tua' (that, conjunction)
+    prompt = f"""You are a Tedim Zolai (Zomi) language expert. Translate these Zolai/Tedim words to English.
 
-Forbidden forms (use modern ZVS 2018):
-- pathian → pasian (God)
-- ram → gam (earth/ground)
-- fapa → tapa (life/son)
-- bawipa → topa (lord/master)
-- siangpahrang → kumpipa (Savior)
-- cu/cun → tua (that, conjunction)
+The text is from the Tedim Zolai Bible. Use your own knowledge of Zolai/Tedim Chin language.
 
-Common words: pasian=God, topa=Lord, gam=earth, vantung=heaven, leitung=earth, tui=water, mi=person, numei=woman, sing=tree, nek=eat, hiam=question marker, a=agreement marker, tapa=life/son, suahtakna=holiness, nuntakna=life
+{f"Full verse: {context}" if context else ""}
 
 Words to translate: {word_list}
-Reply ONLY as JSON with single-word translations: {{"word": "meaning"}}
-No definitions, no explanations — just the word and its English equivalent."""
+
+Reply ONLY as JSON dictionary: {{"word1": "english1", "word2": "english2"}}
+Single word translations only. No definitions, no explanations."""
 
     for attempt in range(3):
         try:
-            r = requests.post(
-                f"{PCORE_BRAIN_URL}/v1/chat/completions",
-                headers={
-                    "x-api-key": PCORE_BRAIN_API_KEY,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "auto",
-                    "task": "zolai",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 300,
-                },
-                timeout=60,
+            client = _get_gemini()
+            loop = _get_loop()
+            output = loop.run_until_complete(
+                client.generate_content(prompt=prompt, model=model_name)
             )
-            if r.status_code == 200:
-                content = r.json()["choices"][0]["message"]["content"]
-                json_match = re.search(r"\{[^{}]+\}", content)
-                if json_match:
-                    return json.loads(json_match.group())
-            elif r.status_code == 429:
+            text = output.text or ""
+            if "<ElicitationsGroup" in text:
+                text = text[:text.index("<ElicitationsGroup")].strip()
+
+            json_match = re.search(r"\{[^{}]+\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+            else:
+                print(f"    AI error after 3 attempts: {e}")
                 time.sleep(5 * (attempt + 1))
                 continue
         except (requests.Timeout, requests.ConnectionError):
@@ -192,11 +193,12 @@ def save_ai_cache(word: str, meaning: str):
 # GLOSSING ENGINE
 # ══════════════════════════════════════════════════════════════════════
 class GlossingEngine:
-    def __init__(self, zo_en: dict, en_zo: dict, ai_cache: dict, use_ai: bool = False):
+    def __init__(self, zo_en: dict, en_zo: dict, ai_cache: dict, use_ai: bool = False, ai_model: str = "auto"):
         self.zo_en = zo_en
         self.en_zo = en_zo
         self.ai_cache = ai_cache
         self.use_ai = use_ai
+        self.ai_model = ai_model
         self.stats = {"dict_hit": 0, "ai_hit": 0, "miss": 0}
         self._pending_words = []
     
@@ -259,28 +261,43 @@ class GlossingEngine:
             self._flush_ai_batch()
         return result
     
+    def _build_prefix_index(self):
+        """Build a prefix index for fast morphological lookups."""
+        if hasattr(self, '_prefix_index'):
+            return
+        self._prefix_index: dict[str, list[str]] = {}
+        for dw in self.zo_en:
+            if len(dw) >= 4:
+                prefix = dw[:3]
+                if prefix not in self._prefix_index:
+                    self._prefix_index[prefix] = []
+                self._prefix_index[prefix].append(dw)
+    
     def _flush_ai_batch(self):
         """Send pending words to AI and update cache."""
         if not self._pending_words:
             return
+        self._build_prefix_index()
         words_to_lookup = list({w[0] for w in self._pending_words})[:20]
         context = self._pending_words[0][1] if self._pending_words else ""
+        # Extract first 5 chars from context to detect if it's a full verse or just a word
+        # If context looks like a verse (has spaces), pass it; otherwise skip
 
-        # RAG: collect known dict words + similar words for context
+        # RAG: collect known dict words + prefix-similar words for context
         known_words: dict[str, str] = {}
         for w, _, _ in self._pending_words:
             if w in self.zo_en:
                 known_words[w] = self.zo_en[w][0] if self.zo_en[w] else "?"
-            # Also find prefix-similar words for morphological hints
-            for dw in self.zo_en:
-                if len(dw) >= 4 and dw != w and (dw.startswith(w[:3]) or w.startswith(dw[:3])):
-                    known_words[dw] = self.zo_en[dw][0] if self.zo_en[dw] else "?"
-                    if len(known_words) >= 20:
-                        break
+            # Fast prefix lookup instead of full dict scan
+            prefix = w[:3]
+            if prefix in self._prefix_index:
+                for dw in self._prefix_index[prefix][:10]:
+                    if dw != w:
+                        known_words[dw] = self.zo_en[dw][0] if self.zo_en[dw] else "?"
             if len(known_words) >= 20:
                 break
 
-        results = call_pcore_brain_ai(words_to_lookup, context, known_words)
+        results = call_pcore_brain_ai(words_to_lookup, context, model_name=self.ai_model, known_words=known_words)
         for w, _, orig_word in self._pending_words:
             if w in results:
                 meaning = results[w]
@@ -313,7 +330,7 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
             continue
         
         # Verse-level progress (every 50 verses or first/last)
-        if vi == 1 or vi == total_v or vi % 50 == 0:
+        if vi == 1 or vi == total_v or vi % 100 == 0:
             words_so_far = sum(len(r["glosses"]) for r in results)
             hits_so_far = sum(1 for r in results for g in r["glosses"] if g["source"] in ("dict_zo_en", "ai_cache"))
             rate = (hits_so_far / words_so_far * 100) if words_so_far else 0
@@ -413,6 +430,7 @@ def main():
     parser.add_argument("--resume", action="store_true", help="Resume interrupted study")
     parser.add_argument("--no-ai", action="store_true", help="Dictionary only, no AI")
     parser.add_argument("--stats", action="store_true", help="Show statistics only")
+    parser.add_argument("--model", default="auto", help="AI model name (auto, gemini-3-flash, gemini-3-pro-plus)")
     args = parser.parse_args()
     
     if args.stats:
@@ -434,8 +452,9 @@ def main():
     print(f"{G}Loaded: {len(zo_en)} ZO→EN, {len(en_zo)} EN→ZO, {len(verses)} verses{NC}\n")
     
     # Initialize engine
-    use_ai = "--no-ai" not in sys.argv
-    engine = GlossingEngine(zo_en, en_zo, ai_cache, use_ai=use_ai)
+    use_ai = not args.no_ai
+    ai_model = args.model
+    engine = GlossingEngine(zo_en, en_zo, ai_cache, use_ai=use_ai, ai_model=ai_model)
     
     # Determine books
     if args.book:
