@@ -5,7 +5,6 @@ Quiz types: bible, phrases, reverse, frequency
 """
 
 import sys
-import json
 import random
 from pathlib import Path
 
@@ -43,8 +42,15 @@ class VocabQuiz:
         return load_jsonl(VOCAB_INDEX)
     
     def _load_phrases(self) -> list[dict]:
-        """Load phrases database."""
-        return load_jsonl(PHRASES_DB)
+        """Load phrases from zolai.db."""
+        import sqlite3
+        db_path = Path("/home/peter/Documents/Projects/zolai-ai/data/zolai.db")
+        conn = sqlite3.connect(str(db_path))
+        c = conn.cursor()
+        c.execute("SELECT zo, english FROM phrases WHERE english IS NOT NULL AND english != ''")
+        rows = c.fetchall()
+        conn.close()
+        return [{"zo": r[0], "en": r[1]} for r in rows]
     
     def _load_dict(self) -> dict[str, list[str]]:
         """Load ZO→EN dictionary."""
@@ -53,7 +59,7 @@ class VocabQuiz:
     def quiz_bible(self, num_questions: int = 10):
         """Bible word quiz (ZO→EN)."""
         print(f"\n{C}═══ Bible Word Quiz ═══{NC}\n")
-        print(f"Translate the Zolai word to English.\n")
+        print("Translate the Zolai word to English.\n")
         
         # Select random words from vocabulary
         words = random.sample(self.vocab, min(num_questions, len(self.vocab)))
@@ -80,7 +86,7 @@ class VocabQuiz:
     def quiz_phrases(self, num_questions: int = 10):
         """Phrase quiz (multi-word expressions)."""
         print(f"\n{C}═══ Phrase Quiz ═══{NC}\n")
-        print(f"Translate the Zolai phrase to English.\n")
+        print("Translate the Zolai phrase to English.\n")
         
         # Select random phrases
         phrases = random.sample(self.phrases, min(num_questions, len(self.phrases)))
@@ -107,7 +113,7 @@ class VocabQuiz:
     def quiz_reverse(self, num_questions: int = 10):
         """Reverse quiz (EN→ZO)."""
         print(f"\n{C}═══ Reverse Quiz (EN→ZO) ═══{NC}\n")
-        print(f"Translate the English word to Zolai.\n")
+        print("Translate the English word to Zolai.\n")
         
         # Select random words from dictionary
         words = random.sample(list(self.dict_zo_en.keys()), min(num_questions, len(self.dict_zo_en)))

@@ -1,7 +1,6 @@
 import sqlite3
 import json
 import sys
-import os
 
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 
@@ -16,9 +15,9 @@ FORBIDDEN_FORMS = {
     "cun": "tua",
 }
 
-def check_zvs_local(headword: str) -> dict:
+def check_zvs_local(zolai_word: str) -> dict:
     """Check ZVS 2018 compliance locally (no API needed)."""
-    hw = headword.lower().strip()
+    hw = zolai_word.lower().strip()
     
     for forbidden, correct in FORBIDDEN_FORMS.items():
         if hw == forbidden:
@@ -57,7 +56,7 @@ Return ONLY JSON:
 {"zvs_violation":true/false,"zvs_correct_form":"<correct or empty>","compliance_status":"passed|failed","remarks":"<reason>","description":"<description>"}
 """
     try:
-        prompt = ZVS_PROMPT + f"\n\nDictionary entry: zolai='" + headword.strip() + "'"
+        prompt = ZVS_PROMPT + "\n\nDictionary entry: zolai='" + zolai_word.strip() + "'"
         output = await client.generate_content(prompt=prompt, model='gemini-3-flash')
         text = output.text or ''
         
@@ -78,7 +77,7 @@ def process_batch(batch_size=500, mode="local"):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     
-    cur.execute("SELECT * FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?", (batch_size,))
+    cur.execute("SELECT id, zolai FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?", (batch_size,))
     rows = cur.fetchall()
     
     if not rows:
@@ -107,13 +106,13 @@ def process_batch(batch_size=500, mode="local"):
     updated = 0
     violations = 0
     
-    for i, (row_id, headword) in enumerate(rows, 1):
-        headword_clean = headword.strip().strip('"').strip("'").strip('[]').strip()
+    for i, (row_id, zolai_word) in enumerate(rows, 1):
+        zolai_word_clean = zolai_word.strip().strip('"').strip("'").strip('[]').strip()
         
         if use_gemini and mode in ("gemini", "all"):
-            result = asyncio.run(check_zvs_gemini(headword_clean, client))
+            result = asyncio.run(check_zvs_gemini(zolai_word_clean, client))
         else:
-            result = check_zvs_local(headword_clean)
+            result = check_zvs_local(zolai_word_clean)
         
         cur.execute(
             "UPDATE dictionary SET entry_version=?, update_remarks=?, update_description=?, zvs_compliance_status=? WHERE id=?",
@@ -126,7 +125,7 @@ def process_batch(batch_size=500, mode="local"):
         updated += 1
         if result.get('zvs_violation'):
             violations += 1
-            print(f"    ❌ {headword_clean} → {result.get('zvs_correct_form', '?')}")
+            print(f"    ❌ {zolai_word_clean} → {result.get('zvs_correct_form', '?')}")
         
         if i % 100 == 0:
             print(f"    [{i}/{len(rows)}] checked, {violations} violations so far...")
