@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
+"""Gemini Data Enrichment Pipeline — Real Zolai Content.
+
+Uses Gemini to enrich the zolai.db database with:
+  Mode 1: Fill missing Myanmar translations (batch of 10)
+  Mode 2: Verify dictionary accuracy (high-freq words)
+  Mode 3: Identify/fix unknown words (bad English entries)
+
+All results logged to training_runs table.
+Rate limited: 2s between calls, 3 retries with backoff.
+
+Usage:
+  python3 gemini_data_learning.py --mode myanmar --limit 50
+  python3 gemini_data_learning.py --mode verify --limit 20
+  python3 gemini_data_learning.py --mode unknowns --limit 20
+  python3 gemini_data_learning.py --mode all --limit 50
 """
-Gemini Data Learning & Database Update Pipeline.
 
-Uses Gemini Web API to ANALYZE existing Zolai data, identify
-gaps/errors/suggest improvements, and generate "pending" entries
-in the database for human review/approval.
-
-CRITICAL: Gemini uses YOUR data as context/anchors — never
-generates in vacuum.
-"""
-
-import sqlite3
-import json
-import sys
-import os
-import re
 import asyncio
+import os
+import sqlite3
+import sys
 import time
 
 # Add bible dir for gemini_cookies
@@ -28,351 +32,448 @@ if BIBLE_DIR not in sys.path:
 
 from gemini_cookies import get_gemini_client
 
-# Retry configuration
+DB_PATH = os.path.join(
+    "/home/peter/Documents/Projects/zolai-ai",
+    "data/zolai.db",
+)
 MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds, doubles each retry
-TIMEOUT = 60  # seconds per request
+RATE_LIMIT = 2  # seconds between calls
+BATCH_SIZE = 10  # words per Gemini request
 
 
-async def _retry_async(coro_factory, retries=MAX_RETRIES):
-    """Run an async operation with retry + exponential backoff.
+def _get_conn() -> sqlite3.Connection:
+    """Get a database connection with WAL mode."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    return conn
 
-    Args:
-        coro_factory: callable that returns a new coroutine
-        retries: max attempts
 
-    Returns:
-        result on success, raises last exception on failure
-    """
-    delay = RETRY_DELAY
+async def _call_gemini(
+    client, prompt: str, model: str = "gemini-3-flash"
+) -> tuple:
+    """Call Gemini with retry + exponential backoff."""
+    delay = 5  # 5s, 10s, 20s
     last_err = None
-    for attempt in range(1, retries + 1):
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            return await coro_factory()
+            start = time.time()
+            output = await client.generate_content(
+                prompt=prompt, model=model
+            )
+            elapsed = time.time() - start
+            text = output.text or ""
+            if "<ElicitationsGroup" in text:
+                text = text[
+                    : text.index("<ElicitationsGroup")
+                ].strip()
+            return text.strip(), elapsed
         except Exception as e:
             last_err = e
-            if attempt < retries:
-                print(
-                    f"    Retry {attempt}/{retries} "
-                    f"after {delay}s: {e}",
-                    file=sys.stderr,
-                )
+            if attempt < MAX_RETRIES:
                 await asyncio.sleep(delay)
                 delay *= 2
             else:
-                print(
-                    f"    Failed after {retries} attempts: "
-                    f"{e}",
-                    file=sys.stderr,
-                )
-    raise last_err
+                return f"ERROR: {type(e).__name__}: {e}", 0
+    return f"ERROR: {last_err}", 0
 
 
-async def analyze_dictionary_gaps():
-    """Gemini analyzes dictionary entries and suggests
-    improvements."""
-    client = get_gemini_client()
+def _log_run(
+    model: str,
+    dataset: str,
+    count: int,
+    metrics: dict,
+    status: str = "completed",
+) -> None:
+    """Log a run to training_runs table."""
+    import json
 
-    ANALYSIS_PROMPT = (
-        "You are a Zolai (Tedim Chin) dictionary "
-        "analysis expert.\n"
-        "You are given dictionary entries. Your task is "
-        "to ANALYZE them and SUGGEST improvements.\n\n"
-        "FORBIDDEN ZVS 2018 forms (NEVER suggest these):\n"
-        "- pathian -> must be pasian (God)\n"
-        "- ram -> must be gam (earth/land)\n"
-        "- fapa -> must be tapa (life/son)\n"
-        "- bawipa -> must be topa (Lord/master)\n"
-        "- siangpahrang -> must be kumpipa (Savior)\n"
-        "- cu/cun -> must be tua (that/conjunction)\n\n"
-        "Also check for:\n"
-        "- suah -> suahtakna (holiness context-dependent)\n"
-        "- nunnak -> nuntakna (life context-dependent)\n\n"
-        "Return ONLY JSON:\n"
-        "{\n"
-        '  "analysis_type":'
-        ' "gap_filling|error_correction|pattern_analysis'
-        '|vocabulary_expansion",\n'
-        '  "entries_suggested": [\n'
-        "    {\n"
-        '      "original_zolai": "current word",\n'
-        '      "suggested_zolai": "correction or new",\n'
-        '      "suggested_english": ["translations"],\n'
-        '      "suggested_pos":'
-        ' "noun|verb|adj|adv|particle|number",\n'
-        '      "suggested_remarks": "ZVS note",\n'
-        '      "suggested_description": "description",\n'
-        '      "zvs_status": "passed|failed|pending",\n'
-        '      "confidence": 0.0-1.0\n'
-        "    }\n"
-        "  ],\n"
-        '  "overall_assessment": "brief summary",\n'
-        '  "total_issues": 0,\n'
-        '  "critical_fixes": 0\n'
-        "}"
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO training_runs "
+        "(model_name, dataset_name, entry_count, "
+        "metrics_json, status) VALUES (?, ?, ?, ?, ?)",
+        (model, dataset, count, json.dumps(metrics), status),
     )
+    conn.commit()
+    conn.close()
 
-    # Read a sample from the database
-    db_path = os.path.join(
-        "/home/peter/Documents/Projects/zolai-ai",
-        "data/zolai.db",
-    )
-    if not os.path.exists(db_path):
-        return {
-            "analysis_type": "error",
-            "entries_suggested": [],
-            "overall_assessment": (
-                f"Database not found: {db_path}"
-            ),
-            "total_issues": 0,
-            "critical_fixes": 0,
-        }
 
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT zolai, english_clean "
+# ── Mode 1: Fill Myanmar Translations ─────────────────
+async def _fill_myanmar(
+    client, limit: int = 50
+) -> dict:
+    """Batch-translate missing Myanmar entries."""
+    conn = _get_conn()
+    cur = conn.execute(
+        "SELECT id, zolai, english_clean "
         "FROM dictionary "
-        "WHERE english_clean IS NOT NULL "
-        "LIMIT 50"
+        "WHERE (myanmar IS NULL OR myanmar = '') "
+        "AND english_clean IS NOT NULL "
+        "AND LENGTH(zolai) > 1 "
+        "LIMIT ?",
+        (limit,),
     )
     rows = cur.fetchall()
     conn.close()
 
     if not rows:
         return {
-            "analysis_type": "error",
-            "entries_suggested": [],
-            "overall_assessment": (
-                "No dictionary entries found"
-            ),
-            "total_issues": 0,
-            "critical_fixes": 0,
+            "mode": "fill_myanmar",
+            "total": 0,
+            "updated": 0,
+            "errors": 0,
         }
 
-    # Build summary
-    summary_parts = []
-    for zolai, english in rows:
-        hw = (
-            zolai.strip().strip('"').strip("'").strip()
-            if zolai
-            else ""
-        )
-        if hw:
-            summary_parts.append(
-                f"HEADWORD: {hw} | ENGLISH: {english}"
+    updated = 0
+    errors = 0
+    batch_size = BATCH_SIZE
+
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
+        prompt_lines = [
+            "Translate each Zolai word to Burmese/Myanmar.",
+            "Reply with ONLY translations, one per line.",
+            "Format: zolai = myanmar",
+            "",
+        ]
+        for row in batch:
+            prompt_lines.append(
+                f"{row[1]} ({row[2]}) = ?"
             )
 
-    prompt = (
-        ANALYSIS_PROMPT
-        + "\n\nANALYZE this sample of Zolai "
-        + "dictionary entries:\n\n"
-        + "\n".join(summary_parts[:20])
-        + "\n\nFocus on:\n"
-        "1. ZVS 2018 compliance (forbidden forms)\n"
-        "2. Definition accuracy\n"
-        "3. Missing words or senses\n"
-        "4. Polysemy clarity\n"
-        "5. Grammar pattern consistency\n\n"
-        "Generate suggestions for improvement."
-    )
-
-    try:
-        output = await _retry_async(
-            lambda: client.generate_content(
-                prompt=prompt, model="gemini-3-flash"
-            )
+        prompt = "\n".join(prompt_lines)
+        text, _elapsed = await _call_gemini(
+            client, prompt
         )
-        text = output.text or ""
+        await asyncio.sleep(RATE_LIMIT)
 
-        text = re.sub(r"```json\s*", "", text)
-        text = re.sub(r"```\s*$", "", text)
-
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end > start:
-            return json.loads(text[start : end + 1])
-
-        return json.loads(text.strip())
-
-    except Exception as e:
-        print(
-            f"Gemini analysis error: {e}",
-            file=sys.stderr,
-        )
-        return {
-            "analysis_type": "error",
-            "entries_suggested": [],
-            "overall_assessment": f"Error: {e!s}",
-            "total_issues": 0,
-            "critical_fixes": 0,
-        }
-
-
-async def flag_zvs_issues():
-    """Gemini flags ZVS 2018 compliance issues."""
-    client = get_gemini_client()
-
-    ZVS_PROMPT = (
-        "You are a Zolai Standard (ZVS 2018) "
-        "compliance checker.\n\n"
-        "FORBIDDEN (must flag and suggest correction):\n"
-        "- pathian -> pasian (God)\n"
-        "- ram -> gam (earth/land)\n"
-        "- fapa -> tapa (life/son)\n"
-        "- bawipa -> topa (Lord/master)\n"
-        "- siangpahrang -> kumpipa (Savior)\n"
-        "- cu/cun -> tua (that/conjunction)\n\n"
-        "For each entry, return JSON:\n"
-        "{\n"
-        '  "zolai": "the word",\n'
-        '  "zvs_violation": true/false,\n'
-        '  "violating_form": "which form",\n'
-        '  "correct_form": "ZVS 2018 form",\n'
-        '  "compliance_status":'
-        ' "passed|failed|pending",\n'
-        '  "remarks": "brief reason",\n'
-        '  "description": "description"\n'
-        "}"
-    )
-
-    db_path = os.path.join(
-        "/home/peter/Documents/Projects/zolai-ai",
-        "data/zolai.db",
-    )
-    if not os.path.exists(db_path):
-        return []
-
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, zolai FROM dictionary LIMIT 50"
-    )
-    entries = cur.fetchall()
-    conn.close()
-
-    results = []
-    for entry_id, zolai in entries:
-        hw = (
-            zolai.strip().strip('"').strip("'").strip()
-            if zolai
-            else ""
-        )
-        if not hw:
+        if text.startswith("ERROR"):
+            errors += len(batch)
             continue
 
-        prompt = (
-            ZVS_PROMPT + f'\n\nZolai word: "{hw}"'
-        )
-        try:
-            output = await _retry_async(
-                lambda p=prompt: client.generate_content(
-                    prompt=p, model="gemini-3-flash"
+        # Parse answers
+        answers = {}
+        for line in text.split("\n"):
+            line = line.strip()
+            if "=" in line:
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    key = parts[0].strip().lower()
+                    val = parts[1].strip()
+                    if val and val != "?":
+                        answers[key] = val
+
+        # Update DB
+        conn = _get_conn()
+        for row in batch:
+            zolai_lower = row[1].lower()
+            if zolai_lower in answers:
+                myanmar = answers[zolai_lower]
+                conn.execute(
+                    "UPDATE dictionary "
+                    "SET myanmar = ?, updated_at = "
+                    "datetime('now') "
+                    "WHERE id = ?",
+                    (myanmar, row[0]),
                 )
-            )
-            text = output.text or ""
-            text = re.sub(r"```json\s*", "", text)
-            text = re.sub(r"```\s*$", "", text)
-            start = text.find("{")
-            end = text.rfind("}")
-            if start >= 0 and end > start:
-                result = json.loads(
-                    text[start : end + 1]
-                )
-                result["entry_id"] = entry_id
-                results.append(result)
-            else:
-                results.append({
-                    "entry_id": entry_id,
-                    "zolai": hw,
-                    "zvs_violation": False,
-                    "violating_form": "",
-                    "correct_form": "",
-                    "compliance_status": "pending",
-                    "remarks": (
-                        "Could not parse Gemini output"
-                    ),
-                    "description": "",
-                })
-        except Exception as e:
-            results.append({
-                "entry_id": entry_id,
-                "zolai": hw,
-                "zvs_violation": False,
-                "violating_form": "",
-                "correct_form": "",
-                "compliance_status": "error",
-                "remarks": f"Gemini error: {e!s}",
-                "description": "",
-            })
+                updated += 1
+        conn.commit()
+        conn.close()
 
-    return results
+        print(
+            f"    Batch {i // batch_size + 1}: "
+            f"{updated}/{i + len(batch)} updated"
+        )
+
+    metrics = {
+        "total": len(rows),
+        "updated": updated,
+        "errors": errors,
+    }
+    _log_run(
+        "gemini-3-flash",
+        "fill_myanmar",
+        updated,
+        metrics,
+    )
+    return {
+        "mode": "fill_myanmar",
+        "total": len(rows),
+        "updated": updated,
+        "errors": errors,
+    }
 
 
-async def main():
-    start_time = time.time()
-    print("=" * 70)
-    print("GEMINI DATA LEARNING & DATABASE UPDATE PIPELINE")
-    print("=" * 70)
+# ── Mode 2: Verify Dictionary Accuracy ────────────────
+async def _verify_accuracy(
+    client, limit: int = 30
+) -> dict:
+    """Verify high-frequency word translations."""
+    conn = _get_conn()
+    cur = conn.execute(
+        "SELECT d.id, d.zolai, d.english_clean, "
+        "v.frequency "
+        "FROM dictionary d "
+        "JOIN vocab v ON v.headword = d.zolai "
+        "WHERE d.english_clean IS NOT NULL "
+        "AND v.frequency > 100 "
+        "ORDER BY v.frequency DESC "
+        "LIMIT ?",
+        (limit,),
+    )
+    rows = cur.fetchall()
+    conn.close()
 
-    print("\n1. Analyzing dictionary gaps and patterns...")
-    try:
-        analysis = await analyze_dictionary_gaps()
-        print(
-            "   Analysis type: "
-            f"{analysis.get('analysis_type', 'unknown')}"
-        )
-        print(
-            "   Total issues: "
-            f"{analysis.get('total_issues', 0)}"
-        )
-        print(
-            "   Critical fixes: "
-            f"{analysis.get('critical_fixes', 0)}"
-        )
-        print(
-            "   Entries suggested: "
-            f"{len(analysis.get('entries_suggested', []))}"
-        )
-    except Exception as e:
-        print(f"   Analysis failed: {e}")
-        analysis = {
-            "overall_assessment": f"Error: {e}",
+    if not rows:
+        return {
+            "mode": "verify_accuracy",
+            "total": 0,
+            "correct": 0,
+            "incorrect": 0,
         }
 
-    print("\n2. Flagging ZVS 2018 compliance issues...")
-    try:
-        zvs_results = await flag_zvs_issues()
-        violations = [
-            r for r in zvs_results if r.get("zvs_violation")
-        ]
-        print(f"   Entries checked: {len(zvs_results)}")
-        print(f"   ZVS violations found: {len(violations)}")
-        for v in violations[:5]:
-            print(
-                f"     ID={v.get('entry_id')}: "
-                f"{v.get('zolai')} -> "
-                f"{v.get('correct_form')}"
-            )
-    except Exception as e:
-        print(f"   ZVS check failed: {e}")
+    correct = 0
+    incorrect = 0
+    corrections = []
 
-    elapsed = time.time() - start_time
-    print("\n3. Summary:")
-    print(
-        "   Analysis: "
-        + str(
-            analysis.get("overall_assessment", "N/A")
-        )[:100]
+    for row in rows:
+        entry_id, zolai, english, freq = row
+        prompt = (
+            "You are a Zolai (Tedim Chin) language expert.\n"
+            "Is this translation correct?\n\n"
+            f"Word: {zolai}\n"
+            f"Our translation: {english}\n\n"
+            "Answer: correct OR incorrect "
+            "(with correct translation if wrong)\n"
+            "Reply with ONLY one line: "
+            "correct or incorrect: <translation>"
+        )
+        text, _elapsed = await _call_gemini(
+            client, prompt
+        )
+        await asyncio.sleep(RATE_LIMIT)
+
+        if text.startswith("ERROR"):
+            continue
+
+        text_lower = text.lower().strip()
+        if text_lower.startswith("correct"):
+            correct += 1
+            print(f"    ✅ {zolai}: {english}")
+        else:
+            incorrect += 1
+            # Extract suggested correction
+            if ":" in text:
+                suggested = text.split(":", 1)[1].strip()
+            else:
+                suggested = text
+            corrections.append({
+                "id": entry_id,
+                "zolai": zolai,
+                "our_english": english,
+                "gemini_suggestion": suggested,
+                "frequency": freq,
+            })
+            print(
+                f"    ❌ {zolai}: {english} "
+                f"→ suggested: {suggested}"
+            )
+
+    metrics = {
+        "total": len(rows),
+        "correct": correct,
+        "incorrect": incorrect,
+        "corrections": corrections[:10],
+    }
+    _log_run(
+        "gemini-3-flash",
+        "verify_accuracy",
+        len(rows),
+        metrics,
     )
-    print("   Gemini-suggested entries ready for review")
-    print(f"\n   Completed in {elapsed:.1f}s")
-    print("\n=== PIPELINE COMPLETE ===")
-    print(
-        "Next: Human reviews pending entries, "
-        "approves/rejects, database updated"
+    return {
+        "mode": "verify_accuracy",
+        "total": len(rows),
+        "correct": correct,
+        "incorrect": incorrect,
+        "corrections": corrections,
+    }
+
+
+# ── Mode 3: Identify Unknown Words ────────────────────
+async def _identify_unknowns(
+    client, limit: int = 30
+) -> dict:
+    """Find entries with bad English and ask Gemini."""
+    conn = _get_conn()
+    cur = conn.execute(
+        "SELECT id, zolai, english_clean "
+        "FROM dictionary "
+        "WHERE english_clean IS NOT NULL "
+        "AND LENGTH(zolai) > 2 "
+        "AND ("
+        "  english_clean LIKE '%[%' "
+        "  OR english_clean LIKE '%ref:%' "
+        "  OR english_clean LIKE '%verse%' "
+        "  OR LENGTH(english_clean) < 2 "
+        "  OR zolai = english_clean "
+        ") "
+        "ORDER BY RANDOM() LIMIT ?",
+        (limit,),
     )
+    rows = cur.fetchall()
+    conn.close()
+
+    if not rows:
+        return {
+            "mode": "identify_unknowns",
+            "total": 0,
+            "fixed": 0,
+        }
+
+    fixed = 0
+    fixes = []
+
+    for row in rows:
+        entry_id, zolai, english = row
+        prompt = (
+            "What does this Zolai word mean in English?\n"
+            f"Word: {zolai}\n"
+            "Context: This appears in Bible Zolai text.\n\n"
+            "Reply with ONLY the English translation."
+        )
+        text, _elapsed = await _call_gemini(
+            client, prompt
+        )
+        await asyncio.sleep(RATE_LIMIT)
+
+        if text.startswith("ERROR") or not text:
+            continue
+
+        # Clean the answer
+        gemini_en = text.strip().split("\n")[0].strip()
+        if (
+            gemini_en
+            and gemini_en.lower() != zolai.lower()
+            and len(gemini_en) > 1
+        ):
+            # Update DB
+            conn = _get_conn()
+            conn.execute(
+                "UPDATE dictionary "
+                "SET english_clean = ?, updated_at = "
+                "datetime('now') "
+                "WHERE id = ?",
+                (gemini_en, entry_id),
+            )
+            conn.commit()
+            conn.close()
+            fixed += 1
+            fixes.append({
+                "zolai": zolai,
+                "old_english": english,
+                "new_english": gemini_en,
+            })
+            print(
+                f"    ✅ {zolai}: {english} "
+                f"→ {gemini_en}"
+            )
+
+    metrics = {
+        "total": len(rows),
+        "fixed": fixed,
+        "fixes": fixes[:10],
+    }
+    _log_run(
+        "gemini-3-flash",
+        "identify_unknowns",
+        fixed,
+        metrics,
+    )
+    return {
+        "mode": "identify_unknowns",
+        "total": len(rows),
+        "fixed": fixed,
+        "fixes": fixes,
+    }
+
+
+# ── Main ───────────────────────────────────────────────
+def main() -> None:
+    """Run data enrichment pipeline."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Gemini Data Enrichment Pipeline"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["myanmar", "verify", "unknowns", "all"],
+        default="all",
+        help="Enrichment mode",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=50,
+        help="Max entries per mode",
+    )
+    args = parser.parse_args()
+
+    start = time.time()
+    print("=" * 60)
+    print("  GEMINI DATA ENRICHMENT PIPELINE")
+    print("=" * 60)
+    print(f"  DB: {DB_PATH}")
+    print(f"  Mode: {args.mode}")
+    print(f"  Limit: {args.limit} per mode")
+    print("=" * 60)
+
+    client = get_gemini_client()
+
+    # Persistent event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    if args.mode in ("myanmar", "all"):
+        print("\n── Mode 1: Fill Myanmar Translations ──")
+        r = loop.run_until_complete(
+            _fill_myanmar(client, args.limit)
+        )
+        print(
+            f"  Updated: {r['updated']}/{r['total']}"
+        )
+
+    if args.mode in ("verify", "all"):
+        print("\n── Mode 2: Verify Dictionary Accuracy ──")
+        r = loop.run_until_complete(
+            _verify_accuracy(client, args.limit)
+        )
+        print(
+            f"  Correct: {r['correct']}/{r['total']}"
+        )
+        print(f"  Incorrect: {r['incorrect']}")
+        if r.get("corrections"):
+            print("  Top corrections:")
+            for c in r["corrections"][:5]:
+                print(
+                    f"    {c['zolai']}: "
+                    f"{c['our_english']} → "
+                    f"{c['gemini_suggestion']}"
+                )
+
+    if args.mode in ("unknowns", "all"):
+        print("\n── Mode 3: Identify Unknown Words ──")
+        r = loop.run_until_complete(
+            _identify_unknowns(client, args.limit)
+        )
+        print(f"  Fixed: {r['fixed']}/{r['total']}")
+
+    elapsed = time.time() - start
+    print(f"\n{'=' * 60}")
+    print("  ENRICHMENT COMPLETE")
+    print(f"  Time: {elapsed:.1f}s")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
