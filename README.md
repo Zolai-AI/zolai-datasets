@@ -22,6 +22,11 @@ Build scripts and pointers for Zolai datasets. The heavy corpora live on
 ## Principles
 - Corpora/datasets mirrored, never committed.
 - Tokens from `.env` only.
+- We credit the **source materials** used to build the Zolai learning system: source
+  corpora (Bible translations, TongDot/TongSan dictionaries, web-scraped corpus) are
+  processed into our own cleaned, ZVS-2018-aligned database at `data/zolai.db` (SQLite WAL,
+  ~1.2GB, 72 tables, ~3.1M rows). See `data/CREDITS.md` for full attribution. We do NOT
+  list third-party dataset repositories as sources.
 
 ---
 
