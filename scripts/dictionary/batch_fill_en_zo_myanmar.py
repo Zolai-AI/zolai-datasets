@@ -133,7 +133,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
     await client.init()
 
     progress = load_progress()
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
     batch_num = progress["batches_run"]
