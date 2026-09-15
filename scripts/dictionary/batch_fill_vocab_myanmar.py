@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch Myanmar translation filler for zolai_vocabulary table.
+Batch Myanmar translation filler for vocabulary table.
 Cross-references dictionary table first, then uses Gemini for remaining.
 
 Features:
@@ -59,18 +59,18 @@ def save_progress(state: dict):
 def cross_fill_from_dictionary(conn: sqlite3.Connection) -> int:
     """Fill vocabulary Myanmar from dictionary table where possible."""
     cursor = conn.execute("""
-        UPDATE zolai_vocabulary
+        UPDATE vocabulary
         SET myanmar = (
             SELECT d.myanmar FROM dictionary d
-            WHERE d.zolai = zolai_vocabulary.zolai
+            WHERE d.zolai = vocabulary.headword
             AND d.myanmar IS NOT NULL AND d.myanmar != ''
             AND d.is_deleted = 0
             LIMIT 1
         )
-        WHERE (zolai_vocabulary.myanmar IS NULL OR zolai_vocabulary.myanmar = '')
+        WHERE (vocabulary.myanmar IS NULL OR vocabulary.myanmar = '')
         AND EXISTS (
             SELECT 1 FROM dictionary d
-            WHERE d.zolai = zolai_vocabulary.zolai
+            WHERE d.zolai = vocabulary.headword
             AND d.myanmar IS NOT NULL AND d.myanmar != ''
             AND d.is_deleted = 0
         )
@@ -81,15 +81,15 @@ def cross_fill_from_dictionary(conn: sqlite3.Connection) -> int:
 
 def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> List[Dict]:
     cursor = conn.execute("""
-        SELECT v.id, v.zolai, v.english, v.pos
-        FROM zolai_vocabulary v
+        SELECT v.id, v.headword, v.english, NULL as pos
+        FROM vocabulary v
         WHERE (v.myanmar IS NULL OR v.myanmar = '')
-        AND v.zolai IS NOT NULL AND v.zolai != ''
+        AND v.headword IS NOT NULL AND v.headword != ''
         AND v.english IS NOT NULL AND v.english != ''
-        ORDER BY v.frequency_corpus DESC, RANDOM()
+        ORDER BY v.frequency DESC, RANDOM()
         LIMIT ?
     """, (limit,))
-    return [{"id": r["id"], "zolai": r["zolai"], "english": r["english"],
+    return [{"id": r["id"], "zolai": r["headword"], "english": r["english"],
              "pos": r["pos"] or ""} for r in cursor]
 
 
@@ -130,13 +130,13 @@ def log_audit(conn: sqlite3.Connection, word: str, old_val: str, new_val: str, r
     conn.execute(
         """INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value, changed_at, reason)
            VALUES (?, 0, ?, ?, ?, ?, ?)""",
-        ("zolai_vocabulary", "myanmar", old_val, new_val, now, reason)
+        ("vocabulary", "myanmar", old_val, new_val, now, reason)
     )
 
 
 async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
     # Phase 1: Cross-fill from dictionary (free, instant)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
     cross_filled = cross_fill_from_dictionary(conn)
     print(f"✅ Cross-filled {cross_filled} entries from dictionary table")
     conn.close()
@@ -147,7 +147,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
 
     progress = load_progress()
     progress["cross_filled"] = progress.get("cross_filled", 0) + cross_filled
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
     batch_num = progress["batches_run"]
@@ -178,7 +178,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
                 zolai = entry["zolai"]
                 english = entry["english"]
 
-                row = c.execute("SELECT myanmar FROM zolai_vocabulary WHERE id = ?", (entry["id"],)).fetchone()
+                row = c.execute("SELECT myanmar FROM vocabulary WHERE id = ?", (entry["id"],)).fetchone()
                 if row and row[0]:
                     bs += 1
                     continue
@@ -190,7 +190,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
                 if result["translation"]:
                     old_val = row[0] if row else ""
                     c.execute("""
-                        UPDATE zolai_vocabulary
+                        UPDATE vocabulary
                         SET myanmar = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE id = ? AND (myanmar IS NULL OR myanmar = '')
                     """, (result["translation"], entry["id"]))
@@ -228,7 +228,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
 
 async def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Batch fill Myanmar for zolai_vocabulary")
+    parser = argparse.ArgumentParser(description="Batch fill Myanmar for vocabulary")
     parser.add_argument("--limit", type=int, default=BATCH_SIZE)
     parser.add_argument("--max-batches", type=int, default=0)
     args = parser.parse_args()
