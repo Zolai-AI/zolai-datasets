@@ -102,14 +102,14 @@ def _fetch_words(
                 words.append((w, "dictionary", rid))
                 seen.add(w)
 
-    if source in ("vocab", "all"):
+    if source in ("vocabulary", "all"):
         cur = conn.execute(
-            "SELECT DISTINCT headword, id FROM vocab;"
+            "SELECT DISTINCT headword, id FROM vocabulary;"
         )
         for word, rid in cur.fetchall():
             w = (word or "").strip()
             if w and w not in seen:
-                words.append((w, "vocab", rid))
+                words.append((w, "vocabulary", rid))
                 seen.add(w)
 
     return words
@@ -150,7 +150,7 @@ def segment_words(
     Args:
         db_path: Path to SQLite database.
         engine: Segmentation engine ("rule" or "crf").
-        source: Word source ("dictionary", "vocab", "all").
+        source: Word source ("dictionary", "vocabulary", "all").
         limit: Max words to process (0 = unlimited).
         dry_run: If True, do not write to DB.
 
@@ -289,7 +289,7 @@ def main() -> None:
         help="Segmentation engine (default: rule)",
     )
     parser.add_argument(
-        "--source", choices=["dictionary", "vocab", "all"],
+        "--source", choices=["dictionary", "vocabulary", "all"],
         default="dictionary",
         help="Word source (default: dictionary)",
     )
