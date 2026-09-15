@@ -133,7 +133,7 @@ class ProficiencyTest:
             options = [correct] + distractors
             random.shuffle(options)
             questions.append({
-                "type": "vocab",
+                "type": "vocabulary",
                 "question": f"What does the Zolai word '{zolai}' mean in English?",
                 "options": options,
                 "answer": options.index(correct),
@@ -344,18 +344,18 @@ class ProficiencyTest:
     def generate_test(self, level: str, count: int) -> dict:
         """Generate test for a level with 50+ questions per level."""
         levels = {
-            "A1": {"vocab": 15, "translate_zo_en": 8, "translate_en_zo": 5, "grammar": 3, "bible": 5, "negation": 3},
-            "A2": {"vocab": 12, "translate_zo_en": 10, "translate_en_zo": 8, "grammar": 5, "bible": 8, "negation": 5},
-            "B1": {"vocab": 10, "translate_zo_en": 12, "translate_en_zo": 10, "grammar": 8, "bible": 10, "negation": 8},
-            "B2": {"vocab": 8, "translate_zo_en": 14, "translate_en_zo": 12, "grammar": 10, "bible": 12, "negation": 10},
-            "C1": {"vocab": 6, "translate_zo_en": 15, "translate_en_zo": 14, "grammar": 12, "bible": 14, "negation": 12},
-            "C2": {"vocab": 5, "translate_zo_en": 15, "translate_en_zo": 15, "grammar": 14, "bible": 15, "negation": 14},
+            "A1": {"vocabulary": 15, "translate_zo_en": 8, "translate_en_zo": 5, "grammar": 3, "bible": 5, "negation": 3},
+            "A2": {"vocabulary": 12, "translate_zo_en": 10, "translate_en_zo": 8, "grammar": 5, "bible": 8, "negation": 5},
+            "B1": {"vocabulary": 10, "translate_zo_en": 12, "translate_en_zo": 10, "grammar": 8, "bible": 10, "negation": 8},
+            "B2": {"vocabulary": 8, "translate_zo_en": 14, "translate_en_zo": 12, "grammar": 10, "bible": 12, "negation": 10},
+            "C1": {"vocabulary": 6, "translate_zo_en": 15, "translate_en_zo": 14, "grammar": 12, "bible": 14, "negation": 12},
+            "C2": {"vocabulary": 5, "translate_zo_en": 15, "translate_en_zo": 15, "grammar": 14, "bible": 15, "negation": 14},
         }
 
         config = levels.get(level.upper(), levels["A1"])
 
         all_q = []
-        all_q.extend(self.vocab_questions(config["vocab"]))
+        all_q.extend(self.vocab_questions(config["vocabulary"]))
         all_q.extend(self.sentence_questions(config["translate_zo_en"]))
         all_q.extend(self.translate_en_zo_questions(config["translate_en_zo"]))
         all_q.extend(self.grammar_questions(config["grammar"]))

@@ -136,7 +136,7 @@ def build_lesson_outline(sinna: dict) -> dict:
     for lesson in lessons[:10]:  # Top 10 for summary
         outline["lesson_topics"].append({
             "lesson": lesson.get("lesson_number", 0),
-            "vocab_count": len(lesson.get("vocab", [])),
+            "vocab_count": len(lesson.get("vocabulary", [])),
             "sentences_count": len(lesson.get("sentences", []))
         })
     

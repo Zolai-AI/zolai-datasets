@@ -2182,7 +2182,7 @@ Stats:
     # Export mode
     parser.add_argument("--export", action="store_true", help="Export training datasets")
     parser.add_argument("--type", type=str, default="translation",
-                        choices=["translation", "grammar", "vocab", "qa"],
+                        choices=["translation", "grammar", "vocabulary", "qa"],
                         help="Export type")
 
     # Search mode
@@ -2272,7 +2272,7 @@ Stats:
             path = engine.exporter.export_translation(book)
         elif args.type == "grammar":
             path = engine.exporter.export_grammar(book)
-        elif args.type == "vocab":
+        elif args.type == "vocabulary":
             path = engine.exporter.export_vocab(book)
         elif args.type == "qa":
             path = engine.exporter.export_qa(book)
@@ -2360,7 +2360,7 @@ def load_vocab_from_db() -> list[dict]:
     c = conn.cursor()
     c.execute("""
         SELECT headword, english, frequency, examples, books
-        FROM vocab
+        FROM vocabulary
         WHERE headword IS NOT NULL AND headword != ''
     """)
     rows = c.fetchall()

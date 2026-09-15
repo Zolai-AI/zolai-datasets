@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 6: Song Collections — parse all Zolai AI online song collections into zolai_songs.
+"""Phase 6: Song Collections — parse all Zolai AI online song collections INTO songs.
 
 Idempotent: skips songs where (title, collection) already exists in DB.
 """
@@ -67,7 +67,7 @@ def _extract_number_from_dir(dirname: str, prefix: str) -> int:
 
 def _load_existing(cur: sqlite3.Cursor) -> set[tuple[str, str]]:
     """Load all (title, collection) pairs already in DB."""
-    cur.execute("SELECT title, collection FROM zolai_songs")
+    cur.execute("SELECT title, collection FROM songs")
     return {(row[0], row[1]) for row in cur.fetchall()}
 
 
@@ -85,7 +85,7 @@ def _insert_if_new(
     if key in seen:
         return False
     cur.execute(
-        """INSERT INTO zolai_songs
+        """INSERT INTO songs
            (collection, song_number, title, text, source)
            VALUES (?, ?, ?, ?, ?)""",
         (collection, num, title, text, source),
@@ -127,7 +127,7 @@ def integrate_tedim_labu(
 def integrate_khanlawnna_late(
     conn: sqlite3.Connection, base_dir: str, seen: set[tuple[str, str]]
 ) -> int:
-    """Parse Khanlawnna Late .md files into zolai_songs."""
+    """Parse Khanlawnna Late .md files INTO songs."""
     prefix = "literature_khanlawnna_late_"
     pattern = os.path.join(base_dir, prefix + "*")
     dirs = sorted(glob.glob(pattern))
@@ -158,7 +158,7 @@ def integrate_khanlawnna_late(
 def integrate_zomi_worship(
     conn: sqlite3.Connection, base_dir: str, seen: set[tuple[str, str]]
 ) -> int:
-    """Parse Zomi Worship Collective .md files into zolai_songs."""
+    """Parse Zomi Worship Collective .md files INTO songs."""
     prefix = "literature_zomi_worship_collective_"
     pattern = os.path.join(base_dir, prefix + "*")
     dirs = sorted(glob.glob(pattern))
@@ -188,7 +188,7 @@ def integrate_zomi_worship(
 def integrate_gospel(
     conn: sqlite3.Connection, base_dir: str, seen: set[tuple[str, str]]
 ) -> int:
-    """Parse Gospel .md files into zolai_songs."""
+    """Parse Gospel .md files INTO songs."""
     prefix = "literature_gospel_"
     pattern = os.path.join(base_dir, prefix + "*")
     dirs = sorted(glob.glob(pattern))
@@ -222,7 +222,7 @@ def integrate(db_path: str, songs_dir: str) -> None:
     conn.execute("PRAGMA busy_timeout=30000")
     cur = conn.cursor()
 
-    before = cur.execute("SELECT count(*) FROM zolai_songs").fetchone()[0]
+    before = cur.execute("SELECT count(*) FROM songs").fetchone()[0]
     seen = _load_existing(cur)
     print(f"Existing songs: {before} ({len(seen)} unique title+collection keys)")
 
@@ -242,14 +242,14 @@ def integrate(db_path: str, songs_dir: str) -> None:
                 """INSERT INTO data_audit_log
                    (table_name, row_id, field, old_value, new_value,
                     changed_at, reason)
-                   VALUES ('zolai_songs', 0, 'integrate_online', '',
+                   VALUES ('songs', 0, 'integrate_online', '',
                            ?, datetime('now'), ?)""",
                 ("", f"{coll}: {cnt} songs inserted"),
             )
     conn.commit()
 
     total = sum(c for _, c in counts)
-    after = cur.execute("SELECT count(*) FROM zolai_songs").fetchone()[0]
+    after = cur.execute("SELECT count(*) FROM songs").fetchone()[0]
     print("\nSong integration summary:")
     for coll, cnt in counts:
         print(f"  {coll}: {cnt} new")

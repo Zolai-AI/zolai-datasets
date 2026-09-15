@@ -82,7 +82,7 @@ async def verify_dictionary(client: ZolaiGeminiOpenAIClient, limit: int = 30):
     c.execute("""
         SELECT d.id, d.zolai, d.english_clean, v.frequency
         FROM dictionary d
-        JOIN vocab v ON v.headword = d.zolai
+        JOIN vocabulary v ON v.headword = d.zolai
         WHERE d.source = 'bible_zo_en'
         AND d.zolai != d.english_clean
         AND v.frequency > 100

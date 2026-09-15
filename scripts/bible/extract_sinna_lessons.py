@@ -33,7 +33,7 @@ def parse_lessons(text: str) -> list:
         lesson = {
             "lesson_number": lesson_num,
             "title": f"Sinna {lesson_num}",
-            "vocab": [],
+            "vocabulary": [],
             "sentences": [],
             "grammar_point": "",
             "raw_content": content[:2000]  # Truncate for storage
@@ -44,7 +44,7 @@ def parse_lessons(text: str) -> list:
         vocab_matches = re.findall(vocab_pattern, content)
         for zo, en in vocab_matches:
             if len(zo) < 20 and len(en) < 50:  # Sanity check
-                lesson["vocab"].append({"zo": zo.strip(), "en": en.strip()})
+                lesson["vocabulary"].append({"zo": zo.strip(), "en": en.strip()})
         
         # Extract sentences (look for longer lines)
         lines = content.split('\n')

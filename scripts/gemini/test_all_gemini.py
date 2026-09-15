@@ -41,7 +41,7 @@ def fetch_test_cases():
     
     c.execute("""
         SELECT d.zolai, d.english_clean, v.frequency
-        FROM dictionary d JOIN vocab v ON v.headword = d.zolai
+        FROM dictionary d JOIN vocabulary v ON v.headword = d.zolai
         WHERE d.source = 'bible_zo_en' AND d.zolai != d.english_clean AND v.frequency > 100
         ORDER BY v.frequency DESC LIMIT 6
     """)

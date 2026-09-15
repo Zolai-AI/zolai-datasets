@@ -102,7 +102,7 @@ async def run(args: argparse.Namespace) -> None:
 
     polysyllabic = conn.execute(
         "SELECT v.headword, v.english, v.frequency "
-        "FROM vocab v "
+        "FROM vocabulary v "
         "INNER JOIN dictionary d ON d.zolai = v.headword "
         "WHERE LENGTH(v.headword) >= 14 "
         "AND v.headword NOT LIKE '% %' "

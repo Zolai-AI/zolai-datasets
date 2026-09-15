@@ -93,7 +93,7 @@ async def run(args: argparse.Namespace) -> None:
     ).fetchall()
 
     low_freq = conn.execute(
-        "SELECT headword, english FROM vocab "
+        "SELECT headword, english FROM vocabulary "
         "WHERE frequency < 5 AND frequency > 0 "
         "ORDER BY RANDOM() LIMIT ?",
         (args.limit // 2,),

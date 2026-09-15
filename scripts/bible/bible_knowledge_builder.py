@@ -1210,7 +1210,7 @@ class GrammarBuilder:
             lesson: dict = {
                 "lesson_number": lesson_num,
                 "title": f"Sinna {lesson_num}",
-                "vocab": [],
+                "vocabulary": [],
                 "sentences": [],
                 "grammar_point": "",
             }
@@ -1218,7 +1218,7 @@ class GrammarBuilder:
             vocab_pattern = r"(\w+)\s*[-\u2013\u2014]\s*([A-Za-z][\w\s]*?)(?:\n|$)"
             for zo, en in re.findall(vocab_pattern, content):
                 if len(zo) < 20 and len(en) < 50:
-                    lesson["vocab"].append({
+                    lesson["vocabulary"].append({
                         "zo": zo.strip(), "en": en.strip(),
                     })
 

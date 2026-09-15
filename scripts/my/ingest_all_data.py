@@ -789,7 +789,7 @@ class DataIngester:
                                     SOURCE_FILES["phrase_context_map"],
                                     phrase_inserts)
 
-        self._audit_bulk("bible_context", total_inserted,
+        self._audit_bulk("bible_analysis", total_inserted,
                          "bible_context_ingestion_v2")
         print(f"\n  TOTAL bible context rows: {total_inserted:,}")
 
@@ -1018,7 +1018,7 @@ class DataIngester:
                     vocab_map[w] = rec
 
             cur.execute(
-                "SELECT id, headword, examples FROM zolai_vocabulary "
+                "SELECT id, headword, examples FROM vocabulary "
                 "WHERE examples = '[]' OR examples IS NULL"
             )
             empty_ex = cur.fetchall()
@@ -1031,7 +1031,7 @@ class DataIngester:
                 if ex_list:
                     ex_json = safe_json(ex_list[:5])
                     ex_updates.append((ex_json, row_id))
-                    self._audit("zolai_vocabulary", row_id, "examples",
+                    self._audit("vocabulary", row_id, "examples",
                                 "[]", truncate(ex_json), "vocab_from_bible")
                     total_updated += 1
             if ex_updates and not self.dry_run:
@@ -1057,7 +1057,7 @@ class DataIngester:
                     freq_map[w] = rec
 
             cur.execute(
-                "SELECT id, headword, frequency FROM zolai_vocabulary "
+                "SELECT id, headword, frequency FROM vocabulary "
                 "WHERE frequency = 0 OR frequency IS NULL"
             )
             zero_freq = cur.fetchall()
@@ -1069,7 +1069,7 @@ class DataIngester:
                 new_freq = rec.get("frequency", 0)
                 if new_freq > 0:
                     freq_updates.append((new_freq, row_id))
-                    self._audit("zolai_vocabulary", row_id, "frequency",
+                    self._audit("vocabulary", row_id, "frequency",
                                 0, new_freq, "all_words_frequency")
                     total_updated += 1
             if freq_updates and not self.dry_run:
@@ -1084,7 +1084,7 @@ class DataIngester:
                                     SOURCE_FILES["all_words_frequency"],
                                     len(freq_words))
 
-        self._audit_bulk("zolai_vocabulary", total_updated, "zolai_vocabulary_enrichment_v2")
+        self._audit_bulk("vocabulary", total_updated, "zolai_vocabulary_enrichment_v2")
         print(f"\n  TOTAL zolai_vocabulary enrichments: {total_updated:,}")
 
     # ===================================================================

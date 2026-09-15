@@ -88,7 +88,7 @@ class DataIngester:
             "word_alignments",
             "word_collocations",
             "word_usage",
-            "vocab",
+            "vocabulary",
             "training_exercises",
         ]
         altered: list[str] = []
@@ -289,7 +289,7 @@ class DataIngester:
         )
         zo_my = {r[0].lower(): r[1] for r in cur.fetchall()}
 
-        cur.execute("SELECT id, headword FROM zolai_vocabulary WHERE myanmar IS NULL OR myanmar = ''")
+        cur.execute("SELECT id, headword FROM vocabulary WHERE myanmar IS NULL OR myanmar = ''")
         rows = cur.fetchall()
         batch: list[tuple[str, int]] = []
         for row_id, hw in rows:
@@ -300,7 +300,7 @@ class DataIngester:
             cur.executemany("UPDATE zolai_vocabulary SET myanmar = ? WHERE id = ?", batch)
             self.conn.commit()
 
-        self.stats["zolai_vocabulary"] = {"updated_myanmar": len(batch)}
+        self.stats["vocabulary"] = {"updated_myanmar": len(batch)}
         print(f"  Updated: {len(batch):,}")
 
     def ingest_provenance(self) -> None:

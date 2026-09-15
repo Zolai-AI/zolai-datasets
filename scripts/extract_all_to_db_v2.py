@@ -384,8 +384,8 @@ def main():
     
     # Final stats
     print("\n=== Final Database Stats ===")
-    tables = ['zolai_vocabulary', 'zolai_grammar_patterns', 'zolai_bible_analysis', 
-              'zolai_proverbs_idioms', 'zolai_tone_sandhi']
+    tables = ['vocabulary', 'grammar_patterns', 'bible_analysis', 
+              'proverbs', 'tone_sandhi']
     for t in tables:
         count = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
         print(f"  {t}: {count}")

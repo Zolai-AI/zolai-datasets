@@ -34,7 +34,7 @@ def validate(db_path: str) -> bool:
     # 1. Row counts
     tables = [
         "bible_verses", "dictionary", "articles",
-        "zolai_songs", "translations",
+        "songs", "translations",
     ]
     print("=== Row Counts ===")
     for t in tables:
@@ -127,7 +127,7 @@ def validate(db_path: str) -> bool:
     print("\n=== Zolai Songs (per collection) ===")
     try:
         cur.execute(
-            "SELECT collection, count(*) FROM zolai_songs GROUP BY collection"
+            "SELECT collection, count(*) FROM songs GROUP BY collection"
         )
         collection_counts = {row[0]: row[1] for row in cur.fetchall()}
         total_songs = 0
