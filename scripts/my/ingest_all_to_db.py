@@ -278,8 +278,8 @@ class DataIngester:
         print(f"  Updated: {len(batch):,}")
 
     def ingest_vocab_myanmar(self) -> None:
-        """Enrich vocab.myanmar from dictionary."""
-        print("\n--- dictionary.myanmar → vocab.myanmar ---")
+        """Enrich zolai_vocabulary.myanmar from dictionary."""
+        print("\n--- dictionary.myanmar → zolai_vocabulary.myanmar ---")
         cur = self.conn.cursor()
 
         # Build zolai -> myanmar from dictionary
@@ -289,7 +289,7 @@ class DataIngester:
         )
         zo_my = {r[0].lower(): r[1] for r in cur.fetchall()}
 
-        cur.execute("SELECT id, headword FROM vocab WHERE myanmar IS NULL OR myanmar = ''")
+        cur.execute("SELECT id, headword FROM zolai_vocabulary WHERE myanmar IS NULL OR myanmar = ''")
         rows = cur.fetchall()
         batch: list[tuple[str, int]] = []
         for row_id, hw in rows:
@@ -297,10 +297,10 @@ class DataIngester:
             if my:
                 batch.append((my, row_id))
         if batch:
-            cur.executemany("UPDATE vocab SET myanmar = ? WHERE id = ?", batch)
+            cur.executemany("UPDATE zolai_vocabulary SET myanmar = ? WHERE id = ?", batch)
             self.conn.commit()
 
-        self.stats["vocab"] = {"updated_myanmar": len(batch)}
+        self.stats["zolai_vocabulary"] = {"updated_myanmar": len(batch)}
         print(f"  Updated: {len(batch):,}")
 
     def ingest_provenance(self) -> None:

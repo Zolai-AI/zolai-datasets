@@ -544,8 +544,8 @@ class DataIngester:
         cur = self.conn.cursor()
         total_inserted = 0
 
-        # 2a. Per-book analysis → bible_context (analysis_type="book")
-        print("\n  [2a] per_book_analysis.jsonl → bible_context")
+        # 2a. Per-book analysis → zolai_bible_analysis (analysis_type="book")
+        print("\n  [2a] per_book_analysis.jsonl → zolai_bible_analysis")
         book_data = load_jsonl(SOURCE_FILES["per_book_analysis"]["path"])
         if book_data:
             rows = []
@@ -555,19 +555,19 @@ class DataIngester:
                 rows.append((book, None, "book", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO bible_context (book, chapter, analysis_type, data) "
+                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["bible_context_book"] = {"inserted": len(rows)}
+            self.stats["zolai_bible_analysis_book"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("per_book_analysis",
                                     SOURCE_FILES["per_book_analysis"], len(rows))
 
-        # 2b. Per-chapter analysis → bible_context (analysis_type="chapter")
-        print("\n  [2b] per_chapter_analysis.jsonl → bible_context")
+        # 2b. Per-chapter analysis → zolai_bible_analysis (analysis_type="chapter")
+        print("\n  [2b] per_chapter_analysis.jsonl → zolai_bible_analysis")
         chap_data = load_jsonl(SOURCE_FILES["per_chapter_analysis"]["path"])
         if chap_data:
             rows = []
@@ -582,20 +582,20 @@ class DataIngester:
                 rows.append((book, chap_num, "chapter", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO bible_context (book, chapter, analysis_type, data) "
+                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["bible_context_chapter"] = {"inserted": len(rows)}
+            self.stats["zolai_bible_analysis_chapter"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("per_chapter_analysis",
                                     SOURCE_FILES["per_chapter_analysis"],
                                     len(rows))
 
-        # 2c. Topic clusters → bible_context (analysis_type="topic")
-        print("\n  [2c] topic_clusters.jsonl → bible_context")
+        # 2c. Topic clusters → zolai_bible_analysis (analysis_type="topic")
+        print("\n  [2c] topic_clusters.jsonl → zolai_bible_analysis")
         topics = load_jsonl(SOURCE_FILES["topic_clusters"]["path"])
         if topics:
             rows = []
@@ -605,13 +605,13 @@ class DataIngester:
                 rows.append((topic, None, "topic", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO bible_context (book, chapter, analysis_type, data) "
+                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["bible_context_topic"] = {"inserted": len(rows)}
+            self.stats["zolai_bible_analysis_topic"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("topic_clusters",
                                     SOURCE_FILES["topic_clusters"], len(rows))
@@ -999,16 +999,16 @@ class DataIngester:
         print(f"\n  TOTAL EN→MY rows: {total_inserted:,}")
 
     # ===================================================================
-    # 5. VOCAB ENRICHMENT
+    # 5. ZOLAI_VOCABULARY ENRICHMENT
     # ===================================================================
     def ingest_vocab_enrichment(self) -> None:
-        """Enrich vocab table from Bible vocab files."""
-        print("\n=== 5. VOCAB ENRICHMENT ===")
+        """Enrich zolai_vocabulary table from Bible vocab files."""
+        print("\n=== 5. ZOLAI_VOCABULARY ENRICHMENT ===")
         cur = self.conn.cursor()
         total_updated = 0
 
         # 5a. vocab_from_bible → fill missing examples
-        print("\n  [5a] vocab_from_bible.jsonl → vocab.examples")
+        print("\n  [5a] vocab_from_bible.jsonl → zolai_vocabulary.examples")
         vocab_bible = load_jsonl(SOURCE_FILES["vocab_from_bible"]["path"])
         if vocab_bible:
             vocab_map: dict[str, dict] = {}
@@ -1018,7 +1018,7 @@ class DataIngester:
                     vocab_map[w] = rec
 
             cur.execute(
-                "SELECT id, headword, examples FROM vocab "
+                "SELECT id, headword, examples FROM zolai_vocabulary "
                 "WHERE examples = '[]' OR examples IS NULL"
             )
             empty_ex = cur.fetchall()
@@ -1031,23 +1031,23 @@ class DataIngester:
                 if ex_list:
                     ex_json = safe_json(ex_list[:5])
                     ex_updates.append((ex_json, row_id))
-                    self._audit("vocab", row_id, "examples",
+                    self._audit("zolai_vocabulary", row_id, "examples",
                                 "[]", truncate(ex_json), "vocab_from_bible")
                     total_updated += 1
             if ex_updates and not self.dry_run:
                 cur.executemany(
-                    "UPDATE vocab SET examples = ? WHERE id = ?",
+                    "UPDATE zolai_vocabulary SET examples = ? WHERE id = ?",
                     ex_updates,
                 )
                 self.conn.commit()
-            self.stats["vocab_bible"] = {"examples_filled": len(ex_updates)}
+            self.stats["zolai_vocabulary_bible"] = {"examples_filled": len(ex_updates)}
             print(f"    Examples filled: {len(ex_updates):,}")
             self._record_provenance("vocab_from_bible",
                                     SOURCE_FILES["vocab_from_bible"],
                                     len(vocab_bible))
 
         # 5b. ALL_WORDS_WITH_FREQUENCY → fill missing frequency
-        print("\n  [5b] ALL_WORDS_WITH_FREQUENCY.jsonl → vocab.frequency")
+        print("\n  [5b] ALL_WORDS_WITH_FREQUENCY.jsonl → zolai_vocabulary.frequency")
         freq_words = load_jsonl(SOURCE_FILES["all_words_frequency"]["path"])
         if freq_words:
             freq_map: dict[str, dict] = {}
@@ -1057,7 +1057,7 @@ class DataIngester:
                     freq_map[w] = rec
 
             cur.execute(
-                "SELECT id, headword, frequency FROM vocab "
+                "SELECT id, headword, frequency FROM zolai_vocabulary "
                 "WHERE frequency = 0 OR frequency IS NULL"
             )
             zero_freq = cur.fetchall()
@@ -1069,23 +1069,23 @@ class DataIngester:
                 new_freq = rec.get("frequency", 0)
                 if new_freq > 0:
                     freq_updates.append((new_freq, row_id))
-                    self._audit("vocab", row_id, "frequency",
+                    self._audit("zolai_vocabulary", row_id, "frequency",
                                 0, new_freq, "all_words_frequency")
                     total_updated += 1
             if freq_updates and not self.dry_run:
                 cur.executemany(
-                    "UPDATE vocab SET frequency = ? WHERE id = ?",
+                    "UPDATE zolai_vocabulary SET frequency = ? WHERE id = ?",
                     freq_updates,
                 )
                 self.conn.commit()
-            self.stats["vocab_freq"] = {"frequency_filled": len(freq_updates)}
+            self.stats["zolai_vocabulary_freq"] = {"frequency_filled": len(freq_updates)}
             print(f"    Frequency filled: {len(freq_updates):,}")
             self._record_provenance("all_words_frequency",
                                     SOURCE_FILES["all_words_frequency"],
                                     len(freq_words))
 
-        self._audit_bulk("vocab", total_updated, "vocab_enrichment_v2")
-        print(f"\n  TOTAL vocab enrichments: {total_updated:,}")
+        self._audit_bulk("zolai_vocabulary", total_updated, "zolai_vocabulary_enrichment_v2")
+        print(f"\n  TOTAL zolai_vocabulary enrichments: {total_updated:,}")
 
     # ===================================================================
     # 6. PROVENANCE SUMMARY
