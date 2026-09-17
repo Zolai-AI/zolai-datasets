@@ -45,7 +45,7 @@ DEFAULT_BATCH_SIZE = 200
 DEFAULT_MAX_BATCHES = 0  # 0 = unlimited
 COMMIT_EVERY = 20
 PROGRESS_EVERY = 50
-DELAY_BETWEEN = 0.3
+DELAY_BETWEEN = 3.0
 
 # Graceful shutdown
 _shutdown = False
@@ -215,17 +215,23 @@ def cross_fill_vocabulary(conn: sqlite3.Connection) -> int:
 # ---------------------------------------------------------------------------
 async def translate_one(client: ZolaiGeminiOpenAIClient, prompt: str,
                         semaphore: asyncio.Semaphore) -> Dict:
-    """Translate a single word via Gemini, with concurrency limit."""
+    """Translate a single word via Gemini, with concurrency limit and 429 retry."""
     async with semaphore:
-        try:
-            result = await client.ask("gemini-3-flash", prompt, use_system_prompt=False)
-            myanmar = result.strip().strip('"').strip("'")
-            if validate_myanmar(myanmar):
-                return {"translation": myanmar, "confidence": 1.0}
-            return {"translation": None, "confidence": 0.0}
-        except Exception as e:
-            await asyncio.sleep(1)
-            return {"translation": None, "confidence": 0.0, "error": str(e)}
+        for attempt in range(3):
+            try:
+                result = await client.ask("gemini-3-flash", prompt, use_system_prompt=False)
+                myanmar = result.strip().strip('"').strip("'")
+                if validate_myanmar(myanmar):
+                    return {"translation": myanmar, "confidence": 1.0}
+                return {"translation": None, "confidence": 0.0}
+            except Exception as e:
+                if "429" in str(e):
+                    wait = 10 * (attempt + 1)
+                    print(f"  Rate limited, waiting {wait}s...")
+                    await asyncio.sleep(wait)
+                else:
+                    await asyncio.sleep(2)
+        return {"translation": None, "confidence": 0.0, "error": "max retries"}
 
 
 # ---------------------------------------------------------------------------
@@ -323,21 +329,24 @@ async def run_unified(limit: int = DEFAULT_BATCH_SIZE, max_batches: int = DEFAUL
                 print(f"  {TASKS[tt]['label']}: {len(entries)}")
             print(f"{'='*60}")
 
-            # Phase 3: Translate ALL entries concurrently via Gemini
-            all_prompts = []  # [(task_type, key, inputs, prompt)]
+            # Phase 3: Translate entries SEQUENTIALLY (Gemini rate limit ~10 RPM)
+            all_prompts = []
             for task_type, entries in all_tasks.items():
                 for key, inputs, prompt in entries:
                     all_prompts.append((task_type, key, inputs, prompt))
 
-            async def translate_with_context(item):
+            results = []
+            for idx, item in enumerate(all_prompts):
+                if _shutdown:
+                    break
                 task_type, key, inputs, prompt = item
                 result = await translate_one(client, prompt, semaphore)
-                return task_type, key, inputs, result
-
-            results = await asyncio.gather(
-                *[translate_with_context(item) for item in all_prompts],
-                return_exceptions=True
-            )
+                results.append((task_type, key, inputs, result))
+                # Progress indicator
+                if (idx + 1) % 10 == 0:
+                    print(f"  ... {idx+1}/{len(all_prompts)} translated")
+                # Rate limit delay
+                await asyncio.sleep(DELAY_BETWEEN)
 
             # Phase 4: Write results to DB sequentially
             batch_translated = {tt: 0 for tt in TASKS}
