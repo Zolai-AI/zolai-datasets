@@ -93,6 +93,7 @@ English: {english}
 Reply with ONLY the Myanmar translation (no explanation, no quotes).""",
         "input_fn": lambda row: {"zolai": row[0], "english": row[1] or ""},
         "update_key": lambda row: (row[0],),  # zolai
+        "update_args_fn": lambda myanmar, conf, key: (myanmar, f"batch(conf={conf:.2f})", *key),
         "audit_table": "dictionary",
     },
     "dict_en_zo": {
@@ -117,6 +118,7 @@ English: {english}{ref_note}
 Reply with ONLY the Myanmar translation (no explanation, no quotes).""",
         "input_fn": lambda row: {"english": row[1], "id": row[0]},
         "update_key": lambda row: (row[0],),  # id
+        "update_args_fn": lambda myanmar, conf, key: (myanmar, f"batch(conf={conf:.2f})", *key),
         "audit_table": "dictionary_en_zo",
     },
     "vocab": {
@@ -132,7 +134,7 @@ Reply with ONLY the Myanmar translation (no explanation, no quotes).""",
         """,
         "update": """
             UPDATE vocabulary
-            SET myanmar = ?, update_remarks = ?, updated_at = CURRENT_TIMESTAMP
+            SET myanmar = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND (myanmar IS NULL OR myanmar = '')
         """,
         "prompt_template": """Translate this Zolai (Tedim Chin) word to Myanmar/Burmese script.
@@ -143,6 +145,7 @@ English: {english}
 Reply with ONLY the Myanmar translation (no explanation, no quotes).""",
         "input_fn": lambda row: {"zolai": row[1], "english": row[2], "id": row[0]},
         "update_key": lambda row: (row[0],),  # id
+        "update_args_fn": lambda myanmar, conf, key: (myanmar, *key),
         "audit_table": "vocabulary",
     },
 }
@@ -348,19 +351,18 @@ async def run_unified(limit: int = DEFAULT_BATCH_SIZE, max_batches: int = DEFAUL
                 task = TASKS[task_type]
 
                 if translation.get("translation"):
-                    conn.execute(
-                        task["update"],
-                        (translation["translation"],
-                         f"batch(conf={translation['confidence']:.2f})",
-                         *key)
+                    args = task["update_args_fn"](
+                        translation["translation"],
+                        translation["confidence"],
+                        key,
                     )
-                    if conn.total_changes or True:  # always count
-                        batch_translated[task_type] += 1
-                        written += 1
-                        # Audit log
-                        log_audit(conn, task["audit_table"], str(key[0]),
-                                  "", translation["translation"],
-                                  f"batch_concurrent(conf={translation['confidence']:.2f})")
+                    conn.execute(task["update"], args)
+                    batch_translated[task_type] += 1
+                    written += 1
+                    # Audit log
+                    log_audit(conn, task["audit_table"], str(key[0]),
+                              "", translation["translation"],
+                              f"batch_concurrent(conf={translation['confidence']:.2f})")
                 else:
                     batch_failed[task_type] += 1
 
