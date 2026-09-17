@@ -29,12 +29,10 @@ PROGRESS_FILE = Path(__file__).parent / "progress_dict_en_zo.json"
 BATCH_SIZE = 500
 COMMIT_EVERY = 10
 PROGRESS_EVERY = 50
-DELAY_BETWEEN_CALLS = 1.0
+DELAY_BETWEEN_CALLS = 0.5
 
 ENSEMBLE_MODELS = [
     "gemini-3-flash",
-    "gemini-3-pro-plus",
-    "gemini-3-pro",
 ]
 
 _shutdown = False
