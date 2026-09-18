@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-09-18",
+  "archives": [
+    {
+      "name": "bible-parallel-en-zo",
+      "entries": 31102,
+      "status": "primary_corpus",
+      "license": "see CREDITS / permission-outreach"
+    },
+    {
+      "name": "dictionary-zo-en",
+      "entries": 93931,
+      "status": "primary",
+      "license": "RESTRICTED pending"
+    },
+    {
+      "name": "dictionary-en-zo",
+      "entries": 112220,
+      "status": "primary",
+      "license": "RESTRICTED pending"
+    },
+    {
+      "name": "trilingual-zo-en-my",
+      "entries": 7861,
+      "status": "secondary"
+    },
+    {
+      "name": "tongdot",
+      "entries": 5004,
+      "status": "secondary"
+    }
+  ],
+  "notes": "Counts from docs/CREDITS.md; not a byte-level archive checksum list."
+}

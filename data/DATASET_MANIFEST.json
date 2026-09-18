@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-09-18",
+  "project": "Zolai-AI",
+  "language": {
+    "code": "ctd",
+    "name": "Tedim Chin / Zolai",
+    "orthography": "ZVS 2018"
+  },
+  "published": {
+    "huggingface": [
+      {
+        "id": "Zolai-AI/zolai-datasets",
+        "url": "https://huggingface.co/datasets/Zolai-AI/zolai-datasets"
+      },
+      {
+        "id": "peterpausianlian/zolai-knowledge-vectors",
+        "url": "https://huggingface.co/datasets/peterpausianlian/zolai-knowledge-vectors",
+        "notes": "RAG embeddings"
+      },
+      {
+        "id": "peterpausianlian/zolai-language-corpus",
+        "url": "https://huggingface.co/datasets/peterpausianlian/zolai-language-corpus"
+      }
+    ],
+    "kaggle": [
+      {
+        "id": "peterpausianlian/zolai-llm-training-dataset",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-llm-training-dataset",
+        "size": "94MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-tedim-cleaned-master",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-tedim-cleaned-master",
+        "size": "120MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-master-data",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-master-data",
+        "size": "3.3MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-language-dataset-v2",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-language-dataset-v2",
+        "size": "3.3MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-hf-dataset",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-hf-dataset",
+        "size": "122MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-hf-advanced",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-hf-advanced",
+        "size": "67MB"
+      },
+      {
+        "id": "peterpausianlian/bible-datasets",
+        "url": "https://kaggle.com/datasets/peterpausianlian/bible-datasets",
+        "size": "72MB"
+      },
+      {
+        "id": "peterpausianlian/zolai-unified",
+        "url": "https://kaggle.com/datasets/peterpausianlian/zolai-unified",
+        "size": "343KB"
+      }
+    ]
+  },
+  "local_tracked": [
+    {
+      "path": "data/zolai.db",
+      "role": "sqlite_index",
+      "notes": "Primary local DB artifact when present"
+    }
+  ],
+  "attribution": "docs/CREDITS.md",
+  "license_inventory": "See org docs/governance/credits-license-inventory.md (RESTRICTED sources require permission)"
+}
