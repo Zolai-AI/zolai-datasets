@@ -26,6 +26,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+try:
+    from verse_counts import is_valid_ref
+except ModuleNotFoundError:  # loaded as a file (tests / ad-hoc harness)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from verse_counts import is_valid_ref
+
 # ── Shared Constants ─────────────────────────────────────────────────────────
 
 WORKSPACE = Path(__file__).resolve().parent.parent.parent.parent
@@ -177,16 +183,42 @@ class ParallelBuilder:
                   file=sys.stderr)
             return {"error": 1}
 
+        # Parse everything first and validate every ref against the KJV
+        # verse-count table before a single line is written: impossible refs
+        # (chapter-final verses re-labeled into the next chapter, e.g. GEN
+        # 2:31) must never reach parallel_corpus_v1.jsonl again.
+        books_found: set[str] = set()
+        parsed: list[list[dict]] = []
+        invalid: list[str] = []
+        for md_file in md_files:
+            book_code = self._extract_book_code(md_file.name)
+            books_found.add(book_code)
+            verses = self._parse_book(md_file, book_code)
+            invalid.extend(
+                f"{md_file.name}: {v['ref']}"
+                for v in verses
+                if not is_valid_ref(f"{v['book']} {v['chapter']}:{v['verse']}")
+            )
+            parsed.append(verses)
+
+        if invalid:
+            print(
+                f"ERROR: {len(invalid)} impossible verse ref(s) — refusing to "
+                f"write {output_path.name}",
+                file=sys.stderr,
+            )
+            for item in invalid[:20]:
+                print(f"  {item}", file=sys.stderr)
+            if len(invalid) > 20:
+                print(f"  ... and {len(invalid) - 20} more", file=sys.stderr)
+            return {"error": 1, "invalid_refs": len(invalid)}
+
         total_verses = 0
         total_complete = 0
         total_partial = 0
-        books_found: set[str] = set()
 
         with open(output_path, "w", encoding="utf-8") as out:
-            for md_file in md_files:
-                book_code = self._extract_book_code(md_file.name)
-                books_found.add(book_code)
-                verses = self._parse_book(md_file, book_code)
+            for verses in parsed:
                 for v in verses:
                     out.write(json.dumps(v, ensure_ascii=False) + "\n")
                     total_verses += 1
@@ -433,6 +465,8 @@ class ParallelBuilder:
         stats: dict[str, int] = {}
         try:
             s = self.build_from_markdown()
+            if s.get("error"):
+                return s  # verse-ref guard tripped — surface it, don't swallow
             stats.update(s)
         except Exception as exc:
             print(f"  ⚠ Markdown build skipped: {exc}")
@@ -1376,7 +1410,14 @@ def main() -> int:
     if args.all or args.parallel:
         print("\n═══ PARALLEL BUILDER ═══")
         pb = ParallelBuilder()
-        pb.build_all()
+        stats = pb.build_all()
+        if stats.get("error"):
+            print(
+                f"❌ Parallel build refused: {stats.get('invalid_refs', '?')} "
+                "impossible verse ref(s)",
+                file=sys.stderr,
+            )
+            return 1
 
     if args.all or args.vocabulary:
         print("\n═══ VOCABULARY BUILDER ═══")
