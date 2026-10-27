@@ -52,3 +52,8 @@ manifest version, RAG feed). See `README.md` > Connect.
 
 - Secrets come only from env/`.env`; `.env.example` has placeholders only.
 - Never hardcode API keys, HF tokens, or provider keys in code/docs/wiki/scripts.
+
+## Secret Hygiene (repo-specific)
+
+- Dataset JSONL/manifests and build scripts are tracked data: never embed API keys in translation-batch configs or manifests (`scripts/dictionary/batch_myanmar_translation.py` reads keys from env only, placeholders in `*.example`).
+- Canonical rules: workspace-root `AGENTS.md` § Secret Hygiene. Full procedure: `../context/code-standards.md` § Secret Hygiene — Prevention. Staged-change scan gate: `secret-scan` subagent; checklist: `secret-hygiene` skill. Do not duplicate that block here.
