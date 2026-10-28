@@ -104,5 +104,5 @@ The Bible is our **primary training corpus** because it is the **only complete, 
 | React 19 | MIT | Landing page |
 | Vite | MIT | Build tool |
 | Three.js | MIT | 3D visualization |
-| Cloudflare Workers | — | MCP server hosting |
+| Cloudflare Workers | — | Legacy MCP Worker hosting (live MCP: zolai-core) |
 | Cloudflare Pages | — | Landing page hosting |
