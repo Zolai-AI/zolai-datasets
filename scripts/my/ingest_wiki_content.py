@@ -30,7 +30,11 @@ WIKI_DIR = WORKSPACE / "zolai-wiki"
 REF_DIR = WORKSPACE / "data" / "reference"
 
 # Directories to skip
-SKIP_DIRS = {".git", "node_modules", "archive", "__pycache__"}
+SKIP_DIRS = {
+    ".git", "node_modules", "archive", "__pycache__",
+    ".venv", "venv", "site-packages", "vendor",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache",
+}
 SKIP_FILES = {"SUMMARY.md", "README.md"}
 
 # ---------------------------------------------------------------------------
@@ -68,6 +72,13 @@ INSERT OR IGNORE INTO wiki_content
     (wiki_category, source_path, title, content, word_count,
      section_count, content_hash)
 VALUES (?, ?, ?, ?, ?, ?, ?);
+"""
+
+UPDATE_CONTENT = """
+UPDATE wiki_content
+SET wiki_category = ?, title = ?, content = ?, word_count = ?,
+    section_count = ?, content_hash = ?, updated_at = CURRENT_TIMESTAMP
+WHERE source_path = ?;
 """
 
 REPLACE_CONTENT = """
@@ -225,6 +236,7 @@ def main() -> None:
 
     existing = get_existing_hashes(conn) if not args.force else {}
     inserted = 0
+    updated = 0
     skipped = 0
     errors = 0
 
@@ -242,10 +254,12 @@ def main() -> None:
         ch = file_hash(fp)
 
         # Skip if hash matches (unless --force)
+        is_update = False
         if not args.force and source_path in existing:
             if existing[source_path] == ch:
                 skipped += 1
                 continue
+            is_update = True
 
         rel = Path(source_path)
         category = classify_category(rel)
@@ -254,12 +268,35 @@ def main() -> None:
         sc = count_sections(content)
 
         if args.dry_run:
-            print(f"  WOULD INSERT: {source_path} "
+            action = "UPDATE" if is_update else "INSERT"
+            print(f"  WOULD {action}: {source_path} "
                   f"[{category}, {wc}w, {sc}s, {ch}]")
-            inserted += 1
+            if is_update:
+                updated += 1
+            else:
+                inserted += 1
             continue
 
         try:
+            if is_update:
+                cur = conn.execute(
+                    UPDATE_CONTENT,
+                    (category, title, content, wc, sc, ch, source_path),
+                )
+                if cur.rowcount > 0:
+                    updated += 1
+                    row_id = conn.execute(
+                        "SELECT id FROM wiki_content WHERE source_path = ?",
+                        (source_path,),
+                    ).fetchone()[0]
+                    conn.execute(
+                        INSERT_AUDIT,
+                        ("wiki_content", row_id, "content_hash",
+                         existing.get(source_path, ""), ch, now_iso(),
+                         f"ingest_wiki_content: {source_path}"),
+                    )
+                continue
+
             sql = REPLACE_CONTENT if args.force else INSERT_CONTENT
             cur = conn.execute(
                 sql,
@@ -284,11 +321,12 @@ def main() -> None:
         except Exception:
             pass
         conn.commit()
-        print(f"\nInserted: {inserted}, Skipped: {skipped}, Errors: {errors}")
+        print(f"\nInserted: {inserted}, Updated: {updated}, "
+              f"Skipped: {skipped}, Errors: {errors}")
         print_stats(conn)
     else:
         print(f"\nDry run: {inserted} would be inserted, "
-              f"{skipped} skipped")
+              f"{updated} updated, {skipped} skipped")
 
     conn.close()
 

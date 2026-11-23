@@ -99,6 +99,13 @@ INSERT OR IGNORE INTO wiki_lessons
 VALUES (?, ?, ?, ?, ?, ?, ?);
 """
 
+REPLACE_LESSON = """
+INSERT OR REPLACE INTO wiki_lessons
+    (lesson_type, title, content_summary, word_count,
+     grammar_patterns, vocabulary_list, source_file)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+"""
+
 INSERT_AUDIT = """
 INSERT INTO data_audit_log (table_name, row_id, field, old_value, new_value,
                            changed_at, reason)
@@ -154,7 +161,16 @@ def main() -> None:
         return
 
     print(f"Processing {len(rows)} wiki_content rows")
+    existing = {
+        r[0]: tuple(r[1:])
+        for r in conn.execute(
+            "SELECT source_file, lesson_type, title, content_summary, "
+            "word_count, grammar_patterns, vocabulary_list "
+            "FROM wiki_lessons"
+        ).fetchall()
+    }
     inserted = 0
+    updated = 0
     skipped = 0
 
     for wc_id, category, source_path, title, content, word_count in rows:
@@ -163,20 +179,32 @@ def main() -> None:
 
         grammar = extract_grammar_patterns(content)
         vocab = extract_vocabulary(content)
+        payload = (lesson_type, title or source_path, summary, word_count,
+                   grammar, vocab)
+
+        if existing.get(source_path) == payload:
+            skipped += 1
+            continue
 
         if args.dry_run:
-            print(f"  WOULD INSERT: {source_path} [{lesson_type}]")
-            inserted += 1
+            action = "UPDATE" if source_path in existing else "INSERT"
+            print(f"  WOULD {action}: {source_path} [{lesson_type}]")
+            if action == "UPDATE":
+                updated += 1
+            else:
+                inserted += 1
             continue
 
         try:
             cur = conn.execute(
-                INSERT_LESSON,
-                (lesson_type, title or source_path, summary, word_count,
-                 grammar, vocab, source_path),
+                REPLACE_LESSON if source_path in existing else INSERT_LESSON,
+                payload + (source_path,),
             )
             if cur.rowcount > 0:
-                inserted += 1
+                if source_path in existing:
+                    updated += 1
+                else:
+                    inserted += 1
                 conn.execute(
                     INSERT_AUDIT,
                     ("wiki_lessons", cur.lastrowid, "source_file",
@@ -190,7 +218,8 @@ def main() -> None:
 
     if not args.dry_run:
         conn.commit()
-        print(f"\nInserted: {inserted}, Skipped (dup): {skipped}")
+        print(f"\nInserted: {inserted}, Updated: {updated}, "
+              f"Skipped (unchanged): {skipped}")
         total = conn.execute(
             "SELECT COUNT(*) FROM wiki_lessons"
         ).fetchone()[0]
