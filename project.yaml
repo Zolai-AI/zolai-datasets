@@ -1,0 +1,42 @@
+project:
+  name: zolai-datasets
+  slug: zolai-datasets
+  display_name: zolai-datasets
+  type: data
+  category: ai-platform
+  owner: Zolai-AI
+
+  description: >
+    Bilingual corpora and datasets for Zolai.
+
+version:
+  current: 0.1.0
+  channel: dev
+  release_name: genesis
+  build_number: 001
+
+lifecycle:
+  stage: development
+  status: active
+  started: 2024-01-01
+  updated: 2026-11-23
+
+repository:
+  url: git@github.com:Zolai-AI/zolai-datasets.git
+  branch: main
+  provider: github
+  visibility: public
+
+stack:
+  languages:
+    - python
+  frameworks:
+    - none
+  package_manager: uv
+  runtime: python
+
+ai:
+  assistant: cursor
+  context_dir: context/
+  entry_point: AGENTS.md
+  rules: []
