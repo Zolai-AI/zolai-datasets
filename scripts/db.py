@@ -1,7 +1,10 @@
 """Dual-engine DB access: ZOLAI_DB_URL selects sqlite or postgres.
 
-Default (ZOLAI_DB_URL unset): ``sqlite:///data/zolai.db`` relative to the repo
-root — or, when a script passes its own path, that path (unchanged behaviour).
+Default (nothing set): the **core workspace database** at ``<workspace>/data/
+zolai.db`` — the same 2.9 GB / 132-table store that ``zolai-core`` owns and the
+API serves. This repo holds build scripts, not the data; it must not silently
+create a private, empty ``data/zolai.db`` beside itself.
+
 Switching engines is a configuration change, not a code change:
 
     sqlite:///data/zolai.db               → stdlib sqlite3 (default, zero-dep)
@@ -22,12 +25,18 @@ Portability rules the scripts follow so both engines behave alike
   * upserts use ``INSERT … ON CONFLICT (…) DO UPDATE SET …`` (both engines);
   * ``substr()`` and ``COALESCE/SUM/COUNT`` are the only SQL expressions used.
 
-Resolution order for ``connect(url=...)``:
+Resolution order (mirrors ``zolai-core/zolai/config.py`` so one deployment
+config drives every repo):
   1. an explicit URL (anything containing ``://``);
   2. the ``ZOLAI_DB_URL`` environment variable — this is what switching
      engines means (config, not code);
-  3. a bare path argument (legacy sqlite behaviour);
-  4. ``<repo root>/data/zolai.db``.
+  3. ``ZOLAI_DB_PATH`` — the canonical path override used by zolai-core;
+  4. ``ZOLAI_DATA_ROOT``/zolai.db, then the legacy ``DATA``/zolai.db;
+  5. a bare path argument from the script — anchored at the repo root, but
+     falling back to the same-named file under the workspace ``data/`` when the
+     repo-local copy is absent (so ``connect('data/zolai.db')`` reaches the core
+     DB rather than creating an empty one);
+  6. ``<workspace>/data/zolai.db``, then ``<repo root>/data/zolai.db``.
 
 Optional dependency (only needed for postgres): ``pip install "psycopg[binary]"``.
 """
@@ -40,7 +49,36 @@ from pathlib import Path
 from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SQLITE_PATH = REPO_ROOT / "data" / "zolai.db"
+# zolai-datasets sits beside the shared data/ dir in the workspace checkout.
+WORKSPACE_ROOT = REPO_ROOT.parent
+
+
+def _env_path(name: str) -> Path | None:
+    raw = os.environ.get(name, "").strip()
+    return Path(raw).expanduser() if raw else None
+
+
+def _core_db_path() -> Path:
+    """The canonical zolai.db, using the same env vars as zolai-core.
+
+    A repo-local ``data/zolai.db`` is honoured only when it already exists
+    (test fixtures, CI sandboxes); it is never created as a fallback, because a
+    silently-empty private DB reads as "no rows" instead of "wrong path".
+    """
+    direct = _env_path("ZOLAI_DB_PATH")
+    if direct is not None:
+        return direct
+    for root_var in ("ZOLAI_DATA_ROOT", "DATA"):
+        root = _env_path(root_var)
+        if root is not None:
+            return root / "zolai.db"
+    repo_local = REPO_ROOT / "data" / "zolai.db"
+    if repo_local.exists():
+        return repo_local
+    return WORKSPACE_ROOT / "data" / "zolai.db"
+
+
+DEFAULT_SQLITE_PATH = _core_db_path()
 
 __all__ = [
     "connect",
@@ -48,8 +86,72 @@ __all__ = [
     "Row",
     "DbError",
     "DEFAULT_SQLITE_PATH",
+    "core_db_path",
+    "data_root",
+    "db_path",
     "resolve_url",
+    "translate_ddl",
 ]
+
+
+def core_db_path() -> Path:
+    """Public accessor for the resolved canonical database path."""
+    return _core_db_path()
+
+
+def data_root() -> Path:
+    """The shared ``data/`` directory that holds ``zolai.db`` and the corpora.
+
+    Scripts previously hardcoded an absolute ``/home/<user>/…`` path, which is
+    both machine-specific and a leak in a public repo. Override with
+    ``ZOLAI_DATA_ROOT`` (or the legacy ``DATA``); the default is the ``data/``
+    dir beside this repo in the workspace checkout.
+    """
+    for var in ("ZOLAI_DATA_ROOT", "DATA"):
+        root = _env_path(var)
+        if root is not None:
+            return root
+    direct = _env_path("ZOLAI_DB_PATH")
+    if direct is not None:
+        return direct.parent
+    return _core_db_path().parent
+
+
+def db_path(value: "str | Path | None" = None, *, name: str = "zolai.db") -> Path:
+    """Resolve a database path for use as a module-level ``DB_PATH``.
+
+    Scripts previously hardcoded ``'data/zolai.db'`` (which depended on the
+    current working directory), ``parents[3] / "data"`` (which only held on one
+    checkout depth), or an absolute ``/home/…`` path (machine-specific and
+    wrong for a public repo). All of them now read:
+
+        DB_PATH = db_path()                  # the canonical core zolai.db
+        DB_PATH = db_path("dictionary_v3.db")  # a sibling dataset
+
+    Postgres deployments are unaffected by the returned path: ``connect()``
+    still prefers ``ZOLAI_DB_URL`` when it is set, so this value is only the
+    sqlite fallback and an existence-check target.
+    """
+    if value is not None:
+        raw = str(value).strip()
+        if raw:
+            if "://" in raw:
+                return Path(_anchor_relative(_sqlite_path_from_url(raw)))
+            p = Path(raw).expanduser()
+            return p if p.is_absolute() else _anchor_relative(raw) and Path(_anchor_relative(raw))
+    if os.environ.get("ZOLAI_DB_URL", "").strip() and "://" in os.environ["ZOLAI_DB_URL"]:
+        url = os.environ["ZOLAI_DB_URL"].strip().lower()
+        if url.startswith(("postgres://", "postgresql://", "pg://")):
+            # No filesystem path exists for a server engine; hand back the
+            # canonical location so callers can still log/stub it.
+            return _core_db_path().with_name(name)
+    explicit = _env_path("ZOLAI_DB_PATH")
+    if explicit is not None and name == "zolai.db":
+        return explicit
+    base = _core_db_path()
+    if name == base.name:
+        return base
+    return base.parent / name
 
 
 class DbError(RuntimeError):
@@ -94,6 +196,37 @@ class Row:
 
     def __repr__(self) -> str:
         return f"Row({self._map!r})"
+
+
+def translate_ddl(sql: str) -> list[str]:
+    """Split a sqlite-flavoured DDL script into PostgreSQL-valid statements.
+
+    Mirrors ``src-tauri/src/db/mod.rs::translate_ddl`` so both repos apply the
+    same portability rules:
+
+    * leading ``--`` comment lines are dropped *before* classification, so a
+      schema file's header comment cannot hide a ``PRAGMA`` (that used to reach
+      the server as a syntax error);
+    * ``PRAGMA …`` statements are sqlite-only and are dropped;
+    * ``AUTOINCREMENT`` becomes ``GENERATED BY DEFAULT AS IDENTITY`` — the
+      surrogate-key form PostgreSQL understands.
+
+    Statements that need a genuine rewrite (``INSERT OR REPLACE/IGNORE``,
+    ``sqlite_master`` inspection) are left untouched and documented in
+    ``scripts/README-db.md``: ``executescript`` is for CREATE/ALTER scripts, not
+    for data-preserving rewrites.
+    """
+    statements: list[str] = []
+    for chunk in sql.split(";"):
+        lines = chunk.strip().splitlines()
+        # Drop leading blanks/comments so the first meaningful token decides.
+        while lines and (not lines[0].strip() or lines[0].lstrip().startswith("--")):
+            lines.pop(0)
+        body = "\n".join(lines).strip()
+        if not body or body.upper().startswith("PRAGMA"):
+            continue
+        statements.append(body.replace("AUTOINCREMENT", "GENERATED BY DEFAULT AS IDENTITY"))
+    return statements
 
 
 def row_to_dict(row: Any) -> Any:
@@ -250,7 +383,11 @@ class PgConn:
 
     def translate(self, sql: str) -> str:
         # `?` -> `%s`; our portable SQL never embeds '?' inside string literals.
-        return sql.replace("?", "%s")
+        # AUTOINCREMENT only ever appears in DDL, so rewriting it here is safe
+        # for DML too and keeps single CREATE TABLE calls portable.
+        return sql.replace("?", "%s").replace(
+            "AUTOINCREMENT", "GENERATED BY DEFAULT AS IDENTITY"
+        )
 
     def cursor(self) -> _PgCursor:
         return _PgCursor(self.raw.cursor(), self)
@@ -270,8 +407,9 @@ class PgConn:
         return self.execute(sql, params).fetchall()
 
     def executescript(self, sql: str) -> None:
-        statements = [part.strip() for part in sql.split(";") if part.strip()]
-        for statement in statements:
+        # sqlite scripts carry PRAGMAs and AUTOINCREMENT; translate_ddl drops
+        # the former and maps the latter to an identity column.
+        for statement in translate_ddl(sql):
             self.execute(statement)
 
     def commit(self) -> None:
@@ -311,24 +449,60 @@ def _sqlite_path_from_url(url: str) -> str:
     return url
 
 
-def resolve_url(url: str | None = None) -> tuple[str, str]:
-    """Return ``(dialect, target)`` per the resolution order in the docstring."""
+def _anchor_relative(raw: str) -> str:
+    """Anchor a script-supplied relative sqlite path.
+
+    Scripts write ``'data/zolai.db'`` or ``Path('data')/'zolai.db'``. Repo-root
+    anchoring used to create an empty private DB beside zolai-datasets; now, if
+    that path does not exist, the same-named file under the workspace ``data/``
+    dir is preferred so the core database is used.
+    """
+    if raw == ":memory:":
+        return raw
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return str(path)
+    repo_local = REPO_ROOT / path
+    if repo_local.exists():
+        return str(repo_local)
+    workspace_local = WORKSPACE_ROOT / path
+    if workspace_local.exists():
+        return str(workspace_local)
+    # Nothing on disk yet — for a fresh DB, honour the configured core path
+    # when the filename matches, otherwise keep the repo-root anchor.
+    core = _core_db_path()
+    if path.name == core.name and path.parent.name == "data":
+        return str(core)
+    return str(repo_local)
+
+
+def resolve_url(url: "str | Path | None" = None) -> tuple[str, str]:
+    """Return ``(dialect, target)`` per the resolution order in the docstring.
+
+    Accepts a ``str`` or a ``pathlib.Path`` — scripts commonly hold ``DB_PATH``
+    as a ``Path``, and ``sqlite3.connect`` accepted one, so this layer must too.
+    """
     env = os.environ.get("ZOLAI_DB_URL", "").strip()
     candidate = ""
+    if url is not None:
+        url = str(url).strip() or None
     if url and "://" in url:
         candidate = url.strip()
     elif env:
         candidate = env
     elif url:
-        raw = str(url).strip()
-        if raw != ":memory:":
-            path = Path(raw).expanduser()
-            if not path.is_absolute():
-                path = REPO_ROOT / path  # bare relative paths anchor at repo root
-            return "sqlite", str(path)
-        return "sqlite", raw
+        return "sqlite", _anchor_relative(url)
     else:
-        candidate = f"sqlite:///{DEFAULT_SQLITE_PATH}"
+        # No argument: use the configured engine, defaulting to the core DB.
+        if os.environ.get("ZOLAI_POSTGRES_URL", "").strip() or os.environ.get(
+            "ZOLAI_PG_URL", ""
+        ).strip():
+            candidate = (
+                os.environ.get("ZOLAI_POSTGRES_URL", "").strip()
+                or os.environ.get("ZOLAI_PG_URL", "").strip()
+            )
+        else:
+            candidate = f"sqlite:///{_core_db_path()}"
 
     lowered = candidate.lower()
     if lowered.startswith(("postgres://", "postgresql://", "pg://")):
@@ -344,7 +518,7 @@ def resolve_url(url: str | None = None) -> tuple[str, str]:
         if path and path.split("/", 1)[0] in ("home", "Users", "mnt", "media", "var", "private", "Volumes"):
             path = "/" + path
         if path != ":memory:" and not Path(path).is_absolute():
-            path = str(REPO_ROOT / path)  # sqlite:///relative/… anchors at repo root
+            path = _anchor_relative(path)
         return "sqlite", path
     if "://" in candidate:
         scheme = candidate.split("://", 1)[0]
