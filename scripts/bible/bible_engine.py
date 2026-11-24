@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path
+from db import connect, db_path  # noqa: E402
 #!/usr/bin/env python3
 """
 ZOLAI BIBLE ENGINE — Comprehensive Language Learning & Grammar Engine

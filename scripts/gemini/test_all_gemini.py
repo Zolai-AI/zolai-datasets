@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path, data_root
+from db import connect, db_path, data_root  # noqa: E402
 #!/usr/bin/env python3
 """
 Real Zolai Knowledge Test — ALL Gemini models using local package.

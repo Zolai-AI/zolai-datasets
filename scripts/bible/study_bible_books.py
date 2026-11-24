@@ -18,7 +18,7 @@ import requests
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path
+from db import connect, db_path  # noqa: E402
 
 # ══════════════════════════════════════════════════════════════════════
 # PATHS

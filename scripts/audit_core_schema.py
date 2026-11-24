@@ -32,7 +32,7 @@ import sys
 from collections import Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from db import connect, db_path, resolve_url
+from db import connect, db_path, resolve_url  # noqa: E402
 
 # INSERT INTO t (a, b) / UPDATE t SET a = ?, b = ? / DELETE FROM t
 _INSERT = re.compile(

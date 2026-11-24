@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path, data_root
+from db import connect, db_path, data_root  # noqa: E402
 
 # Add parent directory to path for imports
 SCRIPT_DIR = Path(__file__).resolve().parent

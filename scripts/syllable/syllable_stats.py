@@ -14,7 +14,7 @@ from pathlib import Path
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path
+from db import connect, db_path  # noqa: E402
 # sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
 # / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 

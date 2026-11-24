@@ -10,7 +10,7 @@ from pathlib import Path
 from collections import Counter, defaultdict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import data_root
+from db import data_root  # noqa: E402
 
 DATA_ROOT = Path(str(data_root()))
 

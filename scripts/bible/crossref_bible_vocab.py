@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path
+from db import connect, db_path  # noqa: E402
 
 """
 1. Build bible_parallel_tbr17.jsonl (TBR17 × KJV aligned pairs)

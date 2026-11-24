@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path
+from db import connect, db_path  # noqa: E402
 # sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
 # / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
@@ -254,7 +254,7 @@ def fill_grammar_patterns_myanmar(conn: sqlite3.Connection, wmap: dict[str, str]
         # examples is a list of Bible verse refs like "GEN 1:1"
         # We can't directly extract Zolai words from verse refs alone.
         # Skip — patterns without actual Zolai text can't be filled.
-        continue  # noqa: no fill possible without the actual verse text
+        continue  # no fill possible without the actual verse text
     return updates
 
 

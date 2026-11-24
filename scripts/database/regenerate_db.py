@@ -22,7 +22,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent          # .../scripts/database
 SCRIPTS_DIR = SCRIPT_DIR.parent                       # .../scripts
 sys.path.insert(0, str(SCRIPTS_DIR))
-from db import connect, db_path, assert_rebuildable
+from db import connect, db_path, assert_rebuildable  # noqa: E402
 # sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
 # / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 

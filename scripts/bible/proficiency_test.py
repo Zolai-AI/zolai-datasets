@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path, data_root
+from db import connect, db_path, data_root  # noqa: E402
 
 # Add local package
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", str(data_root().parent / "zolai-ai-local")))

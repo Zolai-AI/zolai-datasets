@@ -22,7 +22,7 @@ from pathlib import Path
 from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import data_root
+from db import data_root  # noqa: E402
 
 WEB_API_PATH = str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 

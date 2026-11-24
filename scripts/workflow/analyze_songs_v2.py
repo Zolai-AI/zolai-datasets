@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import data_root
+from db import data_root  # noqa: E402
 
 # Song directory
 SONG_DIR = (data_root().parent / "data/raw/Zomi Worship Collective/")

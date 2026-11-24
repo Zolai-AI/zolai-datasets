@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import data_root
+from db import data_root  # noqa: E402
 
 DATA = Path(str(data_root()))
 LEARNING = DATA / "bible" / "language_learning"

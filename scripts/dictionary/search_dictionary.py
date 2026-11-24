@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, db_path, row_to_dict
+from db import connect, db_path, row_to_dict  # noqa: E402
 
 DB_PATH = db_path()
 

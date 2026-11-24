@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import data_root
+from db import data_root  # noqa: E402
 sys.path.insert(0, str(data_root().parent / "zolai-core"))
 
 from zolai.data.schemas import validate_file, CANONICAL_SCHEMAS
