@@ -7,10 +7,10 @@ switching storage engines is a **configuration change, not a code change**.
 
 | `ZOLAI_DB_URL` | Engine | Driver |
 |---|---|---|
-| unset (default) | SQLite at `data/zolai.db` | stdlib `sqlite3` (zero-dependency) |
-| `sqlite:///path/to/db.sqlite3` | SQLite at an explicit path | stdlib `sqlite3` |
-| `postgresql://user:pass@host:5432/db` | PostgreSQL | `psycopg` (v3) |
-| `postgres://user:pass@host:5432/db` | PostgreSQL (alias) | `psycopg` (v3) |
+| unset (default) | SQLite at the script's own path, else `data/zolai.db` at repo root | stdlib `sqlite3` (zero-dependency) |
+| `sqlite:///path/to/db.sqlite3` | SQLite at an explicit path (relative = repo-root-anchored) | stdlib `sqlite3` |
+| `postgresql://user:pass@host:5432/db` | PostgreSQL | `psycopg` (v3; psycopg2 auto-detected as fallback) |
+| `postgres://user:pass@host:5432/db` | PostgreSQL (alias) | as above |
 
 ```bash
 # local / offline (default — nothing to set up)
@@ -27,6 +27,11 @@ PostgreSQL needs the optional extra (SQLite needs nothing):
 pip install "psycopg[binary]"
 ```
 
+Resolution order for `connect(url=...)`: an explicit URL containing `://` →
+`ZOLAI_DB_URL` (this is what makes engine switching config-only) → the bare
+path argument a script passes (sqlite, unchanged legacy behaviour) →
+`sqlite:///data/zolai.db` at repo root.
+
 ## Usage from a script
 
 ```python
@@ -35,7 +40,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from db import connect, row_to_dict
 
-conn = connect()                       # honours ZOLAI_DB_URL
+conn = connect(DB_PATH)                # honours ZOLAI_DB_URL first
 cur = conn.execute("SELECT * FROM dictionary WHERE zolai = ?", ("pasian",))
 row = cur.fetchone()
 print(row_to_dict(row))
@@ -43,9 +48,10 @@ conn.close()
 ```
 
 `connect()` is a drop-in replacement for `sqlite3.connect()`: same
-`execute / executemany / commit / rollback / close`, same cursor
-`fetchone / fetchall / rowcount`, and dict-like rows on **both** engines
-(`row["col"]`, `row[0]`, and iteration all work).
+`execute / executemany / commit / rollback / close / cursor / executescript`,
+same cursor `fetchone / fetchall / rowcount`, and dict-like rows on **both**
+engines (`row["col"]`, `row[0]`, and iteration all work). On SQLite it also
+applies `PRAGMA journal_mode=WAL`, `busy_timeout`, and `foreign_keys=ON`.
 
 ## Portability rules (why both engines behave alike)
 
@@ -55,20 +61,22 @@ automatically.
 
 - Placeholders are always written `?` — never `%s`, never f-string interpolation.
 - Booleans are stored as `INTEGER` 0/1 (not `BOOLEAN`).
-- Timestamps are ISO-8601 UTC strings (`2026-10-28T15:23:03+00:00`, `TEXT`);
+- Timestamps are ISO-8601 UTC strings (`2026-10-28T15:23:03Z`, `TEXT`);
   **never** `strftime()`, `datetime('now')`, or `CURRENT_TIMESTAMP` in SQL.
 - JSON is stored as `TEXT` — no `jsonb` / `JSON1` dependency.
 - Upserts use `INSERT … ON CONFLICT (cols) DO UPDATE SET …` (supported by both).
 - Only `substr()`, `COALESCE`, and `SUM/COUNT` are used as SQL expressions.
-- `PRAGMA journal_mode=WAL`, `busy_timeout`, and `foreign_keys=ON` are applied
-  by the SQLite driver only — PostgreSQL enforces FKs by default.
 
-## SQLite-only escape hatch
+## Known sqlite-only pockets
 
-A few scripts legitimately need SQLite-specific features (virtual tables, FTS,
-`PRAGMA` inspection). Where a statement cannot be made portable it is kept on
-the SQLite path with an explicit `# sqlite-only` comment so the intent is
-visible, rather than silently broken on PostgreSQL.
+The connection layer is engine-neutral, but a few **schema/DDL maintenance**
+scripts (`database/regenerate_db.py`, `database/clean_database.py`,
+`online/migrate_schema.py`, `dictionary/build_dictionary_db.py`, and similar)
+still contain `AUTOINCREMENT`, `INSERT OR REPLACE/IGNORE`, or `PRAGMA`
+statements. They run under the default sqlite engine; on PostgreSQL, apply the
+schema out-of-band and keep these scripts as sqlite tooling.
+`scripts/bible/menu.sh` also embeds small interactive sqlite snippets and is
+intentionally left as-is.
 
 ## Schema / migrations
 
