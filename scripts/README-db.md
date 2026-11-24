@@ -1,76 +1,77 @@
-# `scripts/db.py` — dual-engine database access
+# Dual-engine database layer (`scripts/db.py`)
 
-Every data script connects through **one** helper:
+Every script in this repo opens its database through `scripts/db.py`, so
+switching storage engines is a **configuration change, not a code change**.
 
-```python
-from db import connect, row_to_dict   # scripts/db.py bootstraps sys.path for you
+## Selecting the engine
 
-conn = connect(DB_PATH)               # legacy sqlite path stays the fallback
-```
-
-With the default configuration (nothing set) this opens `DB_PATH` as SQLite —
-behavior is byte-for-byte what `sqlite3.connect(DB_PATH)` did before, plus
-WAL, `foreign_keys=ON`, a busy timeout, and dict-like rows (`sqlite3.Row`).
-
-## Switching engines: `ZOLAI_DB_URL`
-
-Switching to PostgreSQL is a **configuration change, not a code change**.
-When `ZOLAI_DB_URL` is set it takes precedence over the path each script
-passes:
+| `ZOLAI_DB_URL` | Engine | Driver |
+|---|---|---|
+| unset (default) | SQLite at `data/zolai.db` | stdlib `sqlite3` (zero-dependency) |
+| `sqlite:///path/to/db.sqlite3` | SQLite at an explicit path | stdlib `sqlite3` |
+| `postgresql://user:pass@host:5432/db` | PostgreSQL | `psycopg` (v3) |
+| `postgres://user:pass@host:5432/db` | PostgreSQL (alias) | `psycopg` (v3) |
 
 ```bash
-# SQLite (default — same URLs the scripts already use internally)
-export ZOLAI_DB_URL="sqlite:///data/zolai.db"          # relative to repo root
-export ZOLAI_DB_URL="sqlite:////srv/zolai/zolai.db"    # absolute (4 slashes)
+# local / offline (default — nothing to set up)
+python3 scripts/dictionary/search_dictionary.py pasian
 
-# PostgreSQL (psycopg v3 recommended; psycopg2 also detected)
-export ZOLAI_DB_URL="postgresql://zolai:secret@localhost:5432/zolai"
-export ZOLAI_DB_URL="postgres://zolai:secret@db.internal/zolai"   # alias
+# against PostgreSQL
+export ZOLAI_DB_URL='postgresql://zolai:secret@localhost:5432/zolai'
+python3 scripts/dictionary/search_dictionary.py pasian
 ```
 
-Resolution order for `connect(url=...)`: explicit URL containing `://` →
-`ZOLAI_DB_URL` → bare path argument (sqlite, anchored at repo root when
-relative) → `sqlite:///data/zolai.db` at repo root.
-
-Optional dependency (postgres only — nothing else is added to the repo):
+PostgreSQL needs the optional extra (SQLite needs nothing):
 
 ```bash
 pip install "psycopg[binary]"
 ```
 
-## What the wrapper gives you
+## Usage from a script
 
-| API | sqlite | postgres |
-|-----|--------|----------|
-| `conn.execute(sql, params)` | native cursor | `?` rewritten to `%s` |
-| `conn.executemany(sql, seq)` | native | translated |
-| `conn.cursor()` / `with conn:` | native | translating cursor, same tx semantics |
-| `conn.fetchone/fetchall(sql, params)` | convenience | convenience |
-| `conn.commit/rollback/close` | native | native |
-| `conn.executescript(sql)` | native | split on `;` (DDL bootstrap only) |
-| `conn.dialect` | `"sqlite"` | `"postgres"` |
-| rows | `sqlite3.Row` | `db.Row` (key **and** index access) |
-| `row_to_dict(row)` | works | works |
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, row_to_dict
 
-## Portability rules (same as `zolai-tts/src/zolai_tts/db/drivers.py`)
+conn = connect()                       # honours ZOLAI_DB_URL
+cur = conn.execute("SELECT * FROM dictionary WHERE zolai = ?", ("pasian",))
+row = cur.fetchone()
+print(row_to_dict(row))
+conn.close()
+```
 
-- write placeholders as `?`; the helper rewrites them to `%s` for postgres;
-- booleans as INTEGER `0/1`; timestamps as ISO-8601 UTC TEXT; JSON as TEXT;
-- upserts via `INSERT … ON CONFLICT (…) DO UPDATE SET …`;
-- no `strftime()`/`datetime()` SQL — format timestamps in Python;
-- only `substr()`, `COALESCE`, and aggregates in SQL expressions.
+`connect()` is a drop-in replacement for `sqlite3.connect()`: same
+`execute / executemany / commit / rollback / close`, same cursor
+`fetchone / fetchall / rowcount`, and dict-like rows on **both** engines
+(`row["col"]`, `row[0]`, and iteration all work).
 
-## Known sqlite-only pockets
+## Portability rules (why both engines behave alike)
 
-The connection layer is engine-neutral; a few **schema/DDL maintenance**
-scripts (`database/regenerate_db.py`, `online/migrate_schema.py`,
-`dictionary/build_dictionary_db.py`, `database/clean_database.py`, and
-similar) still contain `AUTOINCREMENT`, `INSERT OR REPLACE/IGNORE`, or
-`PRAGMA` statements. They run under the default sqlite engine; when operating
-on PostgreSQL, apply the schema out-of-band (org pattern: the Prisma schema in
-`zolai-core/prisma/schema.prisma` is the schema-of-record) and keep these
-scripts as sqlite tooling. Nothing else changed: scripts that only read/write
-rows work on either engine.
+Scripts are written to a shared SQL subset so the same statement runs on either
+engine. `connect()` translates `?` placeholders to `%s` on PostgreSQL
+automatically.
 
-`scripts/bible/menu.sh` embeds small `sqlite3.connect()` snippets in shell
-heredocs and is intentionally left as-is (interactive sqlite tooling).
+- Placeholders are always written `?` — never `%s`, never f-string interpolation.
+- Booleans are stored as `INTEGER` 0/1 (not `BOOLEAN`).
+- Timestamps are ISO-8601 UTC strings (`2026-10-28T15:23:03+00:00`, `TEXT`);
+  **never** `strftime()`, `datetime('now')`, or `CURRENT_TIMESTAMP` in SQL.
+- JSON is stored as `TEXT` — no `jsonb` / `JSON1` dependency.
+- Upserts use `INSERT … ON CONFLICT (cols) DO UPDATE SET …` (supported by both).
+- Only `substr()`, `COALESCE`, and `SUM/COUNT` are used as SQL expressions.
+- `PRAGMA journal_mode=WAL`, `busy_timeout`, and `foreign_keys=ON` are applied
+  by the SQLite driver only — PostgreSQL enforces FKs by default.
+
+## SQLite-only escape hatch
+
+A few scripts legitimately need SQLite-specific features (virtual tables, FTS,
+`PRAGMA` inspection). Where a statement cannot be made portable it is kept on
+the SQLite path with an explicit `# sqlite-only` comment so the intent is
+visible, rather than silently broken on PostgreSQL.
+
+## Schema / migrations
+
+`scripts/db.py` moves **data**, not schema. For managed schema evolution use
+Prisma (`zolai-core/prisma/schema.prisma` is the schema of record) via
+`prisma migrate`, or the dedicated migration scripts in `scripts/database/`.
