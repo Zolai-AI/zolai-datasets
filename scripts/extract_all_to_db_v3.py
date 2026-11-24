@@ -429,7 +429,7 @@ def add_tone_vocab(conn):
         """, (zolai, t1, t1, t3, t4, pos, tones, 'reference', 'Zolai_Sinna_lesson_16', 5))
     
     conn.commit()
-    print(f"  Tone vocabulary added")
+    print("  Tone vocabulary added")
 
 def main():
     print("=== Comprehensive Data Extraction to DB (v3) ===\n")

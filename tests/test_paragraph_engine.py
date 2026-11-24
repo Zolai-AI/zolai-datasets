@@ -1,7 +1,6 @@
 """Tests for paragraph_engine.py — Zolai Paragraph Learning & Style Intelligence Engine."""
 import subprocess
 import sys
-import json
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "bible" / "paragraph_engine.py"

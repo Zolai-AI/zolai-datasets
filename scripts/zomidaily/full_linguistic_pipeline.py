@@ -13,11 +13,9 @@ Features:
 """
 import json
 import sqlite3
-import asyncio
 import logging
 import time
 import signal
-import sys
 from pathlib import Path
 from collections import Counter
 from datetime import datetime
@@ -659,7 +657,7 @@ def main():
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     
-    print(f"\n=== Pipeline Complete ===")
+    print("\n=== Pipeline Complete ===")
     print(f"Results saved to: {results_file}")
     print(f"Elapsed: {results['summary']['elapsed_seconds']}s")
     print(f"Completed: {results['summary']['stages_completed']}/{len(results)-1}")

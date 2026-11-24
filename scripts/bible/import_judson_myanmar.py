@@ -11,7 +11,6 @@ Usage:
 import re
 import sqlite3
 import sys
-import unicodedata
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
@@ -178,7 +177,7 @@ def main() -> None:
     pct = (total_with_myanmar / total_verses * 100) if total_verses else 0
 
     print(f"\n{'='*50}")
-    print(f"=== Judson Myanmar Import ===")
+    print("=== Judson Myanmar Import ===")
     print(f"Files processed:   {len(usx_files)}")
     print(f"Verses parsed:     {len(all_verses)}")
     print(f"Verses updated:    {updated}")

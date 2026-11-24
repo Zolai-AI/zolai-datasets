@@ -369,12 +369,12 @@ class DataIngester:
             self.stats["dict_corrections"] = {"applied": corr_count}
             print(f"    Applied: {corr_count:,}")
 
-        # 1c.  merged → fill missing myanmar + add new entries
+        # 1c. merged → fill missing myanmar + add new entries
         print("\n  [1c] dict__merged.jsonl → dictionary.myanmar + new entries")
-         = load_jsonl(SOURCE_FILES["dict__merged"]["path"])
-        if :
+        merged_recs = load_jsonl(SOURCE_FILES["dict__merged"]["path"])
+        if merged_recs:
             _map: dict[str, dict] = {}
-            for rec in :
+            for rec in merged_recs:
                 zo = (rec.get("zolai_normalized") or rec.get("zolai_word") or "").strip().lower()
                 if zo:
                     _map[zo] = rec

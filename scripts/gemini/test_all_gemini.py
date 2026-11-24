@@ -7,7 +7,6 @@ import asyncio
 import sys
 import json
 import sqlite3
-import random
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 from gemini.client import ZolaiGeminiClient

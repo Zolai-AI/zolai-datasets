@@ -11,18 +11,15 @@ Features:
 
 import asyncio
 import sqlite3
-import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Optional
 
 # Add local package path
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
-from shared.zvs_context import get_system_prompt
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 BATCH_SIZE = 50
@@ -36,12 +33,12 @@ ENSEMBLE_MODELS = [
 ]
 
 
-async def get_missing_entries(limit: int = 500) -> List[Dict]:
+async def get_missing_entries(limit: int = 500) -> list[dict]:
     """Get Zolai words missing Myanmar translations (resume-safe)."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    cursor = conn.execute("""
+    cursor = conn.execute(r"""
         SELECT zolai, english_clean, pos, source
         FROM dictionary
         WHERE (myanmar IS NULL OR myanmar = '')
@@ -71,7 +68,7 @@ async def get_missing_entries(limit: int = 500) -> List[Dict]:
     return entries
 
 
-async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, zolai: str, english: str) -> Dict:
+async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, zolai: str, english: str) -> dict:
     """Translate using ensemble voting."""
     prompt = f"""Translate this Zolai word to Myanmar/Burmese script.
 
@@ -183,9 +180,9 @@ async def process_batch(limit: int = 500):
                 )
                 print(f"  ✓ {result['translation']} (conf: {result['confidence']:.2f}, models: {result['models_used']})")
             else:
-                print(f"  - Already translated or not found")
+                print("  - Already translated or not found")
         else:
-            print(f"  ✗ Failed to translate")
+            print("  ✗ Failed to translate")
 
         # Progress tracking every 50 entries
         if (i + 1) % 50 == 0:

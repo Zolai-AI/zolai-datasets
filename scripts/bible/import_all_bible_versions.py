@@ -25,7 +25,6 @@ import argparse
 import re
 import sqlite3
 import sys
-import time
 from pathlib import Path
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -324,7 +323,7 @@ def cross_validate(conn: sqlite3.Connection) -> None:
     if no_zolai:
         print(f"  WARNING: {no_zolai} verses have NULL in BOTH zo_tdb77 and zo_tedim2010")
     else:
-        print(f"  OK: All verses have at least one Zolai column filled")
+        print("  OK: All verses have at least one Zolai column filled")
 
     # Check: no verse has NULL in en_kJV
     row = conn.execute(
@@ -341,7 +340,7 @@ def cross_validate(conn: sqlite3.Connection) -> None:
         if samples:
             print(f"    Samples: {', '.join(f'{b} {c}:{v}' for b, c, v in samples)}")
     else:
-        print(f"  OK: All verses have en_kJV")
+        print("  OK: All verses have en_kJV")
 
     # Cross-check: verses in one Zolai version but not the other
     row = conn.execute(
@@ -470,7 +469,7 @@ Examples:
     # Commit
     if not args.dry_run:
         conn.commit()
-        print(f"\nAll changes committed.")
+        print("\nAll changes committed.")
 
     # Step 3: Coverage report
     if not args.dry_run:

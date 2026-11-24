@@ -17,7 +17,6 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
@@ -39,7 +38,7 @@ ALL_MODELS = [
 ]
 
 
-def get_test_pairs(conn: sqlite3.Connection, limit: int = 100) -> List[Dict]:
+def get_test_pairs(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     """Get Zolai→Myanmar pairs where Myanmar is already known (ground truth)."""
     cursor = conn.execute("""
         SELECT zolai, english_clean, myanmar
@@ -55,7 +54,7 @@ def get_test_pairs(conn: sqlite3.Connection, limit: int = 100) -> List[Dict]:
              "expected": r["myanmar"]} for r in cursor]
 
 
-async def test_model(client: ZolaiGeminiOpenAIClient, model: str, pairs: List[Dict]) -> Dict:
+async def test_model(client: ZolaiGeminiOpenAIClient, model: str, pairs: list[dict]) -> dict:
     """Test a single model on all pairs."""
     correct = 0
     total = len(pairs)
@@ -112,7 +111,7 @@ Reply with ONLY the Myanmar translation (no explanation, no quotes)."""
     }
 
 
-async def run_benchmark(sample_size: int = 100, models: List[str] = None):
+async def run_benchmark(sample_size: int = 100, models: list[str] = None):
     if models is None:
         models = ALL_MODELS
 

@@ -29,7 +29,6 @@ import sys
 import signal
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Any
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
@@ -214,7 +213,7 @@ def cross_fill_vocabulary(conn: sqlite3.Connection) -> int:
 # Gemini translation (single call, concurrency-controlled by semaphore)
 # ---------------------------------------------------------------------------
 async def translate_one(client: ZolaiGeminiOpenAIClient, prompt: str,
-                        semaphore: asyncio.Semaphore) -> Dict:
+                        semaphore: asyncio.Semaphore) -> dict:
     """Translate a single word via Gemini, with concurrency limit and 429 retry."""
     async with semaphore:
         for attempt in range(3):
@@ -420,7 +419,7 @@ async def run_unified(limit: int = DEFAULT_BATCH_SIZE, max_batches: int = DEFAUL
             total_t += t
             total_f += f
             print(f"  {TASKS[tt]['label']}: {t} translated, {f} failed")
-        print(f"  ─────────────────────────")
+        print("  ─────────────────────────")
         print(f"  TOTAL: {total_t} translated, {total_f} failed")
         print(f"  Batches run: {batch_num}")
         print(f"{'='*60}")
@@ -440,7 +439,7 @@ async def main():
                         help=f"Max concurrent Gemini API calls (default: {DEFAULT_CONCURRENCY})")
     args = parser.parse_args()
 
-    print(f"🚀 Unified Concurrent Batch Fill")
+    print("🚀 Unified Concurrent Batch Fill")
     print(f"   DB: {DB_PATH}")
     print(f"   Concurrency: {args.concurrency}")
     print(f"   Batch size: {args.limit} per table")

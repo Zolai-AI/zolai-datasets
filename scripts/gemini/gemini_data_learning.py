@@ -15,7 +15,6 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
-from shared.zvs_context import get_system_prompt
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
@@ -220,7 +219,7 @@ async def main():
     
     await client.close()
     
-    print(f"\n✅ Complete. Results saved to training_runs.")
+    print("\n✅ Complete. Results saved to training_runs.")
 
 
 if __name__ == "__main__":

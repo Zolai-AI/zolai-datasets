@@ -4,7 +4,6 @@ Fix ALL stale table references across ALL scripts.
 Auto-fixes: vocab→vocabulary, bible_context→bible_analysis, 
 jsonl_import_log→import_log, zolai_songs→songs
 """
-import os
 import re
 from pathlib import Path
 

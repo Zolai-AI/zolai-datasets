@@ -15,11 +15,9 @@ import sqlite3
 import json
 import os
 import sys
-import time
 import signal
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Optional
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
@@ -55,7 +53,7 @@ def save_progress(state: dict):
     PROGRESS_FILE.write_text(json.dumps(state, indent=2))
 
 
-def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> List[Dict]:
+def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> list[dict]:
     cursor = conn.execute("""
         SELECT zolai, english_clean, pos, source
         FROM dictionary
@@ -77,7 +75,7 @@ def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> Li
              "pos": r["pos"] or "", "source": r["source"]} for r in cursor]
 
 
-async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, zolai: str, english: str) -> Dict:
+async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, zolai: str, english: str) -> dict:
     prompt = f"""Translate this Zolai (Tedim Chin) word to Myanmar/Burmese script.
 
 Zolai: {zolai}

@@ -11,18 +11,15 @@ Features:
 
 import asyncio
 import sqlite3
-import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict
 
 # Add local package path
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
-from shared.zvs_context import get_system_prompt
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 DELAY_BETWEEN_CALLS = 1.0  # seconds
@@ -45,7 +42,7 @@ def log_audit(conn: sqlite3.Connection, table: str, word: str, field: str,
     )
 
 
-async def get_missing_entries(limit: int = 500) -> List[Dict]:
+async def get_missing_entries(limit: int = 500) -> list[dict]:
     """Get English→Zolai entries missing Myanmar translations."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -72,7 +69,7 @@ async def get_missing_entries(limit: int = 500) -> List[Dict]:
     return entries
 
 
-async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, english: str, translations: str) -> Dict:
+async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, english: str, translations: str) -> dict:
     """Translate using ensemble voting."""
     prompt = f"""Translate to Myanmar (Burmese): {english} = {translations}. Return ONLY the Myanmar word."""
 
@@ -158,9 +155,9 @@ async def process_batch(limit: int = 500):
                 )
                 print(f"  ✓ {result['translation']} (conf: {result['confidence']:.2f})")
             else:
-                print(f"  - Already translated or not found")
+                print("  - Already translated or not found")
         else:
-            print(f"  ✗ Failed to translate")
+            print("  ✗ Failed to translate")
 
         if (i + 1) % 50 == 0:
             pct = (i + 1) / total * 100

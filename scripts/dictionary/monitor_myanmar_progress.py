@@ -11,7 +11,6 @@ Usage:
 import sqlite3
 import json
 import os
-import sys
 import time
 from pathlib import Path
 

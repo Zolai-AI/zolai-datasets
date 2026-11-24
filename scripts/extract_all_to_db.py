@@ -10,10 +10,8 @@ Sources:
 """
 
 import sqlite3
-import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Any
 
 DB_PATH = Path("data/zolai.db")
 
@@ -150,7 +148,7 @@ def ensure_tables(conn):
     
     conn.commit()
 
-def extract_from_reference_file(filepath: Path) -> Dict:
+def extract_from_reference_file(filepath: Path) -> dict:
     """Extract structured data from a reference file."""
     text = filepath.read_text(encoding='utf-8', errors='ignore')
     
@@ -211,7 +209,7 @@ def extract_from_reference_file(filepath: Path) -> Dict:
     
     return result
 
-def extract_from_wiki_file(filepath: Path) -> Dict:
+def extract_from_wiki_file(filepath: Path) -> dict:
     """Extract from wiki markdown files."""
     text = filepath.read_text(encoding='utf-8', errors='ignore')
     
@@ -346,7 +344,7 @@ def process_all_sources():
                 print(f"  Processed {stats['wiki_files']} wiki files...")
     
     conn.commit()
-    print(f"\n=== Processing Complete ===")
+    print("\n=== Processing Complete ===")
     print(f"Reference files: {stats['reference_files']}")
     print(f"Wiki files: {stats['wiki_files']}")
     print(f"Vocabulary added: {stats['vocab_added']}")

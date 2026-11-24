@@ -18,7 +18,6 @@ import sys
 import signal
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
@@ -53,7 +52,7 @@ def save_progress(state: dict):
     PROGRESS_FILE.write_text(json.dumps(state, indent=2))
 
 
-def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> List[Dict]:
+def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> list[dict]:
     """Get EN→ZO entries missing Myanmar, with cross-ref to ZO→EN table."""
     cursor = conn.execute("""
         SELECT e.id, e.headword, e.pos, e.source
@@ -83,7 +82,7 @@ def get_missing_entries(conn: sqlite3.Connection, limit: int = BATCH_SIZE) -> Li
     return entries
 
 
-async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, headword: str, ref_myanmar: str = None) -> Dict:
+async def translate_with_ensemble(client: ZolaiGeminiOpenAIClient, headword: str, ref_myanmar: str = None) -> dict:
     ref_note = f"\nExisting Zolai→Myanmar translation for this word: {ref_myanmar}" if ref_myanmar else ""
 
     prompt = f"""Translate this English word to Myanmar/Burmese script.

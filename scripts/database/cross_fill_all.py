@@ -291,7 +291,7 @@ def flag_mismatched_entries(conn: sqlite3.Connection) -> int:
     """)
     mismatches = c.fetchall()
     if mismatches:
-        print(f"\n  ⚠  English mismatch samples (dictionary vs vocabulary):")
+        print("\n  ⚠  English mismatch samples (dictionary vs vocabulary):")
         for zolai, d_en, v_en in mismatches[:10]:
             d_short = (d_en[:30] + "…") if len(d_en) > 30 else d_en
             v_short = (v_en[:30] + "…") if len(v_en) > 30 else v_en

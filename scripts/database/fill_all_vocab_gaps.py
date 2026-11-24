@@ -265,9 +265,9 @@ def _print_rule_result(rule: dict, pending: int, updated: int, elapsed_ms: float
         # Show a few sample matches
         tbl = rule["target_table"]
         col = rule["target_col"]
-        print(f"    Sample matches:")
+        print("    Sample matches:")
         # Pick a representative sample — use the count query with LIMIT
-        sample_sql = rule["count_sql"].replace("SELECT COUNT(*)", f"SELECT 1 LIMIT 4")
+        sample_sql = rule["count_sql"].replace("SELECT COUNT(*)", "SELECT 1 LIMIT 4")
         # Instead, just show current coverage stats
         t, f = _col_count(conn, tbl, col)
         print(f"      {tbl}.{col}: {f:,}/{t:,} filled")
@@ -276,7 +276,7 @@ def _print_rule_result(rule: dict, pending: int, updated: int, elapsed_ms: float
 def _print_summary(conn: sqlite3.Connection) -> None:
     """Print before/after-style coverage for all affected columns."""
     print(f"\n{'='*70}")
-    print(f"  VOCABULARY CROSS-FILL — FINAL COVERAGE")
+    print("  VOCABULARY CROSS-FILL — FINAL COVERAGE")
     print(f"{'='*70}")
 
     for table, col in [
@@ -303,7 +303,7 @@ def _print_summary(conn: sqlite3.Connection) -> None:
 def _print_monitor_output(conn: sqlite3.Connection) -> None:
     """Equivalent to monitor_myanmar_progress.py output."""
     print(f"\n{'='*70}")
-    print(f"  MYANMAR TRANSLATION PROGRESS")
+    print("  MYANMAR TRANSLATION PROGRESS")
     print(f"{'='*70}")
 
     for table, col, label in [
@@ -381,7 +381,7 @@ def main() -> None:
 
         if pending == 0:
             print(f"\n  Rule {rule['id']}: {rule['name']}")
-            print(f"    Matched: 0  |  nothing to do")
+            print("    Matched: 0  |  nothing to do")
             continue
 
         t0 = time.monotonic()
@@ -421,7 +421,7 @@ def main() -> None:
         _print_monitor_output(conn)
 
     conn.close()
-    print(f"\nDone.")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

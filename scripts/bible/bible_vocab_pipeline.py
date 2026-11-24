@@ -160,23 +160,30 @@ def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
     cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
-    raw = json.dumps(entry, ensure_ascii=False)
-    cur.execute("INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
-                (hw, entry.get("pos", ""), entry.get("source", "crossref"), raw))
-    eid = cur.lastrowid
-    for t in (entry.get("english") or []):
-        if isinstance(t, str) and t.strip():
-            cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t))
-    trans = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
-                (eid, hw, trans, entry.get("explanation", "")))
-    conn.commit()
-    return True
+    try:
+        cur.execute(
+            """INSERT INTO dictionary
+               (zolai, english, pos, root, confidence, source)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                hw,
+                entry.get("english", ""),
+                entry.get("pos", ""),
+                entry.get("root", ""),
+                float(entry.get("confidence", 0) or 0),
+                "bible_vocab_pipeline",
+            ),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
 
 
-# ── Quality auditor ───────────────────────────────────────────────────────────
-
-def audit_verse(ref: str, text: str, source: str, en_text: str = "") -> list[dict]:
+def check_entry(ref: str, en_text: str, zo_text: str, en_zo: dict) -> list[dict]:
     flags = []
+    source = "zolai"
+    text = zo_text
 
     def flag(issues: list[str], severity: str, rec: str) -> None:
         flags.append({"reference": ref, "source": source, "text": text[:120],

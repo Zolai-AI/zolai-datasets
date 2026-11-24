@@ -85,17 +85,17 @@ def extract_headword_from_sense(sense_text: str) -> str:
 
 
 def main():
-    print(f"[integrate_] Loading  dictionary from: {INPUT_FILE}")
+    print(f"[integrate_dalsuum] Loading dictionary from: {INPUT_FILE}")
     if not INPUT_FILE.exists():
         print(f"  ERROR: File not found: {INPUT_FILE}")
         sys.exit(1)
 
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
-         = json.load(f)
+        data = json.load(f)
 
-    words = .get("words", [])
-    senses = .get("senses", [])
-    synsets = .get("synset", [])
+    words = data.get("words", [])
+    senses = data.get("senses", [])
+    synsets = data.get("synset", [])
 
     print(f"  Words: {len(words)}, Senses: {len(senses)}, Synsets: {len(synsets)}")
 

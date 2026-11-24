@@ -12,7 +12,6 @@ import sqlite3
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
 
 DB_PATH = Path("data/zolai.db")
 
