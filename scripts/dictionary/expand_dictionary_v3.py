@@ -8,6 +8,12 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data" / "processed" / "rebuild_v3"
 DB_PATH = DATA_DIR / "dictionary_v3.db"
@@ -20,7 +26,7 @@ def log_msg(msg: str) -> None:
 
 def init_db() -> sqlite3.Connection:
     """Initialize SQLite database"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS entries (
             id TEXT PRIMARY KEY,

@@ -12,6 +12,12 @@ import asyncio
 import logging
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -90,7 +96,7 @@ Return ONLY the JSON object."""
 
 async def main():
     """Main entry point."""
-    db = sqlite3.connect(str(DB_PATH))
+    db = connect(str(DB_PATH))
     db.row_factory = sqlite3.Row
 
     # Get verses not yet analyzed

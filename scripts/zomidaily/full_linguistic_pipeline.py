@@ -21,6 +21,12 @@ from collections import Counter
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -62,7 +68,7 @@ class FullLinguisticPipeline:
         self.progress = {}
         self.start_time = time.time()
         # Ensure WAL mode and busy_timeout for multi-process safety
-        conn = sqlite3.connect(str(db_path))
+        conn = connect(str(db_path))
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=30000")
         conn.close()
@@ -121,7 +127,7 @@ class FullLinguisticPipeline:
     
     def _stage_ingest_zomidaily(self) -> dict:
         """Stage 1: Ingest ZomiDaily articles."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         
         articles_dir = ZOMIDAILY_PATH / "articles"
@@ -205,7 +211,7 @@ class FullLinguisticPipeline:
     
     def _stage_extract_vocabulary(self) -> dict:
         """Stage 2: Extract vocabulary from word_usage."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -244,7 +250,7 @@ class FullLinguisticPipeline:
     
     def _stage_discover_grammar(self) -> dict:
         """Stage 3: Discover grammar patterns from corpus."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         
         # Get articles for analysis
@@ -326,7 +332,7 @@ class FullLinguisticPipeline:
     
     def _stage_analyze_pos(self) -> dict:
         """Stage 4: Analyze POS from context."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -394,7 +400,7 @@ class FullLinguisticPipeline:
     
     def _stage_analyze_syllables(self) -> dict:
         """Stage 5: Analyze syllable structures."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -445,7 +451,7 @@ class FullLinguisticPipeline:
     
     def _stage_build_semantics(self) -> dict:
         """Stage 6: Build semantic relationships."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -498,7 +504,7 @@ class FullLinguisticPipeline:
     
     def _stage_fill_myanmar(self) -> dict:
         """Stage 7: Fill Myanmar translations using Gemini."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -529,7 +535,7 @@ class FullLinguisticPipeline:
     
     def _stage_validate_zvs(self) -> dict:
         """Stage 8: Validate ZVS compliance."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -556,7 +562,7 @@ class FullLinguisticPipeline:
     
     def _stage_generate_exercises(self) -> dict:
         """Stage 9: Generate training exercises."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         
@@ -606,7 +612,7 @@ class FullLinguisticPipeline:
     
     def _stage_sync_dictionary(self) -> dict:
         """Stage 10: Sync dictionary with vocabulary."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connect(str(self.db_path))
         conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         

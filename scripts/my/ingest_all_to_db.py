@@ -20,6 +20,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -72,7 +78,7 @@ class DataIngester:
 
     def __init__(self, db_path: Path = DB_PATH) -> None:
         self.db_path = db_path
-        self.conn = sqlite3.connect(str(db_path), timeout=30)
+        self.conn = connect(str(db_path), timeout=30)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=30000")
         self.conn.execute("PRAGMA synchronous=NORMAL")

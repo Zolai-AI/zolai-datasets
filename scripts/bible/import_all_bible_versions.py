@@ -27,6 +27,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 # ── Paths ────────────────────────────────────────────────────────────────────
 DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 KAGGLE_ROOT = Path("/home/peter/Downloads/Kaggle/Chin-Bible")
@@ -164,7 +170,7 @@ def parse_usx_file(filepath: Path, verbose: bool = False) -> list[tuple[str, int
 
 def connect_db(db_path: Path) -> sqlite3.Connection:
     """Connect to SQLite DB with WAL mode and busy timeout."""
-    conn = sqlite3.connect(str(db_path), timeout=60)
+    conn = connect(str(db_path), timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
     return conn

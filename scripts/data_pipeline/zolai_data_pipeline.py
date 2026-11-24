@@ -1,7 +1,12 @@
 import json
 import re
-import sqlite3
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 """
 Zo_Tdm (Tedim) Unified Data Pipeline v2
@@ -22,7 +27,7 @@ def build_master():
     # data.sqlite
     db_sqlite = Path("data/data.sqlite")
     if db_sqlite.exists():
-        conn = sqlite3.connect(db_sqlite)
+        conn = connect(db_sqlite)
         cursor = conn.cursor()
         tables = ["e2z.dict.tkd", "e2z.dict.mcpg", "e2z.dict.dlh", "e2z.dict.common"]
         for table in tables:
@@ -44,7 +49,7 @@ def build_master():
     # ZomiDictionary.db
     db_zomi = Path("data/ZomiDictionary.db")
     if db_zomi.exists():
-        conn = sqlite3.connect(db_zomi)
+        conn = connect(db_zomi)
         cursor = conn.cursor()
         cursor.execute("SELECT English, Tedim FROM TedimEnglish")
         for hw, raw_zo in cursor.fetchall():

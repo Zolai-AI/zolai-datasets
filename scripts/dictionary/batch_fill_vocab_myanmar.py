@@ -20,6 +20,12 @@ import signal
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
@@ -133,7 +139,7 @@ def log_audit(conn: sqlite3.Connection, word: str, old_val: str, new_val: str, r
 
 async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
     # Phase 1: Cross-fill from dictionary (free, instant)
-    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
+    conn = connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
     cross_filled = cross_fill_from_dictionary(conn)
     print(f"✅ Cross-filled {cross_filled} entries from dictionary table")
     conn.close()
@@ -144,7 +150,7 @@ async def run_batch(limit: int = BATCH_SIZE, max_batches: int = 0):
 
     progress = load_progress()
     progress["cross_filled"] = progress.get("cross_filled", 0) + cross_filled
-    conn = sqlite3.connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
+    conn = connect(str(DB_PATH)); conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
     batch_num = progress["batches_run"]

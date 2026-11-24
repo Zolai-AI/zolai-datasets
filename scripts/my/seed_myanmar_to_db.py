@@ -18,6 +18,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE = SCRIPT_DIR.parents[2]  # zolai-ai root
 
@@ -59,7 +65,7 @@ def seed_database(entries: dict[str, str], dry_run: bool = False) -> None:
         print(f"ERROR: Database not found: {DB_PATH}", file=sys.stderr)
         sys.exit(1)
 
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     cursor = conn.cursor()
 
     # Ensure column exists

@@ -15,8 +15,13 @@ import sys
 import os
 import random
 import json
-import sqlite3
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 # Add local package
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
@@ -25,7 +30,7 @@ DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 
 
 def get_db():
-    return sqlite3.connect(DB_PATH)
+    return connect(DB_PATH)
 
 
 class ProficiencyTest:

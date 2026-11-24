@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Show database statistics from zolai.db — ALL tables."""
 import os
-import sqlite3
 import sys
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
+from db import connect  # dual-engine
 
 DB = (
     os.environ.get("DATA", str(Path(__file__).parent.parent.parent / "data"))
@@ -60,7 +65,7 @@ def main() -> None:
         print(f"  ❌ Database not found: {DB}")
         sys.exit(1)
 
-    conn = sqlite3.connect(DB)
+    conn = connect(DB)
     c = conn.cursor()
 
     # ── Header ──

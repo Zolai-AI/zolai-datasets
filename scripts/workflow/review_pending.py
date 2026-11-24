@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 import asyncio
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 """
 Interactive Human Review Workflow for Gemini-Generated Dictionary Updates.
 
@@ -9,7 +15,6 @@ All actions update the database with version, remarks, and status.
 After review, regenerates JSONL files from approved entries only.
 """
 
-import sqlite3
 import json
 import sys
 import os
@@ -24,7 +29,7 @@ if BIBLE_DIR not in sys.path:
 
 def get_pending_entries(limit=50):
     """Get entries pending human review."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     cur.execute(
         "SELECT id, zolai, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?",
@@ -37,7 +42,7 @@ def get_pending_entries(limit=50):
 
 def update_entry_status(entry_id, new_status, remarks=None, description=None):
     """Update entry status in database."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get current version and bump it
@@ -68,7 +73,7 @@ def update_entry_status(entry_id, new_status, remarks=None, description=None):
 
 def regenerate_jsonl_from_approved():
     """Regenerate JSONL files from entries with status='approved'."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all approved entries

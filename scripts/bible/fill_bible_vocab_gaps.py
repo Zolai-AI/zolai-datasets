@@ -1,4 +1,10 @@
 from __future__ import annotations
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script required external API keys (Gemini) and is kept for
@@ -46,7 +52,7 @@ def load_dict_jsonl() -> dict[str, dict]:
 
 
 def load_db_headwords() -> set[str]:
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT LOWER(zolai) FROM dictionary WHERE zolai != ''")
     result = {r[0].strip() for r in cur.fetchall()}
@@ -206,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(verses)} verses")
 
     api_key = _load_api_key()
-    conn = sqlite3.connect(DB_PATH) if not args.dry_run else None
+    conn = connect(DB_PATH) if not args.dry_run else None
     OUT_VOCAB.mkdir(parents=True, exist_ok=True)
 
     total_new = 0

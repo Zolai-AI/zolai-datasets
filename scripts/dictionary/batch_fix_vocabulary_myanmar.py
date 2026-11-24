@@ -16,6 +16,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 # Add local package path
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
@@ -44,7 +50,7 @@ def log_audit(conn: sqlite3.Connection, table: str, word: str, field: str,
 
 async def get_missing_entries(limit: int = 500) -> list[dict]:
     """Get vocabulary entries missing Myanmar translations."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
     cursor = conn.execute("""
@@ -114,7 +120,7 @@ async def process_batch(limit: int = 500):
         print("No entries to translate. Done.")
         return
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     c = conn.cursor()
 
     translated = 0

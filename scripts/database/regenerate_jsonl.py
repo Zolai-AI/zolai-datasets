@@ -6,10 +6,15 @@ Reads the master database and outputs clean JSONL files
 for the Zolai dictionary system.
 """
 
-import sqlite3
 import json
 import sys
 import os
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 # Add bible dir for gemini_cookies
 SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
@@ -45,7 +50,7 @@ def extract_headword_from_raw_json(raw_json):
 
 async def regenerate_verified_dict():
     """Regenerate dict_zo_en_verified_v1.jsonl from database."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries with their fields
@@ -119,7 +124,7 @@ async def regenerate_verified_dict():
 
 async def regenerate_master_dict():
     """Regenerate dict_zo_en_master_v1.jsonl from database."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     cur.execute("SELECT id, headword, pos, english, sources, raw_json, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary")

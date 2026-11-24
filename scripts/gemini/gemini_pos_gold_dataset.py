@@ -11,6 +11,12 @@ import sys
 import argparse
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 sys.path.insert(
     0,
     os.environ.get(
@@ -46,7 +52,7 @@ CREATE TABLE IF NOT EXISTS pos_gold (
 
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn

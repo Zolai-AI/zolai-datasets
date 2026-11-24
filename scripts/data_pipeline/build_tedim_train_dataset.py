@@ -9,6 +9,12 @@ import json
 import sys
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 ROOT = Path(__file__).resolve().parents[3]
 OUT  = ROOT / "kaggle_bundle/data/zolai_tedim_train.jsonl"
 
@@ -140,7 +146,7 @@ def load_dictionary_from_db(fout) -> int:
     db_path = ROOT / "data" / "zolai.db"
     if not db_path.exists():
         return 0
-    conn = _sqlite3.connect(str(db_path))
+    conn = connect(str(db_path))
     cur = conn.cursor()
     cur.execute(
         "SELECT zolai, english, english_clean, pos "

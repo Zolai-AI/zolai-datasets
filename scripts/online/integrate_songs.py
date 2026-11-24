@@ -9,6 +9,12 @@ import re
 import sqlite3
 import sys
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 SONGS_DIR = "/home/peter/Downloads/Kaggle/Linguistics/Zolai/Literature/Tedim Labu"
 ONLINE_ALL_ZOLAI = (
@@ -217,7 +223,7 @@ def integrate_gospel(
 # Main
 # ---------------------------------------------------------------------------
 def integrate(db_path: str, songs_dir: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
     cur = conn.cursor()

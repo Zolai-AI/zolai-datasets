@@ -1,4 +1,10 @@
 import os
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 #!/usr/bin/env python3
 """
 Real Zolai Knowledge Test — ALL Gemini models using local package.
@@ -6,7 +12,6 @@ Real Zolai Knowledge Test — ALL Gemini models using local package.
 import asyncio
 import sys
 import json
-import sqlite3
 
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 from gemini.client import ZolaiGeminiClient
@@ -16,7 +21,7 @@ DB = "data/zolai.db"
 
 
 def get_db():
-    return sqlite3.connect(DB)
+    return connect(DB)
 
 
 def fetch_test_cases():

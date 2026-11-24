@@ -1,4 +1,9 @@
-import sqlite3
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 
 class ZVSTranslator:
@@ -13,7 +18,7 @@ class ZVSTranslator:
             text: The word/phrase to translate.
             register: 'conversational' (daily life) or 'formal' (Biblical/Literary).
         """
-        conn = sqlite3.connect(self.db_path)
+        conn = connect(self.db_path)
         cursor = conn.cursor()
         
         # Search for headword or translation

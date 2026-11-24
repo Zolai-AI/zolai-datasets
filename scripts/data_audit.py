@@ -31,6 +31,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
+from db import connect  # dual-engine
+
 # ── Data paths (relative to workspace root) ─────────────────────────
 WORKSPACE = Path("/home/peter/Documents/Projects/zolai-ai")
 DATA_ROOT = WORKSPACE / "data"
@@ -118,7 +124,7 @@ class AuditDBWriter:
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn = connect(str(self.db_path))
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._ensure_tables()
         return self._conn

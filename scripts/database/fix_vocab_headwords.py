@@ -22,6 +22,12 @@ import sys
 import time
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 
 # Characters to strip from headwords (ASCII + Unicode smart quotes)
@@ -510,7 +516,7 @@ def main():
         print(f"ERROR: Database not found at {DB_PATH}", file=sys.stderr)
         sys.exit(1)
 
-    conn = sqlite3.connect(str(DB_PATH), timeout=120)
+    conn = connect(str(DB_PATH), timeout=120)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=120000")
 

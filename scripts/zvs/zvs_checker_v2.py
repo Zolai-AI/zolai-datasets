@@ -8,11 +8,16 @@ against ZVS 2018 forbidden forms using Gemini Web API.
 Updates the SQLite database with compliance status.
 """
 
-import sqlite3
 import json
 import sys
 import os
 import re
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 # Add bible dir for gemini_cookies
 SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
@@ -82,7 +87,7 @@ Return ONLY valid JSON:
 
 async def process_jsonl_entries(batch_size=100):
     """Process entries from dict_zo_en_verified_v1.jsonl and update database."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries from JSONL

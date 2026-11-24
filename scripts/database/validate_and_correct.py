@@ -12,6 +12,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 
 
@@ -297,7 +303,7 @@ def main() -> None:
     print(f"DB: {DB_PATH}")
     print(f"Size: {DB_PATH.stat().st_size / 1e6:.1f} MB")
 
-    conn = sqlite3.connect(str(DB_PATH), timeout=60)
+    conn = connect(str(DB_PATH), timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
 

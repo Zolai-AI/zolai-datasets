@@ -23,6 +23,12 @@ from pathlib import Path
 
 # ── Path resolution ─────────────────────────────────────────────────────────
 import os
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
 os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
@@ -431,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
     parallel_en = load_parallel_en()
     print(f"{len(parallel_en):,} verses")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     all_known = set(dictionary.keys()) | db_headwords(conn)
     print(f"Total known: {len(all_known):,}")
 

@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Fix too-long Myanmar Bible translations by truncating to reasonable length."""
-import sqlite3
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 DB_PATH = str(Path(__file__).resolve().parents[3] / "data" / "zolai.db")
 
 def fix_myanmar_length(max_length=200):
     """Truncate Myanmar text to max_length characters, trying to end at sentence boundary."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     cur = conn.cursor()
     
     # Get all verses with Myanmar text longer than max_length

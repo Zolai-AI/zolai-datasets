@@ -21,6 +21,12 @@ import logging
 from pathlib import Path
 from collections import Counter
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -243,7 +249,7 @@ def ingest_articles(conn):
 
 def main():
     """Main entry point."""
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
 
     logger.info("=== Starting ZomiDaily Ingestion ===")

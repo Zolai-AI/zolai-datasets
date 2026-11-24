@@ -1,7 +1,12 @@
 import json
 import re
-import sqlite3
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 """
 Zo_Tdm Shared Utilities
@@ -33,4 +38,4 @@ def stream_jsonl(path):
             yield json.loads(line)
 
 def get_db_conn(db_path):
-    return sqlite3.connect(db_path)
+    return connect(db_path)

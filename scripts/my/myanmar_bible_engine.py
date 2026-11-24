@@ -11,6 +11,12 @@ Usage:
 import os
 import sqlite3
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 WORKSPACE = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -20,7 +26,7 @@ DB_PATH = os.path.join(DATA, "zolai.db")
 
 def get_db():
     """Connect to SQLite database."""
-    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn = connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 

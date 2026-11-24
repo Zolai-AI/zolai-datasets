@@ -1,7 +1,12 @@
 import json
 import os
 import re
-import sqlite3
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 # ── Path resolution ─────────────────────────────────────────────────────────
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -65,7 +70,7 @@ def migrate():
     if os.path.exists(DB_PATH):
         os.remove(DB_PATH)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     setup_db(conn)
     c = conn.cursor()
 

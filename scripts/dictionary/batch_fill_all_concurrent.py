@@ -30,6 +30,12 @@ import signal
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
@@ -253,7 +259,7 @@ async def run_unified(limit: int = DEFAULT_BATCH_SIZE, max_batches: int = DEFAUL
     """Main loop: read all 3 tables, translate concurrently, write sequentially."""
 
     # Phase 0: Cross-fill vocabulary from dictionary (free, instant)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
@@ -267,7 +273,7 @@ async def run_unified(limit: int = DEFAULT_BATCH_SIZE, max_batches: int = DEFAUL
     semaphore = asyncio.Semaphore(concurrency)
 
     # Single DB connection for sequential writes
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")

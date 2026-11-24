@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Phase 2: Bible Parallel Integration — merge 6-version parallel Bible into bible_verses."""
 import json
-import sqlite3
 import sys
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 PARALLEL_PATH = "/home/peter/Downloads/Kaggle/data/zolai_bible_dataset/bible_parallel.jsonl"
@@ -43,7 +48,7 @@ def verse_id_to_ref(verse_id: str) -> str:
 
 
 def integrate(db_path: str, parallel_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
     cur = conn.cursor()

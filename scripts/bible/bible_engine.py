@@ -1,4 +1,10 @@
 import os
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 #!/usr/bin/env python3
 """
 ZOLAI BIBLE ENGINE — Comprehensive Language Learning & Grammar Engine
@@ -2344,14 +2350,13 @@ if __name__ == "__main__":
 # ============================================================
 # DB LOADING FUNCTIONS (replaces JSONL loading)
 # ============================================================
-import sqlite3
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
 
 
 def get_db():
-    return sqlite3.connect(DB_PATH)
+    return connect(DB_PATH)
 
 
 def load_vocab_from_db() -> list[dict]:

@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Truncate Myanmar Bible translations to 200 chars at sentence boundary."""
-import sqlite3
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 DB = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 
 def fix_myanmar(max_len=200):
-    conn = sqlite3.connect(DB)
+    conn = connect(DB)
     cur = conn.cursor()
     
     # Check current max length

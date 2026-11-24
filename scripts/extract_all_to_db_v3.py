@@ -8,10 +8,16 @@ import json
 import re
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
+from db import connect  # dual-engine
+
 DB_PATH = Path("data/zolai.db")
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 

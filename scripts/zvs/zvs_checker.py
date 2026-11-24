@@ -18,11 +18,16 @@ Also tracks:
 - nunnak → valid in certain contexts (life)
 """
 
-import sqlite3
 import json
 import sys
 import os
 import re
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 # Add bible dir for gemini_cookies
 SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
@@ -121,7 +126,7 @@ Return ONLY valid JSON, no code blocks, no explanations:
 
 async def process_all_entries(batch_size=100):
     """Process all entries in the dictionary database for ZVS compliance."""
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     
     # Get all entries that need processing
@@ -229,7 +234,7 @@ async def process_all_entries(batch_size=100):
 async def main():
     # First, let's test with a few known entries
     print("=== TESTING WITH SAMPLE ENTRIES ===")
-    conn = sqlite3.connect('data/zolai.db')
+    conn = connect('data/zolai.db')
     cur = conn.cursor()
     cur.execute("SELECT * FROM dictionary LIMIT 5")
     test_rows = cur.fetchall()

@@ -4,6 +4,12 @@ import os
 import sqlite3
 import sys
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 REF_DIR = "/home/peter/Documents/Projects/zolai-ai/data/reference/grammar"
 
@@ -26,7 +32,7 @@ SONG_MINIMUMS = {
 
 
 def validate(db_path: str) -> bool:
-    conn = sqlite3.connect(db_path)
+    conn = connect(db_path)
     conn.execute("PRAGMA busy_timeout=30000")
     cur = conn.cursor()
     errors = []

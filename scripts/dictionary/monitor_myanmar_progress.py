@@ -14,6 +14,12 @@ import os
 import time
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH = Path(os.environ.get("DATA", "/home/peter/Documents/Projects/zolai-ai/data")) / "zolai.db"
 SCRIPT_DIR = Path(__file__).parent
 
@@ -53,7 +59,7 @@ def get_table_stats(conn: sqlite3.Connection) -> dict:
 
 
 def print_dashboard():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect(str(DB_PATH))
     stats = get_table_stats(conn)
     conn.close()
 

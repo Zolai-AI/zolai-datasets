@@ -1,6 +1,11 @@
-import sqlite3
 import json
 import sys
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
 
@@ -74,7 +79,7 @@ def process_batch(batch_size=500, mode="local"):
     Process pending ZVS compliance checks.
     Modes: 'local' (fast, no API), 'gemini' (AI-powered, needs network), 'all' (local first, gemini for unclear)
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     cur = conn.cursor()
     
     cur.execute("SELECT id, zolai FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?", (batch_size,))

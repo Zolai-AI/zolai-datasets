@@ -1,4 +1,10 @@
 from __future__ import annotations
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
@@ -244,7 +250,7 @@ def simple_align(word: str, zo_text: str, en_text: str) -> list[str]:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
 
     # 1. Fix number words
     print("Fixing number words in DB...", flush=True)

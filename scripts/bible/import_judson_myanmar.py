@@ -9,9 +9,14 @@ Usage:
 """
 
 import re
-import sqlite3
 import sys
 from pathlib import Path
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 
 DB_PATH = Path(__file__).resolve().parents[3] / "data" / "zolai.db"
 DEFAULT_SOURCE = Path("/home/peter/Downloads/Kaggle/Chin-Bible/Judson Bible Burmese/USX_1")
@@ -129,7 +134,7 @@ def main() -> None:
         return
 
     # ── Step 2: Connect to DB and clear existing Myanmar data ─────────────
-    conn = sqlite3.connect(str(db_path), timeout=60)
+    conn = connect(str(db_path), timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
     cur = conn.cursor()

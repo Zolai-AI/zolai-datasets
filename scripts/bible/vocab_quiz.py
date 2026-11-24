@@ -8,6 +8,12 @@ import sys
 import random
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 # Add parent directory to path for imports
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -45,7 +51,7 @@ class VocabQuiz:
         """Load phrases from zolai.db."""
         import sqlite3
         db_path = Path("/home/peter/Documents/Projects/zolai-ai/data/zolai.db")
-        conn = sqlite3.connect(str(db_path))
+        conn = connect(str(db_path))
         c = conn.cursor()
         c.execute("SELECT zo, english FROM phrases WHERE english IS NOT NULL AND english != ''")
         rows = c.fetchall()

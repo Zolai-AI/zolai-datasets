@@ -14,6 +14,12 @@ import time
 import urllib.request
 from pathlib import Path
 
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
+
 DB_PATH  = Path("data/zolai.db")
 MISSING  = Path("data/processed/bible_vocab_still_missing_v2.jsonl")
 RESOLVED = Path("data/processed/bible_vocab_resolved.jsonl")
@@ -101,7 +107,7 @@ def main() -> int:
         print("Sample:", [g["word"] for g in missing[:20]])
         return 0
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     resolved_f = open(RESOLVED, "a", encoding="utf-8")
     still_f    = open(STILL, "w", encoding="utf-8")
 

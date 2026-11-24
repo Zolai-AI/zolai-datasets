@@ -1,4 +1,10 @@
 from __future__ import annotations
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys as _zolai_db_sys
+from pathlib import Path as _zolai_db_Path
+_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
+from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
@@ -235,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     examples = load_parallel_examples()
     print(f"{len(examples)} words with examples")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect(DB_PATH)
     db_words = db_headwords(conn)
     all_known = set(dictionary.keys()) | db_words
     print(f"Total known (dict+DB): {len(all_known)}")
