@@ -19,16 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path, data_root
 
-sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local"))
+sys.path.insert(0, os.environ.get("ZOLAI_AI_LOCAL", str(data_root().parent / "zolai-ai-local")))
 
 from gemini.client_openai import ZolaiGeminiOpenAIClient
 
-DB_PATH = Path(os.environ.get("DATA", "/home/peter/Documents/Projects/zolai-ai/data")) / "zolai.db"
+DB_PATH = db_path()
 RESULTS_FILE = Path(__file__).parent / "model_benchmark_results.json"
 
 ALL_MODELS = [

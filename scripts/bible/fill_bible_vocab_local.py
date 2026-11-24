@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
 """
 # DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
 """
 Fill Bible vocab gaps using only local dictionary sources (no Gemini).
 
@@ -31,17 +33,16 @@ Usage:
 
 import argparse
 import json
+from datetime import datetime, timezone
 import re
 import sqlite3
-import sys
-from pathlib import Path
 
 DATA = Path("data/master/sources")
 SEMANTIC = Path("data/processed/master_dictionary_semantic.jsonl")
 ENRICHED = Path("data/processed/master_dictionary_enriched.jsonl")
 ZOMIDICT = Path("data/dictionary/raw/zomidictionary_export.jsonl")
 PARALLEL = Path("data/master/sources/bible_parallel_tdb77.jsonl")
-DB_PATH = Path("data/zolai.db")
+DB_PATH = db_path()
 OUT_VOCAB = Path("data/processed/bible_vocab")
 GAPS_LOG = Path("data/processed/bible_vocab_gaps.jsonl")
 
@@ -53,6 +54,16 @@ SUFFIXES = [
 
 
 # ── Load all local dictionaries ───────────────────────────────────────────────
+
+def _now_iso() -> str:
+    """ISO-8601 UTC with explicit offset — the one format the core DB uses.
+
+    Never ``datetime.utcnow()`` (naive) and never SQL ``datetime('now')`` /
+    ``strftime``: those write the space-separated form that sorts wrongly beside
+    canonical rows.
+    """
+    return datetime.now(timezone.utc).isoformat()
+
 
 def load_all_sources() -> dict[str, dict]:
     """Merge all local sources into one dict keyed by lowercase headword."""
@@ -175,44 +186,105 @@ def db_headwords(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in cur.fetchall()}
 
 
-def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
+def _store_meanings(cur, dict_id: int, entry: dict, source: str) -> None:
+    """Write senses/examples to ``dictionary_meanings`` (the core child table).
+
+    The core ``dictionary`` row carries only the headword and its glosses; each
+    distinct meaning, example sentence and Burmese equivalent belongs in
+    ``dictionary_meanings`` keyed by ``dictionary_id``.
+    """
+    hw = entry["zolai"].strip()
+    glosses = [t.strip() for t in (entry.get("english") or [])
+               if isinstance(t, str) and t.strip()]
+    explanation = str(entry.get("explanation", "")).strip()
+    examples = entry.get("examples") or []
+    example_en = next((str(x) for x in examples if isinstance(x, str) and x.strip()), "")
+    rows = [
+        (dict_id, hw, glosses[0] if glosses else explanation, "", "", entry.get("pos", ""),
+         "", "", example_en, 0, 1, source, _now_iso()),
+    ]
+    for g in glosses[1:]:
+        rows.append((dict_id, hw, g, "", "", entry.get("pos", ""),
+                     "", "", "", 0, 0, source, _now_iso()))
+    cur.executemany(
+        "INSERT INTO dictionary_meanings (dictionary_id, zolai, meaning_en, meaning_my, "
+        "meaning_zo, pos, context, example_zo, example_en, frequency, is_primary, "
+        "source, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+
+
+def _merge_entry_fields(cur, dict_id: int, entry: dict) -> bool:
+    """Fill gaps using real core columns (``morph_features`` holds the extras)."""
+    cur.execute("SELECT morph_features, pos, english FROM dictionary WHERE id=?", (dict_id,))
+    row = cur.fetchone()
+    if not row:
+        return False
+    try:
+        old = json.loads(row[0] or "{}")
+    except (ValueError, TypeError):
+        old = {}
+    if not isinstance(old, dict):
+        old = {}
+    updated = False
+    for field in ("variants", "synonyms", "antonyms", "related",
+                  "explanation", "usage_notes", "examples"):
+        if not old.get(field) and entry.get(field):
+            old[field] = entry[field]
+            updated = True
+    new_pos = entry.get("pos") or row[1] or ""
+    changed = updated or bool(entry.get("pos") and entry["pos"] != row[1])
+    if changed:
+        cur.execute("UPDATE dictionary SET morph_features=?, pos=?, updated_at=? WHERE id=?",
+                    (json.dumps(old, ensure_ascii=False), new_pos, _now_iso(), dict_id))
+        cur.execute(
+            "INSERT INTO dictionary_meanings (dictionary_id, zolai, meaning_en, pos, "
+            "is_primary, source, created_at) VALUES (?,?,?,?,?,?,?)",
+            (dict_id, entry["zolai"].strip(), str(entry.get("explanation", "")).strip(),
+             new_pos, 0, entry.get("source", "local"), _now_iso()))
+    return changed
+
+
+def db_insert(entry: dict, conn) -> bool:
+    """Insert or enrich one headword against the **core** schema.
+
+    Columns follow ``zolai-core``: ``dictionary.zolai``/``english``/``source``,
+    senses in ``dictionary_meanings``, reverse lookups in ``dictionary_en_zo``.
+    The pre-merge ``headword``/``sources``/``raw_json`` trio and the
+    ``(entry_id, translation)`` shape of ``translations`` no longer exist here.
+    """
     cur = conn.cursor()
     hw = entry["zolai"].strip()
     cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     existing = cur.fetchone()
+    source = str(entry.get("source", "local")) or "local"
+    glosses = [t.strip() for t in (entry.get("english") or [])
+               if isinstance(t, str) and t.strip()]
 
-    raw = json.dumps(entry, ensure_ascii=False)
     if existing:
-        # Update raw_json to fill missing fields
-        cur.execute("SELECT raw_json FROM dictionary WHERE id=?", (existing[0],))
-        old_raw = cur.fetchone()[0] or "{}"
-        old = json.loads(old_raw)
-        updated = False
-        for field in ["pos", "variants", "synonyms", "antonyms", "related",
-                      "explanation", "usage_notes", "examples"]:
-            if not old.get(field) and entry.get(field):
-                old[field] = entry[field]
-                updated = True
-        if updated:
-            cur.execute("UPDATE dictionary SET raw_json=?, pos=? WHERE id=?",
-                        (json.dumps(old, ensure_ascii=False), entry.get("pos", old.get("pos", "")), existing[0]))
+        if _merge_entry_fields(cur, existing[0], entry):
             conn.commit()
-        return False  # not new, just updated
-    else:
+        return False  # enriched, not new
+
+    cur.execute(
+        "INSERT INTO dictionary (zolai, english, english_clean, pos, source, "
+        "source_type, review_status, morph_features, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (hw, ", ".join(glosses), (glosses[0] if glosses else "").lower(),
+         entry.get("pos", ""), source, "curated", "pending",
+         json.dumps({k: v for k, v in entry.items()
+                     if k in ("variants", "synonyms", "antonyms", "related",
+                              "explanation", "usage_notes", "examples")},
+                    ensure_ascii=False),
+         _now_iso(), _now_iso()),
+    )
+    eid = cur.lastrowid
+    _store_meanings(cur, eid, entry, source)
+    for trans in glosses:
         cur.execute(
-            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
-            (hw, entry.get("pos", ""), entry.get("source", "local"), raw),
-        )
-        eid = cur.lastrowid
-        for t in (entry.get("english") or []):
-            if isinstance(t, str) and t.strip():
-                cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t.strip()))
-        trans_text = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
-        cur.execute(
-            (eid, hw, trans_text, entry.get("explanation", "")),
-        )
-        conn.commit()
-        return True
+            "INSERT INTO dictionary_en_zo (headword, translations, pos, source) "
+            "VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
+            (trans.lower(), hw, entry.get("pos", ""), source))
+    conn.commit()
+    return True
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

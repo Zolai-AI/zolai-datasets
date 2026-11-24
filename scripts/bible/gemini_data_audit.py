@@ -17,16 +17,20 @@ import argparse
 import json
 import re
 import time
+import sys
 from pathlib import Path
 from collections import defaultdict
 
-WEB_API_PATH = '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi'
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
+
+WEB_API_PATH = str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 
 
 from gemini_cookies import get_gemini_client
 
-DATA_ROOT = Path("/home/peter/Documents/Projects/zolai-ai/data")
-WIKI_ROOT = Path("/home/peter/Documents/Projects/zolai-ai/zolai-wiki")
+DATA_ROOT = Path(str(data_root()))
+WIKI_ROOT = Path(str(data_root().parent / "zolai-wiki"))
 LOG_DIR = DATA_ROOT / "audit_logs"
 LOG_DIR.mkdir(exist_ok=True)
 

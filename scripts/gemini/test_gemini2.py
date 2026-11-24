@@ -1,6 +1,7 @@
 import sys, os, asyncio
+from pathlib import Path
 SCRIPT_DIR = os.path.dirname(os.path.abspath('/tmp/test_gemini2.py'))
-BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts', 'bible')
+BIBLE_DIR = os.path.join(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts'), 'bible')
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 from gemini_cookies import get_gemini_client

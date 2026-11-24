@@ -3,13 +3,11 @@
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
 
-DB_PATH = str(Path(__file__).resolve().parents[3] / "data" / "zolai.db")
-
+DB_PATH = db_path()
 def fix_myanmar_length(max_length=200):
     """Truncate Myanmar text to max_length characters, trying to end at sentence boundary."""
     conn = connect(DB_PATH)
@@ -48,6 +46,5 @@ def fix_myanmar_length(max_length=200):
     print(f"✅ Updated {updated} verses")
 
 if __name__ == "__main__":
-    import sys
     max_len = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     fix_myanmar_length(max_len)

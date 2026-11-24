@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-d = "/home/peter/Documents/Projects/zolai-ai/data/raw/Zomi Worship Collective/"
+d = str(Path.home() / 'Documents/Projects/zolai-ai/data/raw/Zomi Worship Collective')
 files = sorted(os.listdir(d))
 batch = files[100:120]
 
@@ -148,7 +149,7 @@ output_lines.append("**Total new vocabulary:** [count] words across 20 songs")
 output_lines.append("**Dominant themes:** [themes]")
 
 # Write to file
-output_path = "/home/peter/Documents/Projects/zolai-ai/zolai-wiki/grammar/song_analysis_zomi_worship_batch6.md"
+output_path = str(Path.home() / 'Documents/Projects/zolai-ai/zolai-wiki/grammar/song_analysis_zomi_worship_batch6.md')
 with open(output_path, 'w', encoding='utf-8') as f:
     f.write('\n'.join(output_lines))
 print(f"Generated {output_path} with {len(output_lines)} lines")

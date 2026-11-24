@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 import re
 import sqlite3
 import sys
@@ -15,12 +16,10 @@ import urllib.request
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
 
-DB_PATH  = Path("data/zolai.db")
+DB_PATH = db_path()
 MISSING  = Path("data/processed/bible_vocab_still_missing_v2.jsonl")
 RESOLVED = Path("data/processed/bible_vocab_resolved.jsonl")
 STILL    = Path("data/processed/bible_vocab_still_missing_v3.jsonl")
@@ -39,6 +38,16 @@ Rules:
 
 Entry format:
 {"zolai":"word","english":["trans1","trans2"],"pos":"noun|verb|adj|particle|proper_noun","explanation":"brief","dialect":"tedim","accuracy":0.6}"""
+
+
+def _now_iso() -> str:
+    """ISO-8601 UTC with explicit offset — the one format the core DB uses.
+
+    Never ``datetime.utcnow()`` (naive) and never SQL ``datetime('now')`` /
+    ``strftime``: those write the space-separated form that sorts wrongly beside
+    canonical rows.
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 
 def load_keys() -> list[str]:
@@ -63,22 +72,44 @@ def call_gemini(words: list[str], key: str) -> list[dict]:
     return json.loads(raw)
 
 
-def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
+def db_insert(entry: dict, conn) -> bool:
+    """Write one Gemini-produced headword using the core column names.
+
+    ``dictionary`` keys the headword as ``zolai`` (not ``headword``) and has no
+    ``sources``/``raw_json``; the old ``fts_idx`` side table is gone because the
+    core search path reads ``dictionary``/``dictionary_en_zo`` directly.
+    """
     cur = conn.cursor()
     hw = entry["zolai"].strip()
     cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
-    raw = json.dumps(entry, ensure_ascii=False)
-    cur.execute("INSERT INTO dictionary (zolai, pos, sources, raw_json) VALUES (?,?,?,?)",
-                (hw, entry.get("pos", ""), "gemini_vocab", raw))
+    glosses = [t.strip() for t in (entry.get("english") or [])
+               if isinstance(t, str) and t.strip()]
+    pos = entry.get("pos", "")
+    cur.execute(
+        "INSERT INTO dictionary (zolai, english, english_clean, pos, source, "
+        "source_type, review_status, confidence, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (hw, ", ".join(glosses), (glosses[0] if glosses else "").lower(), pos,
+         "gemini_vocab", "generated", "pending", 0.6, _now_iso(), _now_iso()))
     eid = cur.lastrowid
-    for t in (entry.get("english") or []):
-        if isinstance(t, str) and t.strip():
-            cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (eid, t))
-    trans = " ".join(t for t in (entry.get("english") or []) if isinstance(t, str))
-    cur.execute("INSERT INTO fts_idx (rowid, headword, translations_text, explanations_text) VALUES (?,?,?,?)",
-                (eid, hw, trans, entry.get("explanation", "")))
+    explanation = str(entry.get("explanation", "")).strip()
+    cur.execute(
+        "INSERT INTO dictionary_meanings (dictionary_id, zolai, meaning_en, pos, "
+        "context, is_primary, source, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (eid, hw, glosses[0] if glosses else explanation, pos, explanation,
+         1, "gemini_vocab", _now_iso()))
+    for t in glosses[1:]:
+        cur.execute(
+            "INSERT INTO dictionary_meanings (dictionary_id, zolai, meaning_en, pos, "
+            "is_primary, source, created_at) VALUES (?,?,?,?,?,?,?)",
+            (eid, hw, t, pos, 0, "gemini_vocab", _now_iso()))
+    for t in glosses:
+        cur.execute(
+            "INSERT INTO dictionary_en_zo (headword, translations, pos, source) "
+            "VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
+            (t.lower(), hw, pos, "gemini_vocab"))
     conn.commit()
     return True
 

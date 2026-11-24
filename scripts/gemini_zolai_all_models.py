@@ -1,6 +1,7 @@
 # Path setup for gemini_cookies import
 import os
 import sys
+from pathlib import Path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BIBLE_DIR = os.path.join(SCRIPT_DIR, "bible")
 if BIBLE_DIR not in sys.path: sys.path.insert(0, BIBLE_DIR)
@@ -13,7 +14,7 @@ import asyncio
 import argparse
 import sys
 
-WEB_API_PATH = '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi'
+WEB_API_PATH = str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 
 
 from bible.gemini_cookies import get_gemini_client

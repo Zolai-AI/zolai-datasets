@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script required external API keys (Gemini) and is kept for
     reference only.
 """
 # DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
 """
 Pipeline: Extract Bible vocab → find gaps → fill with Gemini → update DB + JSONL.
 
@@ -20,16 +22,15 @@ Usage:
 
 import argparse
 import json
+from datetime import datetime, timezone
 import re
 import sqlite3
-import sys
 import time
 import urllib.request
-from pathlib import Path
 
 DATA = Path("data/master/sources")
 SEMANTIC_DICT = Path("data/processed/master_dictionary_semantic.jsonl")
-DB_PATH = Path("data/zolai.db")
+DB_PATH = db_path()
 OUT_VOCAB = Path("data/processed/bible_vocab")
 NEW_ENTRIES_LOG = Path("data/processed/bible_vocab_new_entries.jsonl")
 
@@ -40,6 +41,16 @@ SUFFIXES = [
 ]
 
 # ── Dictionary loading ────────────────────────────────────────────────────────
+
+def _now_iso() -> str:
+    """ISO-8601 UTC with explicit offset — the one format the core DB uses.
+
+    Never ``datetime.utcnow()`` (naive) and never SQL ``datetime('now')`` /
+    ``strftime``: those write the space-separated form that sorts wrongly beside
+    canonical rows.
+    """
+    return datetime.now(timezone.utc).isoformat()
+
 
 def load_dict_jsonl() -> dict[str, dict]:
     d: dict[str, dict] = {}
@@ -149,30 +160,59 @@ def gemini_lookup(words: list[str], api_key: str) -> list[dict]:
 
 # ── DB insert ─────────────────────────────────────────────────────────────────
 
-def insert_to_db(entries: list[dict], conn: sqlite3.Connection) -> int:
+def insert_to_db(entries: list[dict], conn) -> int:
+    """Append new vocabulary to the **core** ``dictionary`` schema.
+
+    The core store keeps one row per headword with the English gloss inline
+    (``zolai``/``english``/``source``) — there is no ``headword``/``sources``/
+    ``raw_json`` column, and the old ``fts_idx`` side table no longer exists, so
+    the English text goes straight into ``dictionary.english``.
+    """
     cur = conn.cursor()
     inserted = 0
     for e in entries:
-        hw = e.get("zolai", e.get("word", "")).strip()
+        hw = str(e.get("zolai", e.get("word", ""))).strip()
         if not hw:
             continue
         cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
         if cur.fetchone():
             continue  # already exists
-        raw = json.dumps(e, ensure_ascii=False)
+        glosses = [t.strip() for t in (e.get("english") or []) if isinstance(t, str) and t.strip()]
         pos = e.get("pos", "")
         cur.execute(
-            "INSERT INTO dictionary (headword, pos, sources, raw_json) VALUES (?,?,?,?)",
-            (hw, pos, "gemini_bible_vocab", raw),
+            "INSERT INTO dictionary (zolai, english, pos, source, source_type, "
+            "review_status, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                hw,
+                ", ".join(glosses),
+                pos,
+                "gemini_bible_vocab",
+                "generated",
+                "pending",
+                _now_iso(),
+                _now_iso(),
+            ),
         )
         entry_id = cur.lastrowid
-        for trans in e.get("english", []):
-            cur.execute("INSERT INTO translations (entry_id, translation) VALUES (?,?)", (entry_id, trans))
-        # FTS
-        trans_text = " ".join(e.get("english", []))
-        cur.execute(
-            (entry_id, hw, trans_text, e.get("explanation", "")),
-        )
+        # English → Zolai reverse index (core ``dictionary_en_zo``), one row per
+        # headword with the translations kept as a single text list.
+        for trans in glosses:
+            cur.execute(
+                "INSERT INTO dictionary_en_zo (headword, translations, pos, source) "
+                "VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
+                (trans.lower(), hw, pos, "gemini_bible_vocab"),
+            )
+        # Parallel sentence pairs land in the core ``translations`` table, whose
+        # shape is (source, target, direction, confidence) — not (entry_id,…).
+        explanation = str(e.get("explanation", "")).strip()
+        if explanation and glosses:
+            cur.execute(
+                "INSERT INTO translations (source, target, direction, confidence) "
+                "VALUES (?,?,?,?)",
+                (explanation, glosses[0], "en-zo", 0.5),
+            )
+        _ = entry_id  # core schema needs no per-entry FTS side table
         inserted += 1
     conn.commit()
     return inserted

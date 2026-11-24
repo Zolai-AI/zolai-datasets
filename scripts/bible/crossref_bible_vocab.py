@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
 """.. deprecated::
     Consolidated into bible_knowledge_builder.py → VocabularyBuilder.
     This script is kept for reference only.
 """
 # DEPRECATED — see bible_knowledge_builder.py → VocabularyBuilder
+
+# Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
 """
 1. Build bible_parallel_tbr17.jsonl (TBR17 × KJV aligned pairs)
 2. Fix number words in dictionary (sawmnih=20, sawmguk=60, etc.)
@@ -23,8 +25,6 @@ Usage:
 import json
 import re
 import sqlite3
-import sys
-from pathlib import Path
 from xml.etree import ElementTree as ET
 
 # ── Path resolution ─────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 DATA    = Path("data/master/sources")
 COMBINED = Path("data/master/combined")
 BIBLE   = Path("resources/Chin-Bible")
-DB_PATH = Path("data/zolai.db")
+DB_PATH = db_path()
 GAPS    = Path("data/processed/bible_vocab_real_gaps.jsonl")
 OUT_RESOLVED = Path("data/processed/bible_vocab_resolved.jsonl")
 OUT_STILL_MISSING = Path("data/processed/bible_vocab_still_missing.jsonl")

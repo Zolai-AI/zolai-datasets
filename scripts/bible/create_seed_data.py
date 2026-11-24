@@ -6,7 +6,11 @@ Extracts 500 high-quality translation pairs from existing data.
 
 import json
 import random
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
 
 def load_jsonl(filepath):
     """Load JSONL file."""
@@ -89,7 +93,7 @@ def extract_grammar_examples(grammar_patterns, n=50):
 
 def main():
     # Paths
-    data_dir = Path('/home/peter/Documents/Projects/zolai-ai/data')
+    data_dir = Path(str(data_root()))
     output_dir = data_dir / 'training'
     output_dir.mkdir(exist_ok=True)
     

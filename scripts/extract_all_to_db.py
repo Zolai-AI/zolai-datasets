@@ -14,13 +14,21 @@ import re
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
-from db import connect  # dual-engine
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
-DB_PATH = Path("data/zolai.db")
-
+# Builds its own *_enhanced schema (dictionary_enhanced / vocabulary_enhanced /
+# bible_verses_enhanced / tone_patterns), none of which exist in the core store.
+# Superseded by zolai-core's ingest pipeline; kept runnable against a scratch file
+# so running it cannot litter the shared database. Canonical mappings:
+#   dictionary_enhanced   -> dictionary + zolai_vocabulary
+#   vocabulary_enhanced   -> zolai_vocabulary
+#   bible_verses_enhanced -> bible_study_analysis
+#   tone_patterns         -> tone_patterns (already in core)
+DB_PATH = db_path(name="extract_all_scratch.db")
 # Source categories for proper tracking
 SOURCE_CATEGORIES = {
     "reference": "Authoritative reference materials",

@@ -7,7 +7,7 @@ switching storage engines is a **configuration change, not a code change**.
 
 | `ZOLAI_DB_URL` | Engine | Driver |
 |---|---|---|
-| unset (default) | SQLite at the script's own path, else `data/zolai.db` at repo root | stdlib `sqlite3` (zero-dependency) |
+| unset (default) | SQLite at the canonical core DB, `<workspace>/data/zolai.db` (override with `ZOLAI_DB_PATH` / `ZOLAI_DATA_ROOT`) | stdlib `sqlite3` (zero-dependency) |
 | `sqlite:///path/to/db.sqlite3` | SQLite at an explicit path (relative = repo-root-anchored) | stdlib `sqlite3` |
 | `postgresql://user:pass@host:5432/db` | PostgreSQL | `psycopg` (v3; psycopg2 auto-detected as fallback) |
 | `postgres://user:pass@host:5432/db` | PostgreSQL (alias) | as above |
@@ -27,10 +27,21 @@ PostgreSQL needs the optional extra (SQLite needs nothing):
 pip install "psycopg[binary]"
 ```
 
-Resolution order for `connect(url=...)`: an explicit URL containing `://` →
-`ZOLAI_DB_URL` (this is what makes engine switching config-only) → the bare
-path argument a script passes (sqlite, unchanged legacy behaviour) →
-`sqlite:///data/zolai.db` at repo root.
+Resolution order for `connect(url=...)`:
+
+1. an explicit URL containing `://` (a PostgreSQL URL always wins);
+2. `ZOLAI_DB_URL` — this is what makes engine switching config-only;
+3. `ZOLAI_DB_PATH` — canonical path override, same variable as `zolai-core`;
+4. `ZOLAI_DATA_ROOT`/zolai.db, then the legacy `DATA`/zolai.db;
+5. the bare path argument a script passes (sqlite) — anchored at the repo root,
+   but redirected to the same-named file under the workspace `data/` dir when
+   the repo-local copy is absent;
+6. `<workspace>/data/zolai.db`, then `<repo root>/data/zolai.db`.
+
+The canonical database is the ~2.9 GB / 132-table store beside this repo
+(`../data/zolai.db`), owned by `zolai-core`. Scripts must not create a private,
+empty `data/zolai.db`; `db_path()` returns the resolved core path, and
+`data_root()` returns its parent directory for corpus files.
 
 ## Usage from a script
 
@@ -38,8 +49,9 @@ path argument a script passes (sqlite, unchanged legacy behaviour) →
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from db import connect, row_to_dict
+from db import connect, db_path, row_to_dict
 
+DB_PATH = db_path()                    # canonical core DB, or env override
 conn = connect(DB_PATH)                # honours ZOLAI_DB_URL first
 cur = conn.execute("SELECT * FROM dictionary WHERE zolai = ?", ("pasian",))
 row = cur.fetchone()
@@ -49,9 +61,12 @@ conn.close()
 
 `connect()` is a drop-in replacement for `sqlite3.connect()`: same
 `execute / executemany / commit / rollback / close / cursor / executescript`,
-same cursor `fetchone / fetchall / rowcount`, and dict-like rows on **both**
-engines (`row["col"]`, `row[0]`, and iteration all work). On SQLite it also
-applies `PRAGMA journal_mode=WAL`, `busy_timeout`, and `foreign_keys=ON`.
+same cursor `fetchone / fetchall / rowcount / lastrowid`, and dict-like rows
+on **both** engines (`row["col"]`, `row[0]`, and iteration all work). On SQLite
+it also applies `PRAGMA journal_mode=WAL`, `busy_timeout`, and
+`foreign_keys=ON`. PostgreSQL has no `lastrowid`; for INSERTs into tables with
+an `id` column the cursor appends `RETURNING id` automatically, so
+`cur.lastrowid` behaves the same on both engines.
 
 ## Portability rules (why both engines behave alike)
 
@@ -78,6 +93,9 @@ scripts (`database/regenerate_db.py`, `database/clean_database.py`,
 `online/migrate_schema.py`, `dictionary/build_dictionary_db.py`, and similar)
 still contain `INSERT OR REPLACE/IGNORE`, `PRAGMA` **introspection**
 (`PRAGMA table_info(…)` through `execute()`), or `sqlite_master` queries.
+Every such file carries a `# sqlite-only` marker; list them with
+`grep -rn '# sqlite-only' scripts`. These are not database *access* scripts, so
+they never appear in the normal read/build path against PostgreSQL.
 `AUTOINCREMENT` and script-level `PRAGMA` lines are already translated by
 `executescript()`; the remaining pockets have no PostgreSQL equivalent without
 knowing the conflict target or a catalog rewrite, so they run under the default
@@ -85,6 +103,20 @@ sqlite engine — on PostgreSQL, apply the schema out-of-band (Prisma) and keep
 these scripts as sqlite tooling.
 `scripts/bible/menu.sh` also embeds small interactive sqlite snippets and is
 intentionally left as-is.
+
+## Rebuild safety
+
+A builder that `os.remove(DB_PATH)` + recreates the schema must never point at
+the canonical store. Give it a sibling file and guard the delete:
+
+```python
+DB_PATH = db_path(name="dictionary/db/zvs_master_dictionary.db")
+assert_rebuildable(DB_PATH, purpose="rebuild the dictionary builder DB")
+```
+
+`assert_rebuildable()` refuses to delete the core DB (or any file with 50+
+tables) unless `ZOLAI_ALLOW_CORE_REBUILD=1` is set after a backup. This is why
+the builders above no longer target `data/zolai.db`.
 
 ## Schema / migrations
 

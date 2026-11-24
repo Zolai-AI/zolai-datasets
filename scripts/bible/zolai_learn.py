@@ -10,9 +10,13 @@ Goal = ANY human can learn Zolai from scratch
 
 import json
 import random
+import sys
 from pathlib import Path
 
-DATA = Path("/home/peter/Documents/Projects/zolai-ai/data")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
+
+DATA = Path(str(data_root()))
 LEARNING = DATA / "bible" / "language_learning"
 DICT = DATA / "dictionary" / "processed"
 

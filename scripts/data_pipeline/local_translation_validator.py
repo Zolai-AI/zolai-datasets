@@ -11,7 +11,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-PROJECT_ROOT = Path('/home/peter/Documents/Projects/zolai')
+PROJECT_ROOT = Path(str(Path.home() / 'Documents/Projects/zolai'))
 WIKI_DIR = PROJECT_ROOT / 'wiki'
 ARTIFACTS_DIR = PROJECT_ROOT / 'artifacts'
 

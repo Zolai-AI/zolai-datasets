@@ -5,14 +5,15 @@ import sqlite3
 import sys
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
-DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
-ARTICLES_PATH = "/home/peter/Downloads/Kaggle/data/processed/articles_standardized.jsonl"
-SIMBU_PATH = "/home/peter/Downloads/Kaggle/data/processed/zolai_simbu_dataset_clean.jsonl"
+DB_PATH = db_path()
+ARTICLES_PATH = str(Path.home() / 'Downloads/Kaggle/data/processed/articles_standardized.jsonl')
+SIMBU_PATH = str(Path.home() / 'Downloads/Kaggle/data/processed/zolai_simbu_dataset_clean.jsonl')
 
 
 def integrate_articles(conn: sqlite3.Connection, path: str) -> int:

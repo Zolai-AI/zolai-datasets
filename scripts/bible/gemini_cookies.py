@@ -2,6 +2,9 @@
 All Gemini scripts import this instead of GeminiClient() directly.
 """
 
+import sys
+from pathlib import Path
+
 import browser_cookie3
 
 _cached_psid = None
@@ -35,7 +38,7 @@ def get_gemini_cookies():
 def get_gemini_client():
     """Create a properly-authenticated GeminiClient."""
     import sys
-    sys.path.insert(0, '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
+    sys.path.insert(0, str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi'))
     from gemini_webapi import GeminiClient
     
     psid, psidts = get_gemini_cookies()

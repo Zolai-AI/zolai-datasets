@@ -4,6 +4,8 @@ Gemini POS Gold Dataset — Generate gold-standard POS tags from Bible verses.
 Uses EnsembleVoter with multi-model ensemble voting (configurable).
 """
 import asyncio
+import hashlib
+from datetime import datetime, timezone
 import json
 import os
 import sqlite3
@@ -12,16 +14,16 @@ import argparse
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path, data_root
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 sys.path.insert(
     0,
     os.environ.get(
         "ZOLAI_AI_LOCAL",
-        "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local",
+        str(data_root().parent / "zolai-ai-local"),
     ),
 )
 
@@ -32,23 +34,28 @@ try:
 except ImportError:
     HAS_ENSEMBLE = False
 
-DB_PATH = Path(os.environ.get("DATA", "data")) / "zolai.db"
+DB_PATH = db_path()
 POS_TAGS = (
     "NOUN VERB ADJ ADV PRON DET POST CONJ PART NUM INTJ PUNCT"
 )
 
-# ── Table creation ────────────────────────────────────────────────────────────
-CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS pos_gold (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sentence TEXT NOT NULL,
-    tokens TEXT NOT NULL,
-    tags TEXT NOT NULL,
-    source_verse TEXT,
-    source TEXT DEFAULT 'gemini',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+# ── Canonical target ─────────────────────────────────────────────────────────
+# The core DB already owns this shape: ``canonical_sentences`` holds
+# (text, tokens, pos_tags) with provenance in verified_by/source_hash, which is
+# what zolai-core reads for sentence-level POS gold. Creating a parallel
+# ``pos_gold`` table inside the shared store would leave a second, unroutable
+# copy of the same annotation set.
+INSERT_SENTENCE_SQL = """
+INSERT INTO canonical_sentences
+    (text, tokens, pos_tags, source_hash, verified_at, verified_by, version,
+     created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
+
+
+def _source_hash(ref: str, tokens_json: str) -> str:
+    """16-hex digest matching the ``canonical_sentences.source_hash`` format."""
+    return hashlib.sha256(f"{ref}|{tokens_json}".encode("utf-8")).hexdigest()[:16]
 
 
 def get_db() -> sqlite3.Connection:
@@ -58,9 +65,13 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
-def ensure_table(conn: sqlite3.Connection) -> None:
-    conn.execute(CREATE_TABLE_SQL)
-    conn.commit()
+def ensure_table(conn) -> None:
+    """No-op: ``canonical_sentences`` is created and owned by zolai-core.
+
+    Kept so existing call sites read the same; the script must never DDL the
+    shared store.
+    """
+    return
 
 
 async def pos_tag_verse(
@@ -95,10 +106,13 @@ async def run(args: argparse.Namespace) -> None:
     conn = get_db()
     ensure_table(conn)
 
+    # Provenance is recorded as verified_by='gemini-ensemble:<ref>'; the verse ref
+    # itself is no longer a column, so de-duplicate on that marker instead.
     existing = {
-        row[0]
+        row[0].rsplit(":", 1)[-1]
         for row in conn.execute(
-            "SELECT source_verse FROM pos_gold"
+            "SELECT verified_by FROM canonical_sentences "
+            "WHERE verified_by LIKE 'gemini-ensemble:%'"
         ).fetchall()
     }
 
@@ -129,16 +143,18 @@ async def run(args: argparse.Namespace) -> None:
         if result:
             data, conf = result
             conn = get_db()
+            now = datetime.now(timezone.utc).isoformat()
             conn.execute(
-                "INSERT INTO pos_gold "
-                "(sentence, tokens, tags, source_verse, source) "
-                "VALUES (?, ?, ?, ?, ?)",
+                INSERT_SENTENCE_SQL,
                 (
                     data["sentence"],
                     data["tokens"],
                     data["tags"],
-                    data["source_verse"],
-                    f"gemini-ensemble({args.strategy},{conf:.2f})",
+                    _source_hash(data["source_verse"], data["tokens"]),
+                    now,
+                    f"gemini-ensemble:{data['source_verse']}",
+                    1,
+                    now,
                 ),
             )
             conn.commit()

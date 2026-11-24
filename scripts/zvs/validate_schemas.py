@@ -1,11 +1,14 @@
 """Validate all canonical schemas against real data files."""
 import os
 import sys
-sys.path.insert(0, "/home/peter/Documents/Projects/zolai-ai/zolai-core")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
+sys.path.insert(0, str(data_root().parent / "zolai-core"))
 
 from zolai.data.schemas import validate_file, CANONICAL_SCHEMAS
 
-DATA_ROOT = "/home/peter/Documents/Projects/zolai-ai/data"
+DATA_ROOT = str(data_root())
 
 for filename, (schema, subdir) in CANONICAL_SCHEMAS.items():
     path = os.path.join(DATA_ROOT, subdir, filename)

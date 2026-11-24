@@ -44,7 +44,9 @@ Optional dependency (only needed for postgres): ``pip install "psycopg[binary]"`
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -91,6 +93,10 @@ __all__ = [
     "db_path",
     "resolve_url",
     "translate_ddl",
+    "assert_rebuildable",
+    "table_columns",
+    "check_sql_columns",
+    "assert_schema",
 ]
 
 
@@ -138,7 +144,12 @@ def db_path(value: "str | Path | None" = None, *, name: str = "zolai.db") -> Pat
             if "://" in raw:
                 return Path(_anchor_relative(_sqlite_path_from_url(raw)))
             p = Path(raw).expanduser()
-            return p if p.is_absolute() else _anchor_relative(raw) and Path(_anchor_relative(raw))
+            if p.is_absolute():
+                return p
+            if p.parent == Path("."):
+                # A bare filename is a sibling dataset of the canonical DB.
+                return _core_db_path().parent / p.name
+            return Path(_anchor_relative(raw))
     if os.environ.get("ZOLAI_DB_URL", "").strip() and "://" in os.environ["ZOLAI_DB_URL"]:
         url = os.environ["ZOLAI_DB_URL"].strip().lower()
         if url.startswith(("postgres://", "postgresql://", "pg://")):
@@ -286,15 +297,37 @@ def _open_sqlite(path_or_url: str, timeout: float) -> SqliteConn:
 # ── postgres ────────────────────────────────────────────────────────────────
 
 
+_INSERT_RE = re.compile(r"^\s*insert\b", re.IGNORECASE)
+_RETURNING_RE = re.compile(r"\breturning\b", re.IGNORECASE)
+_INSERT_TARGET_RE = re.compile(
+    r"^\s*insert\s+(?:or\s+\w+\s+)?into\s+([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)",
+    re.IGNORECASE,
+)
+
+
 class _PgCursor:
     """Thin cursor wrapper: translates ``?`` → ``%s`` and yields Row objects."""
 
     def __init__(self, raw: Any, conn: "PgConn") -> None:
         self._raw = raw
         self._conn = conn
+        self._lastrowid: Any = None
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> "_PgCursor":
-        self._raw.execute(self._conn.translate(sql), tuple(params) if params else None)
+        translated = self._conn.translate(sql)
+        self._lastrowid = None
+        if _INSERT_RE.match(translated) and not _RETURNING_RE.search(translated):
+            match = _INSERT_TARGET_RE.match(translated)
+            if match and self._conn._table_has_id(match.group(1)):
+                # sqlite3.Cursor.lastrowid parity: PostgreSQL has no lastrowid,
+                # so ask for the generated key explicitly.
+                body = translated.rstrip().rstrip(";")
+                self._raw.execute(body + " RETURNING id",
+                                  tuple(params) if params else None)
+                row = self._raw.fetchone()
+                self._lastrowid = row[0] if row else None
+                return self
+        self._raw.execute(translated, tuple(params) if params else None)
         return self
 
     def executemany(self, sql: str, seq: Iterable[Iterable[Any]]) -> "_PgCursor":
@@ -323,8 +356,8 @@ class _PgCursor:
         return self._raw.rowcount
 
     @property
-    def lastrowid(self) -> Any:  # parity helper; use RETURNING id for portability
-        return getattr(self._raw, "lastrowid", None)
+    def lastrowid(self) -> Any:
+        return self._lastrowid if self._lastrowid is not None else getattr(self._raw, "lastrowid", None)
 
     def close(self) -> None:
         self._raw.close()
@@ -350,10 +383,42 @@ class PgConn:
 
     dialect = "postgres"
 
+    @property
+    def row_factory(self) -> Any:
+        # Scripts assign sqlite3.Row after connect(); PgConn already returns
+        # dict-like Row objects, so accept the assignment as a no-op.
+        return Row
+
+    @row_factory.setter
+    def row_factory(self, value: Any) -> None:
+        pass
+
     def __init__(self, conninfo: str) -> None:
         self.conninfo = conninfo
         self._raw: Any = None
         self._module = ""
+        self._id_columns: dict[str, bool] = {}
+
+    def _table_has_id(self, table: str) -> bool:
+        """Whether ``table`` exposes an ``id`` column (cached per connection).
+
+        Used to decide if an INSERT can emit ``RETURNING id`` for lastrowid
+        parity. Tables without an ``id`` column simply keep lastrowid None.
+        """
+        key = table.lower()
+        if key not in self._id_columns:
+            name = key.rsplit(".", 1)[-1].strip('"')
+            cursor = self.raw.cursor()
+            try:
+                cursor.execute(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = %s AND column_name = 'id' LIMIT 1",
+                    (name,),
+                )
+                self._id_columns[key] = cursor.fetchone() is not None
+            finally:
+                cursor.close()
+        return self._id_columns[key]
 
     def _import(self):
         try:
@@ -541,3 +606,146 @@ def connect(url: str | None = None, *, timeout: float = 30.0) -> Any:
     if dialect == "sqlite":
         return _open_sqlite(target, timeout)
     return PgConn(target)
+
+
+# ── Core-schema guard ────────────────────────────────────────────────────────
+
+_WRITE_RE = re.compile(
+    r"\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+([a-zA-Z_][\w]*)\s*\(([^)]*)\)"
+    r"|\bUPDATE\s+([a-zA-Z_][\w]*)\s+SET\s+(.*?)(?:\bWHERE\b|$)",
+    re.I | re.S,
+)
+
+
+def table_columns(conn, table: str) -> set[str] | None:
+    """Live column names for ``table`` (``None`` when the table is absent)."""
+    if getattr(conn, "dialect", "sqlite") == "postgres":
+        cur = conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = ?",
+            (table,),
+        )
+        names = {str(r[0]) for r in cur.fetchall()}
+    else:
+        cur = conn.execute(f"PRAGMA table_info('{table.replace(chr(39), '')}')")
+        names = {str(r[1]) for r in cur.fetchall()}
+    return names or None
+
+
+def check_sql_columns(conn, sql: str) -> list[str]:
+    """Return human-readable problems for a single write statement.
+
+    The core database is a 2.9 GB shared store with an established schema
+    (``dictionary.zolai``/``english``/``source``, not the older
+    ``headword``/``sources``/``raw_json``). Scripts that predate the merge still
+    emit those stale names; without this guard they die deep inside a loop with a
+    bare ``OperationalError``, sometimes after earlier batches have committed.
+    """
+    problems: list[str] = []
+    for m in _WRITE_RE.finditer(sql):
+        table = (m.group(1) or m.group(3) or "").lower()
+        body = m.group(2) if m.group(1) else m.group(4)
+        if not table or body is None:
+            continue
+        live = table_columns(conn, table)
+        if live is None:
+            problems.append(
+                f"table {table!r} does not exist in the core database"
+            )
+            continue
+        if m.group(1):  # INSERT … (cols)
+            names = [c.strip().strip('"`[]') for c in body.split(",")]
+        else:  # UPDATE … SET a=?, b=?
+            names = [c.split("=")[0].strip().strip('"`[]') for c in body.split(",")]
+        lowered = {c.lower() for c in live}
+        missing = [
+            n for n in names
+            if n and not n.startswith("?") and "%" not in n and n.lower() not in lowered
+        ]
+        for n in missing:
+            problems.append(
+                f"{table}.{n!r} is not a column of the core schema "
+                f"(has: {', '.join(sorted(live)[:6])}…)"
+            )
+    return problems
+
+
+def assert_schema(conn, *statements: str, strict: bool = True) -> None:
+    """Raise :class:`DbError` if any write targets a column the core DB lacks.
+
+    Call this once, before a migration/backfill loop, so a stale script fails at
+    startup instead of leaving a half-written table behind.
+    """
+    found = [f"[{i}] {p}" for i, s in enumerate(statements)
+             for p in check_sql_columns(conn, s)]
+    if found and strict:
+        raise DbError(
+            "Script schema does not match the core database:\n  "
+            + "\n  ".join(found)
+            + "\n\nThe canonical schema is defined by zolai-core "
+              "(prisma/schema.prisma). Update this script's column names, or "
+              "point ZOLAI_DB_URL at a scratch database while developing."
+        )
+
+
+# ── Destructive-operation guard ──────────────────────────────────────────────
+
+#: Set this env var to acknowledge rebuilding the canonical database in place.
+DESTRUCTIVE_ACK_ENV = "ZOLAI_ALLOW_CORE_REBUILD"
+
+_CORE_TABLE_COUNT = 50  # a scratch builder never legitimately sees this many tables
+
+
+def assert_rebuildable(path: "str | Path", *, purpose: str = "rebuild") -> Path:
+    """Refuse to delete/recreate the canonical core database by accident.
+
+    Several dataset scripts were written against a private scratch file and later
+    repointed at ``data/zolai.db``. Their ``os.remove(DB_PATH)`` + ``CREATE TABLE``
+    flow therefore wipes the whole shared store — 2.9 GB, ~132 tables, owned by
+    ``zolai-core`` — the first time anyone runs them. Builders must either write a
+    sibling file (``db_path(name="dictionary/db/…")``) or set
+    ``ZOLAI_ALLOW_CORE_REBUILD=1`` after taking a backup.
+    """
+    target = Path(path).expanduser()
+    try:
+        resolved = target.resolve()
+    except OSError:
+        resolved = target
+    core = _core_db_path().resolve()
+    looks_like_core = resolved == core or _table_count(resolved) >= _CORE_TABLE_COUNT
+
+    if not looks_like_core:
+        return target
+    if os.environ.get(DESTRUCTIVE_ACK_ENV, "").strip().lower() in {"1", "true", "yes"}:
+        print(
+            f"[db] {DESTRUCTIVE_ACK_ENV} is set — {purpose} will DESTROY the core "
+            f"database at {core}. A backup is your responsibility.",
+            file=sys.stderr,
+        )
+        return target
+    raise DbError(
+        f"Refusing to {purpose} the canonical core database: {core}\n"
+        "  This script was written against its own scratch file. Give it one:\n"
+        f"      DB_PATH = db_path(name='dictionary/db/{target.name or 'builder.db'}')\n"
+        "  Or, if you really mean to rebuild the core store, back it up first and run:\n"
+        f"      {DESTRUCTIVE_ACK_ENV}=1 python3 <this script>\n"
+        "  The core schema is owned by zolai-core; recreating it here would also drop "
+        "the tables the platform API depends on."
+    )
+
+
+def _table_count(path: Path) -> int:
+    """How many tables a sqlite file holds (0 when missing or unreadable)."""
+    try:
+        if not path.exists():
+            return 0
+        probe = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return 0
+    try:
+        row = probe.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()
+        return int(row[0]) if row else 0
+    except sqlite3.Error:
+        return 0
+    finally:
+        probe.close()

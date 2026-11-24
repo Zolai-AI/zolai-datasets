@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -21,7 +23,7 @@ C = "\033[0;36m"
 NC = "\033[0m"
 
 # Load grammar patterns
-GRAMMAR_PATTERNS = Path("/home/peter/Documents/Projects/zolai-ai/data/bible/grammar_patterns_text.jsonl")
+GRAMMAR_PATTERNS = (data_root().parent / "data/bible/grammar_patterns_text.jsonl")
 patterns_db = load_jsonl(GRAMMAR_PATTERNS)
 matcher = GrammarMatcher(patterns_db)
 

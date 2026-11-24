@@ -3,10 +3,9 @@ import re
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect
 
 """
 Zo_Tdm (Tedim) Unified Data Pipeline v2

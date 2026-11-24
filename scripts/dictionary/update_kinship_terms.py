@@ -8,6 +8,7 @@ import json
 
 # ── Path resolution ─────────────────────────────────────────────────────────
 import os
+from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
 os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root

@@ -4,11 +4,12 @@ Pcore-brain routes Zolai translations through this when called.
 """
 
 import sys
+from pathlib import Path
 import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-sys.path.insert(0, '/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
+sys.path.insert(0, str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi'))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gemini-zolai-proxy")

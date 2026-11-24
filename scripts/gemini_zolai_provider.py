@@ -5,11 +5,12 @@ Runs on port 4080. Uses Chrome browser cookies (no API key).
 
 import sys
 import os
+from pathlib import Path
 
 # Hardcoded paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BIBLE_DIR = os.path.join(SCRIPT_DIR, "bible")
-WEB_API = "/home/peter/Documents/Project/pcore/pcore-webai/packages/gemini-webapi"
+WEB_API = str(Path.home() / 'Documents/Project/pcore/pcore-webai/packages/gemini-webapi')
 
 for p in [SCRIPT_DIR, BIBLE_DIR, WEB_API]:
     if p not in sys.path:

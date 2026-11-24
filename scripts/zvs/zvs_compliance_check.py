@@ -2,13 +2,11 @@ import json
 import sys
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
 
-DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
-
+DB_PATH = db_path()
 # ZVS 2018 forbidden forms (local rules)
 FORBIDDEN_FORMS = {
     "pathian": "pasian",
@@ -94,7 +92,7 @@ def process_batch(batch_size=500, mode="local"):
     
     if mode == "gemini":
         try:
-            BIBLE_DIR = "/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/bible"
+            BIBLE_DIR = str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts/bible')
             if BIBLE_DIR not in sys.path:
                 sys.path.insert(0, BIBLE_DIR)
             from gemini_cookies import get_gemini_client

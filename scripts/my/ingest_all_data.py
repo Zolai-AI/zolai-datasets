@@ -25,18 +25,17 @@ from pathlib import Path
 from typing import Any
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 WORKSPACE = Path(__file__).resolve().parents[3]
 DATA_DIR = WORKSPACE / "data"
-DB_PATH = DATA_DIR / "zolai.db"
-
+DB_PATH = db_path()
 DICT_DIR = DATA_DIR / "dictionary" / "processed"
 BIBLE_CONTEXT_DIR = DATA_DIR / "bible" / "context"
 BIBLE_DIR = DATA_DIR / "bible"
@@ -550,8 +549,8 @@ class DataIngester:
         cur = self.conn.cursor()
         total_inserted = 0
 
-        # 2a. Per-book analysis → zolai_bible_analysis (analysis_type="book")
-        print("\n  [2a] per_book_analysis.jsonl → zolai_bible_analysis")
+        # 2a. Per-book analysis → bible_analysis (analysis_type="book")
+        print("\n  [2a] per_book_analysis.jsonl → bible_analysis")
         book_data = load_jsonl(SOURCE_FILES["per_book_analysis"]["path"])
         if book_data:
             rows = []
@@ -561,19 +560,19 @@ class DataIngester:
                 rows.append((book, None, "book", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
+                    "INSERT INTO bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["zolai_bible_analysis_book"] = {"inserted": len(rows)}
+            self.stats["bible_analysis_book"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("per_book_analysis",
                                     SOURCE_FILES["per_book_analysis"], len(rows))
 
-        # 2b. Per-chapter analysis → zolai_bible_analysis (analysis_type="chapter")
-        print("\n  [2b] per_chapter_analysis.jsonl → zolai_bible_analysis")
+        # 2b. Per-chapter analysis → bible_analysis (analysis_type="chapter")
+        print("\n  [2b] per_chapter_analysis.jsonl → bible_analysis")
         chap_data = load_jsonl(SOURCE_FILES["per_chapter_analysis"]["path"])
         if chap_data:
             rows = []
@@ -588,20 +587,20 @@ class DataIngester:
                 rows.append((book, chap_num, "chapter", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
+                    "INSERT INTO bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["zolai_bible_analysis_chapter"] = {"inserted": len(rows)}
+            self.stats["bible_analysis_chapter"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("per_chapter_analysis",
                                     SOURCE_FILES["per_chapter_analysis"],
                                     len(rows))
 
-        # 2c. Topic clusters → zolai_bible_analysis (analysis_type="topic")
-        print("\n  [2c] topic_clusters.jsonl → zolai_bible_analysis")
+        # 2c. Topic clusters → bible_analysis (analysis_type="topic")
+        print("\n  [2c] topic_clusters.jsonl → bible_analysis")
         topics = load_jsonl(SOURCE_FILES["topic_clusters"]["path"])
         if topics:
             rows = []
@@ -611,13 +610,13 @@ class DataIngester:
                 rows.append((topic, None, "topic", data_json))
             if rows and not self.dry_run:
                 cur.executemany(
-                    "INSERT INTO zolai_bible_analysis (book, chapter, analysis_type, data) "
+                    "INSERT INTO bible_analysis (book, chapter, analysis_type, data) "
                     "VALUES (?, ?, ?, ?)",
                     rows,
                 )
                 self.conn.commit()
             total_inserted += len(rows)
-            self.stats["zolai_bible_analysis_topic"] = {"inserted": len(rows)}
+            self.stats["bible_analysis_topic"] = {"inserted": len(rows)}
             print(f"    Inserted: {len(rows):,}")
             self._record_provenance("topic_clusters",
                                     SOURCE_FILES["topic_clusters"], len(rows))
@@ -1042,7 +1041,7 @@ class DataIngester:
                     total_updated += 1
             if ex_updates and not self.dry_run:
                 cur.executemany(
-                    "UPDATE zolai_vocabulary SET examples = ? WHERE id = ?",
+                    "UPDATE vocabulary SET examples = ? WHERE id = ?",
                     ex_updates,
                 )
                 self.conn.commit()
@@ -1080,7 +1079,7 @@ class DataIngester:
                     total_updated += 1
             if freq_updates and not self.dry_run:
                 cur.executemany(
-                    "UPDATE zolai_vocabulary SET frequency = ? WHERE id = ?",
+                    "UPDATE vocabulary SET frequency = ? WHERE id = ?",
                     freq_updates,
                 )
                 self.conn.commit()

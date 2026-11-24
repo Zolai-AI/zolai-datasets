@@ -5,10 +5,14 @@ Finds: wrong definitions, missing words, rare words, Hakha/Falam intrusions.
 
 import json
 import re
+import sys
 from pathlib import Path
 from collections import Counter, defaultdict
 
-DATA_ROOT = Path("/home/peter/Documents/Projects/zolai-ai/data")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
+
+DATA_ROOT = Path(str(data_root()))
 
 def load_bible_words():
     """Load all Zolai words from Bible with frequency."""

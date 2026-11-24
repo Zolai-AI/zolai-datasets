@@ -13,7 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 
 # Bible JSON directory
-BIBLE_DIR = Path("/home/peter/Documents/Linguistics/Zolai/bible-master/json")
+BIBLE_DIR = Path(str(Path.home() / 'Documents/Linguistics/Zolai/bible-master/json'))
 
 # Version files
 VERSIONS = {

@@ -14,13 +14,13 @@ import re
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
-from db import connect  # dual-engine
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
-DB_PATH = Path("data/zolai.db")
-
+DB_PATH = db_path()
 def get_db():
     conn = connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -58,8 +58,8 @@ def ensure_tables(conn):
             confidence REAL DEFAULT 1.0,
             zvs_compliant INTEGER DEFAULT 1,
             notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT,
+            updated_at TEXT,
             UNIQUE(zolai, source_category, source_file)
         )
     """)
@@ -88,7 +88,7 @@ def ensure_tables(conn):
             source_line INTEGER,
             frequency INTEGER DEFAULT 1,
             confidence REAL DEFAULT 1.0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT
         )
     """)
     
@@ -110,7 +110,7 @@ def ensure_tables(conn):
             compounds_found TEXT,    -- JSON array
             rare_words TEXT,         -- JSON array
             source_version TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT
         )
     """)
     
@@ -127,13 +127,13 @@ def ensure_tables(conn):
             cultural_context TEXT,
             source_category TEXT,
             source_file TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT
         )
     """)
     
     # Tone sandhi rules
     c.execute("""
-        CREATE TABLE IF NOT EXISTS zolai_tone_sandhi (
+        CREATE TABLE IF NOT EXISTS tone_sandhi (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             rule_number TEXT,
             rule_name TEXT,
@@ -144,7 +144,7 @@ def ensure_tables(conn):
             domain TEXT,              -- toponyms, general, etc.
             source_category TEXT,
             source_file TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT
         )
     """)
     
@@ -156,7 +156,7 @@ def ensure_tables(conn):
         "CREATE INDEX IF NOT EXISTS idx_vocab_compound ON zolai_vocabulary(is_compound)",
         "CREATE INDEX IF NOT EXISTS idx_grammar_type ON zolai_grammar_patterns(pattern_type)",
         "CREATE INDEX IF NOT EXISTS idx_bible_ref ON zolai_bible_analysis(book_code, chapter, verse)",
-        "CREATE INDEX IF NOT EXISTS idx_tone_word ON zolai_tone_sandhi(underlying_pattern)",
+        "CREATE INDEX IF NOT EXISTS idx_tone_word ON tone_sandhi(underlying_pattern)",
     ]:
         c.execute(idx)
     
@@ -294,7 +294,7 @@ def load_tone_sandhi_rules(conn):
     
     for num, name, underlying, surface, cond in rules:
         c.execute("""
-            INSERT OR IGNORE INTO zolai_tone_sandhi 
+            INSERT OR IGNORE INTO tone_sandhi
             (rule_number, rule_name, underlying_pattern, surface_pattern, condition, domain, source_category, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (num, name, underlying, surface, cond, 'toponyms/general', 'reference', tone_file.name))

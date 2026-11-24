@@ -32,13 +32,14 @@ from pathlib import Path
 from typing import Any
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[0]))
-from db import connect  # dual-engine
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
+from db import connect, db_path, data_root
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 # ── Data paths (relative to workspace root) ─────────────────────────
-WORKSPACE = Path("/home/peter/Documents/Projects/zolai-ai")
+WORKSPACE = data_root().parent
 DATA_ROOT = WORKSPACE / "data"
 DICT_PATH = DATA_ROOT / "dictionary" / "processed" / "dict_zo_en_master_v1.jsonl"
 BIBLE_PATH = DATA_ROOT / "bible" / "parallel_corpus_v1.jsonl"
@@ -46,7 +47,7 @@ ALIGN_PATH = DATA_ROOT / "bible" / "word_alignments_v1.jsonl"
 PHRASES_PATH = DATA_ROOT / "bible" / "phrases_v1.jsonl"
 CORPUS_PATH = DATA_ROOT / "corpus" / "corpus_unified_v1.jsonl"
 LOG_DIR = DATA_ROOT / "audit_logs"
-DB_PATH = DATA_ROOT / "zolai.db"
+DB_PATH = db_path()
 CORPUS_SAMPLE_LIMIT = 100_000  # first N lines of corpus_unified
 
 
@@ -762,7 +763,6 @@ class GeminiCrossChecker:
         if self._client is not None:
             return True
         try:
-            import sys
             bible_dir = str(WORKSPACE / "zolai-datasets" / "scripts" / "bible")
             if bible_dir not in sys.path:
                 sys.path.insert(0, bible_dir)

@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-d = "/home/peter/Documents/Projects/zolai-ai/data/raw/Zomi Worship Collective/"
+d = str(Path.home() / 'Documents/Projects/zolai-ai/data/raw/Zomi Worship Collective')
 files = sorted(os.listdir(d))
 batch = files[100:120]
 

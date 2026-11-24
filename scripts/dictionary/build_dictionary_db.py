@@ -3,10 +3,12 @@ import os
 import re
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path, assert_rebuildable
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 # ── Path resolution ─────────────────────────────────────────────────────────
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -16,8 +18,10 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 
 # File paths
 JSONL_PATH = 'data/dictionary/processed/dict_canonical_v1.jsonl'
-DB_PATH = 'data/zolai.db'
-
+# This builder creates its own scratch schema (entries/stems/fts_idx), so it must
+# NOT point at the shared core store, where `dictionary` is the headword table and
+# `os.remove(DB_PATH)` below would delete the whole platform database.
+DB_PATH = db_path(name="dictionary/db/zvs_master_dictionary.db")
 def setup_db(conn):
     c = conn.cursor()
     # Main Entry Table
@@ -67,6 +71,7 @@ def migrate():
         print(f"Error: {JSONL_PATH} not found.")
         return
 
+    assert_rebuildable(DB_PATH, purpose="rebuild the dictionary builder database")
     if os.path.exists(DB_PATH):
         os.remove(DB_PATH)
 

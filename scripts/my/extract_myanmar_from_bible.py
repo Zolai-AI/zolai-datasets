@@ -20,17 +20,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 WORKSPACE = Path(__file__).resolve().parents[3]
-DB_PATH = WORKSPACE / "data" / "zolai.db"
-
+DB_PATH = db_path()
 MYANMAR_RE = re.compile(r"[\u1000-\u109F]+")
 
 INSERT_AUDIT = """

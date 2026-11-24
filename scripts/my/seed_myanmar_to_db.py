@@ -19,18 +19,16 @@ import sys
 from pathlib import Path
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE = SCRIPT_DIR.parents[2]  # zolai-ai root
 
 DICT_PATH = WORKSPACE / "data" / "processed" / "my" / "dict_zo_my_v1.jsonl"
-DB_PATH = WORKSPACE / "data" / "zolai.db"
-
-
+DB_PATH = db_path()
 def load_my_entries() -> dict[str, str]:
     """Load ZO→MY dictionary, deduplicated by headword."""
     entries: dict[str, str] = {}

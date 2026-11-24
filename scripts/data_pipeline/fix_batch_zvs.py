@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 def fix_entry(entry):
     # Basic Zolai Standard corrections: joined compounds, phonetic/orthographic rules

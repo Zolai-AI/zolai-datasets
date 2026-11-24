@@ -17,10 +17,8 @@ from pathlib import Path
 import requests
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
 
 # ══════════════════════════════════════════════════════════════════════
 # PATHS
@@ -403,7 +401,7 @@ def study_book(book_code: str, verses: list, engine: GlossingEngine,
     # Save to master database
     try:
         import sqlite3 as _sqlite3
-        _db = connect(str(DATA_ROOT.parent / "zolai.db"))
+        _db = connect(db_path())
         _now = datetime.now().isoformat()
         _ai_words = []
         for r in results:

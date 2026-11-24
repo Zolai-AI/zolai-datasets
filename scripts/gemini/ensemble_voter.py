@@ -12,16 +12,15 @@ import argparse
 from typing import Any, ClassVar
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path, data_root
 
 sys.path.insert(
     0,
     os.environ.get(
         "ZOLAI_AI_LOCAL",
-        "/home/peter/Documents/Projects/zolai-ai/zolai-ai-local",
+        str(data_root().parent / "zolai-ai-local"),
     ),
 )
 
@@ -33,7 +32,7 @@ except ImportError:
     HAS_LOCAL = False
 
 # ── DB Path ─────────────────────────────────────────────────────────────────
-DB_PATH = os.environ.get("ZOLAI_DB_PATH", "/home/peter/Documents/Projects/zolai-ai/data/zolai.db")
+DB_PATH = os.environ.get("ZOLAI_DB_PATH", str(db_path()))
 
 
 def save_model_result(

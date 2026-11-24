@@ -14,14 +14,16 @@ import os
 import re
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
+DB_PATH = db_path()
+
 
 # Add bible dir for gemini_cookies
-SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
-BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts', 'bible')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py')))
+BIBLE_DIR = os.path.join(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts'), 'bible')
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
@@ -61,7 +63,7 @@ def extract_clean_headword(zolai_text):
 
 async def update_database_from_jsonl():
     """Update the database with clean headwords from JSONL."""
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     
     # Load all entries from JSONL

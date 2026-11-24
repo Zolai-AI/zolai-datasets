@@ -1,5 +1,6 @@
+from pathlib import Path
 
-path = "/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai_provider.py"
+path = str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai_provider.py')
 with open(path) as f:
     content = f.read()
 

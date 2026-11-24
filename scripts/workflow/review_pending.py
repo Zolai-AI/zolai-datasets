@@ -2,10 +2,13 @@
 import asyncio
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
+DB_PATH = db_path()
+
 """
 Interactive Human Review Workflow for Gemini-Generated Dictionary Updates.
 
@@ -16,12 +19,11 @@ After review, regenerates JSONL files from approved entries only.
 """
 
 import json
-import sys
 import os
 
 # Add bible dir
-SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
-BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts', 'bible')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py')))
+BIBLE_DIR = os.path.join(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts'), 'bible')
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
@@ -29,7 +31,7 @@ if BIBLE_DIR not in sys.path:
 
 def get_pending_entries(limit=50):
     """Get entries pending human review."""
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     cur.execute(
         "SELECT id, zolai, entry_version, update_remarks, update_description, zvs_compliance_status FROM dictionary WHERE zvs_compliance_status='pending' LIMIT ?",
@@ -42,7 +44,7 @@ def get_pending_entries(limit=50):
 
 def update_entry_status(entry_id, new_status, remarks=None, description=None):
     """Update entry status in database."""
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     
     # Get current version and bump it
@@ -73,7 +75,7 @@ def update_entry_status(entry_id, new_status, remarks=None, description=None):
 
 def regenerate_jsonl_from_approved():
     """Regenerate JSONL files from entries with status='approved'."""
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     
     # Get all approved entries

@@ -17,18 +17,31 @@ import re
 import shutil
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
 
-# Add bible dir for gemini_cookies
-SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
-BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts', 'bible')
-if BIBLE_DIR not in sys.path:
-    sys.path.insert(0, BIBLE_DIR)
+SCRIPT_DIR = Path(__file__).resolve().parent          # .../scripts/database
+SCRIPTS_DIR = SCRIPT_DIR.parent                       # .../scripts
+sys.path.insert(0, str(SCRIPTS_DIR))
+from db import connect, db_path, assert_rebuildable
+# sqlite-only: PRAGMA / AUTOINCREMENT / INSERT OR REPLACE / sqlite_master
+# / FTS5 have no PostgreSQL equivalent; run this script on the sqlite engine.
+
+# Adjacent bible helpers (relative, not a hardcoded home-directory path).
+BIBLE_DIR = SCRIPTS_DIR / "bible"
+if str(BIBLE_DIR) not in sys.path:
+    sys.path.insert(0, str(BIBLE_DIR))
 
 import asyncio
+from datetime import datetime, timezone
+
+
+def _now_iso() -> str:
+    """ISO-8601 UTC timestamp string — the format the core DB stores dates in.
+
+    Replaces ``CURRENT_TIMESTAMP`` defaults, which SQLite writes space-separated
+    ('2026-01-02 03:04:05') and which sort wrongly beside canonical rows.
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 
 def extract_clean_headword(zolai_text):
@@ -93,13 +106,16 @@ async def rebuild_database():
     
     # Backup existing database
     backup_path = 'data/zolai.db.bak'
-    original_path = 'data/zolai.db'
+    # Rebuilds a scratch dictionary from verified JSONL. Targeting the core store
+    # here would os.remove() the platform database a few lines below.
+    original_path = str(db_path(name="dictionary/db/zvs_master_dictionary.db"))
     
     if os.path.exists(original_path):
         shutil.copy2(original_path, backup_path)
         print(f"Backed up existing DB to {backup_path}")
     
     # Remove existing database to rebuild
+    assert_rebuildable(original_path, purpose="rebuild the regenerated dictionary DB")
     if os.path.exists(original_path):
         os.remove(original_path)
     
@@ -120,8 +136,8 @@ async def rebuild_database():
             update_remarks TEXT DEFAULT '',
             update_description TEXT DEFAULT '',
             zvs_compliance_status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT,
+            updated_at TEXT
         )
     ''')
     
@@ -141,7 +157,7 @@ async def rebuild_database():
             entry_id INTEGER,
             source_file TEXT,
             source_line INTEGER,
-            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            imported_at TEXT,
             UNIQUE (entry_id, source_file)
         )
     ''')
@@ -187,11 +203,15 @@ async def rebuild_database():
         
         # Try to insert, handle duplicates
         try:
+            # This builder's own schema is ``entries`` (created above); ``dictionary``
+            # is the core store's headword table with different columns and is not
+            # created here, so an INSERT into it failed even in a scratch database.
             cur.execute(
-                '''INSERT INTO dictionary 
-                   (headword, pos, english, sources, raw_json, entry_version, 
-                    update_remarks, update_description, zvs_compliance_status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                '''INSERT INTO entries
+                   (headword, pos, english, sources, raw_json, entry_version,
+                    update_remarks, update_description, zvs_compliance_status,
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (headword_clean,
                  entry.get('pos', ''),
                  english[:500] if isinstance(english, str) else str(english)[:500],
@@ -200,7 +220,8 @@ async def rebuild_database():
                  entry.get('entry_version', 'v1.0'),
                  entry.get('update_remarks', ''),
                  entry.get('update_description', ''),
-                 entry.get('zvs_compliance_status', 'pending'))
+                 entry.get('zvs_compliance_status', 'pending'),
+                 _now_iso(), _now_iso())
             )
             updated += 1
         except sqlite3.IntegrityError as e:

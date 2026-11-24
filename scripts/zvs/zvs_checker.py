@@ -24,14 +24,16 @@ import os
 import re
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
+
+DB_PATH = db_path()
+
 
 # Add bible dir for gemini_cookies
-SCRIPT_DIR = os.path.dirname(os.path.abspath('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py'))
-BIBLE_DIR = os.path.join('/home/peter/Documents/Projects/zolai-ai/zolai-datasets/scripts', 'bible')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts/gemini_zolai.py')))
+BIBLE_DIR = os.path.join(str(Path.home() / 'Documents/Projects/zolai-ai/zolai-datasets/scripts'), 'bible')
 if BIBLE_DIR not in sys.path:
     sys.path.insert(0, BIBLE_DIR)
 
@@ -126,7 +128,7 @@ Return ONLY valid JSON, no code blocks, no explanations:
 
 async def process_all_entries(batch_size=100):
     """Process all entries in the dictionary database for ZVS compliance."""
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     
     # Get all entries that need processing
@@ -234,7 +236,7 @@ async def process_all_entries(batch_size=100):
 async def main():
     # First, let's test with a few known entries
     print("=== TESTING WITH SAMPLE ENTRIES ===")
-    conn = connect('data/zolai.db')
+    conn = connect(str(DB_PATH))
     cur = conn.cursor()
     cur.execute("SELECT * FROM dictionary LIMIT 5")
     test_rows = cur.fetchall()

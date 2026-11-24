@@ -2,10 +2,11 @@
 """Phase 6.5: Convert lesson PDFs to markdown via pdftotext."""
 import os
 import subprocess
+from pathlib import Path
 
-DB_PATH = "/home/peter/Documents/Projects/zolai-ai/data/zolai.db"
-PDF_BASE = "/home/peter/Downloads/Kaggle/data/Zolai Lessons"
-OUT_DIR = "/home/peter/Documents/Projects/zolai-ai/data/reference/grammar"
+DB_PATH = str(Path.home() / 'Documents/Projects/zolai-ai/data/zolai.db')
+PDF_BASE = str(Path.home() / 'Downloads/Kaggle/data/Zolai Lessons')
+OUT_DIR = str(Path.home() / 'Documents/Projects/zolai-ai/data/reference/grammar')
 
 # (filename, output_name)
 PDF_MAP = [

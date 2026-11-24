@@ -25,10 +25,8 @@ from pathlib import Path
 import os
 
 # Dual-engine DB access: sqlite by default, ZOLAI_DB_URL switches to postgres.
-import sys as _zolai_db_sys
-from pathlib import Path as _zolai_db_Path
-_zolai_db_sys.path.insert(0, str(_zolai_db_Path(__file__).resolve().parents[1]))
-from db import connect  # dual-engine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import connect, db_path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent  # zolai-datasets/
 os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
@@ -36,7 +34,7 @@ os.chdir(_REPO_ROOT)  # data/ paths are relative to repo root
 
 DATA     = Path("data/master/sources")
 COMBINED = Path("data/master/combined")
-DB_PATH  = Path("data/zolai.db")
+DB_PATH = db_path()
 OUT_VOCAB   = Path("data/processed/bible_vocab")
 PROGRESS    = Path("data/processed/bible_vocab_pipeline_progress.json")
 GAPS_OUT    = Path("data/processed/bible_vocab_still_missing.jsonl")
@@ -160,24 +158,38 @@ def db_headwords(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in cur.fetchall()}
 
 
-def db_insert(entry: dict, conn: sqlite3.Connection) -> bool:
+def db_insert(entry: dict, conn) -> bool:
+    """Insert a new headword into the core ``dictionary`` table.
+
+    ``dictionary`` has no ``root`` column — etymology/derivation lives in
+    ``zolai_vocabulary.root_word`` and structured extras on a dictionary row go
+    into ``morph_features`` (JSON text), which is where the root is recorded here.
+    ``confidence`` is REAL, so it is written as a number rather than a string.
+    """
     cur = conn.cursor()
     hw = entry["zolai"].strip()
     cur.execute("SELECT id FROM dictionary WHERE LOWER(zolai)=?", (hw.lower(),))
     if cur.fetchone():
         return False
+    root = str(entry.get("root", "") or "").strip()
     try:
         cur.execute(
             """INSERT INTO dictionary
-               (zolai, english, pos, root, confidence, source)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (zolai, english, english_clean, pos, morph_features, confidence,
+                source, source_type, review_status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 hw,
                 entry.get("english", ""),
+                str(entry.get("english", "")).lower(),
                 entry.get("pos", ""),
-                entry.get("root", ""),
+                json.dumps({"root": root}, ensure_ascii=False) if root else "{}",
                 float(entry.get("confidence", 0) or 0),
                 "bible_vocab_pipeline",
+                "generated",
+                "pending",
+                _now_iso(),
+                _now_iso(),
             ),
         )
         conn.commit()

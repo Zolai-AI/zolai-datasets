@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Analyze Zomi Worship Collective songs 41-60 — improved version."""
 import re
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from db import data_root
+
 # Song directory
-SONG_DIR = Path("/home/peter/Documents/Projects/zolai-ai/data/raw/Zomi Worship Collective/")
-OUTPUT_FILE = Path("/home/peter/Documents/Projects/zolai-ai/zolai-wiki/grammar/song_analysis_zomi_worship_batch3.md")
+SONG_DIR = (data_root().parent / "data/raw/Zomi Worship Collective/")
+OUTPUT_FILE = (data_root().parent / "zolai-wiki/grammar/song_analysis_zomi_worship_batch3.md")
 
 # Get songs 41-60
 files = sorted(SONG_DIR.glob("*.txt"))
