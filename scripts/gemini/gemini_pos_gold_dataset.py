@@ -47,9 +47,9 @@ POS_TAGS = (
 # copy of the same annotation set.
 INSERT_SENTENCE_SQL = """
 INSERT INTO canonical_sentences
-    (text, tokens, pos_tags, source_hash, verified_at, verified_by, version,
-     created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (text, tokens, pos_tags, grammar, source_hash, evidence_ids, verified_at,
+     verified_by, version, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -150,7 +150,11 @@ async def run(args: argparse.Namespace) -> None:
                     data["sentence"],
                     data["tokens"],
                     data["tags"],
+                    # grammar/evidence_ids are NOT NULL in the core schema; an
+                    # ensemble POS pass has neither yet, so record the empties.
+                    "{}",
                     _source_hash(data["source_verse"], data["tokens"]),
+                    "[]",
                     now,
                     f"gemini-ensemble:{data['source_verse']}",
                     1,

@@ -66,6 +66,12 @@ def _literals(path: pathlib.Path):
                 yield node.lineno or 0, text
 
 
+def _required_missing(live, table, supplied):
+    """NOT NULL columns with no default that the INSERT leaves out."""
+    rows = live.get(f"{table}::__required__") or []
+    return [c for c in rows if c not in supplied and c != "id"]
+
+
 def _cols_of(live: dict[str, list[str]], table: str) -> set[str] | None:
     names = live.get(table)
     return {c.lower() for c in names} if names else None
@@ -123,12 +129,22 @@ def audit(root: pathlib.Path, live: dict[str, list[str]], tables: set[str]):
                 #   INSERT INTO t_fts(t_fts) VALUES('rebuild')
                 if body.strip().strip('"`[]').lower() == table:
                     continue
-                for col in (c.strip().strip('"`[]') for c in body.split(",")):
-                    if col and col.lower() not in have:
+                supplied = [c.strip().strip('"`[]').lower()
+                            for c in body.split(",") if c.strip()]
+                for col in supplied:
+                    if col and col not in have:
                         findings.append({"file": str(rel), "line": line,
                                          "kind": "bad-column",
                                          "detail": f"INSERT {table}.{col}",
                                          "severity": "error"})
+                # A column that is NOT NULL without a DEFAULT and absent from the
+                # INSERT list raises IntegrityError at runtime, which the
+                # column-name check above cannot see.
+                for col in _required_missing(live, table, supplied):
+                    findings.append({"file": str(rel), "line": line,
+                                     "kind": "missing-required",
+                                     "detail": f"INSERT {table} omits NOT NULL {col}",
+                                     "severity": "error"})
             for m in _UPDATE.finditer(sql):
                 table, body = m.group(1).lower(), m.group(2)
                 if not targets_core and table in own:
@@ -190,15 +206,24 @@ def main() -> int:
         tables = {r[0].lower() for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type IN ('table','view')")}
         for t in sorted(tables):
-            live[t] = [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]
+            info = list(conn.execute(f'PRAGMA table_info("{t}")'))
+            live[t] = [r[1] for r in info]
+            live[f"{t}::__required__"] = [
+                r[1] for r in info if r[3] and r[4] is None and not r[5]
+            ]
     else:
         tables = {r[0].lower() for r in conn.execute(
             "SELECT table_name FROM information_schema.tables "
             "WHERE table_schema = 'public'")}
         for t in sorted(tables):
-            live[t] = [r[0] for r in conn.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = 'public' AND table_name = ?", (t,))]
+            info = list(conn.execute(
+                "SELECT column_name, is_nullable, column_default "
+                "FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = ?", (t,)))
+            live[t] = [r[0] for r in info]
+            live[f"{t}::__required__"] = [
+                r[0] for r in info if r[1] == "NO" and r[2] is None
+            ]
     conn.close()
 
     print(f"Schema source: {dialect} → "

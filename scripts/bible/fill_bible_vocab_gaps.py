@@ -208,9 +208,10 @@ def insert_to_db(entries: list[dict], conn) -> int:
         explanation = str(e.get("explanation", "")).strip()
         if explanation and glosses:
             cur.execute(
-                "INSERT INTO translations (source, target, direction, confidence) "
-                "VALUES (?,?,?,?)",
-                (explanation, glosses[0], "en-zo", 0.5),
+                "INSERT INTO translations "
+                "(source, target, direction, reference, confidence) "
+                "VALUES (?,?,?,?,?)",
+                (explanation, glosses[0], "en-zo", hw, 0.5),
             )
         _ = entry_id  # core schema needs no per-entry FTS side table
         inserted += 1
