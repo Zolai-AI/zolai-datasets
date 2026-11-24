@@ -7,7 +7,7 @@ system (core / web / tauri / datasets / training / wiki). Read the six-file
 `context/` set at session start — it is the ground truth for **this repo only**.
 
 ## Shared Data
-- Corpora, datasets, and bulk artifacts live in the container shared folder at `../data` (relative to this repo). This is **not** committed to this repo — it is a shared, gitignored directory (6.3G) across all six repos. This repo holds build scripts and metadata pointers; the actual data is in `../data/`.
+- Corpora, datasets, and bulk artifacts live in the container shared folder at `../data` (relative to this repo). This is **not** committed to this repo — it is a shared, gitignored directory across the Zolai-AI org repos. This repo holds build scripts and metadata pointers; the actual data is in `../data/`.
 - See `../data/README.md` and `../data/DATA_INDEX.md` for data inventory.
 
 ## Scoping
@@ -57,3 +57,20 @@ manifest version, RAG feed). See `README.md` > Connect.
 
 - Dataset JSONL/manifests and build scripts are tracked data: never embed API keys in translation-batch configs or manifests (`scripts/dictionary/batch_myanmar_translation.py` reads keys from env only, placeholders in `*.example`).
 - Canonical rules: workspace-root `AGENTS.md` § Secret Hygiene. Full procedure: `../context/code-standards.md` § Secret Hygiene — Prevention. Staged-change scan gate: `secret-scan` subagent; checklist: `secret-hygiene` skill. Do not duplicate that block here.
+
+## Workspace alignment (2026-11-24)
+
+`zolai-datasets` builds corpora from the canonical `data/zolai.db`; attribution and
+reuse rules stay as documented. This repo follows the workspace-canonical 7-stage
+SDLC and document map.
+
+### ALIGNMENT RECORD — zolai-datasets
+
+- Canonical SDLC: [`../docs/SDLC.md`](../docs/SDLC.md)
+- Canonical source-of-truth: [`../docs/governance/source-of-truth.md`](../docs/governance/source-of-truth.md)
+- Status: aligned 2026-11-24; no data, schema, or migration change made by this pass.
+
+### BACKEND/CORE ALIGNMENT RECORD — zolai-datasets
+
+- Python build/import scripts remain authoritative; `no @nestjs dependency found — do not add`.
+- Rust/Cargo: Cargo is Tauri native layer only (`../zolai-tauri/src-tauri/Cargo.toml`); no Rust service layer added.
