@@ -123,3 +123,65 @@ the builders above no longer target `data/zolai.db`.
 `scripts/db.py` moves **data**, not schema. For managed schema evolution use
 Prisma (`zolai-core/prisma/schema.prisma` is the schema of record) via
 `prisma migrate`, or the dedicated migration scripts in `scripts/database/`.
+
+## Core-database schema (canonical)
+
+`data/zolai.db` (~2.9 GB, 132 tables) is owned by **zolai-core**. Dataset scripts
+read and write it, but never define it. The headword tables are:
+
+| Table | Key columns | Notes |
+|---|---|---|
+| `dictionary` | `zolai`, `english`, `english_clean`, `myanmar`, `pos`, `source`, `morph_features` | one row per headword; only `zolai` is NOT NULL |
+| `dictionary_meanings` | `dictionary_id`, `zolai`, `meaning_en`, `example_zo`, `example_en`, `is_primary` | senses/examples, FK → `dictionary.id` |
+| `dictionary_en_zo` | `headword`, `translations`, `pos`, `source` | English → Zolai reverse index |
+| `vocabulary` | `headword`, `english`, `frequency`, `books`, `examples` | SRS columns (`ease_factor`, `interval`, …) live here |
+| `zolai_vocabulary` | `zolai`, `root_word`, `tone_category`, `frequency_bible`/`_corpus`/`_songs` | richer sibling; **different columns** from `vocabulary` |
+| `translations` | `source`, `target`, `direction`, `reference`, `confidence` | all five NOT NULL; **not** `(entry_id, translation)` |
+| `canonical_sentences` | `text`, `tokens`, `pos_tags`, `grammar`, `source_hash`, `evidence_ids` | sentence-level POS gold |
+| `bible_analysis` | `book`, `chapter`, `analysis_type`, `data` | document-level analysis |
+| `bible_study_analysis` | `ref`, `book`, `chapter`, `verse`, `zo_text`, `en_text`, `my_text` | per-verse study notes |
+| `tone_sandhi` | `rule_number`, `underlying_pattern`, `surface_pattern`, `condition` | **not** `zolai_tone_sandhi` |
+
+The core DB contains duplicate-ish pairs (`proverbs`/`zolai_proverbs_idioms`,
+`vocabulary`/`zolai_vocabulary`, `grammar_patterns`/`zolai_grammar_patterns`,
+`bible_analysis`/`zolai_bible_analysis`) from historical merges. Both are
+populated, so pick by column shape, not by name preference, and do not add a third.
+
+### Column names scripts got wrong
+
+The pre-merge dictionary schema used `headword` / `sources` / `raw_json`. In the
+core store those are `zolai` / `source` / (spread across real columns, with
+free-form extras in `morph_features` as JSON text). A script that still writes
+the old names fails mid-loop, sometimes after earlier batches committed.
+
+### Builders must not target the core DB
+
+`build_dictionary_db.py` and `regenerate_db.py` create a private schema
+(`entries`, `stems`, `fts_idx`) and **`os.remove()` their target first**. Pointed
+at `data/zolai.db` that deletes the entire platform database. They now use
+`db_path(name="dictionary/db/zvs_master_dictionary.db")` and call
+`assert_rebuildable()` before deleting, which refuses the core path unless
+`ZOLAI_ALLOW_CORE_REBUILD=1` is set.
+
+## Auditing
+
+`audit_core_schema.py` parses SQL literals out of every script and checks them
+against the live schema — bad columns, missing tables, omitted NOT NULL columns,
+and `CREATE TABLE`s that would add a table to the core store.
+
+```bash
+python3 scripts/audit_core_schema.py            # report
+python3 scripts/audit_core_schema.py --strict    # exit 1 on errors (CI)
+python3 scripts/audit_core_schema.py --json      # machine-readable
+```
+
+Scripts that own a scratch database are exempt: tables they `CREATE` themselves
+are theirs, not core-schema violations.
+
+## Portability
+
+Timestamps are ISO-8601 strings written by Python
+(`datetime.now(timezone.utc).isoformat()`), never `CURRENT_TIMESTAMP` /
+`datetime('now')` / `strftime`, which emit the space-separated form that sorts
+wrongly beside canonical rows. Placeholders stay `?`; `db.connect()` translates
+them to `%s` for Postgres.
