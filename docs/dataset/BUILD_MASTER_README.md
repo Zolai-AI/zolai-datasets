@@ -6,13 +6,13 @@ This script builds a unified master dataset from all Zolai language resources.
 
 ### Option 1: Using Shell Script (Recommended)
 ```bash
-cd /home/peter/Documents/Projects/zolai
+cd $ZOLAI_PROJECTS/zolai
 ./run_build_master.sh
 ```
 
 ### Option 2: Direct Python
 ```bash
-cd /home/peter/Documents/Projects/zolai
+cd $ZOLAI_PROJECTS/zolai
 python3 build_master_dataset.py
 ```
 

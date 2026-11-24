@@ -1,12 +1,15 @@
 """Comprehensive tests for all zolai-datasets Bible scripts."""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO / "scripts" / "bible"
-DATA = Path("/home/peter/Documents/Projects/zolai-ai/data")
+# Workspace data dir, resolved the same way scripts/db.py does it, so the suite
+# runs on any checkout (and in CI) instead of one person's home directory.
+DATA = Path(os.environ.get("ZOLAI_DATA_ROOT") or REPO.parent / "data")
 
 
 def run(cmd, timeout=30):
